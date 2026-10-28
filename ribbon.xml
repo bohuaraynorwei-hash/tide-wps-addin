@@ -1,0 +1,30 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnAddinLoad">
+    <ribbon startFromScratch="false">
+        <tabs>
+            <tab id="tideTab" label="Tide 术语审校">
+                <group id="tideAuditGroup" label="审校">
+                    <button id="btnOpenPane" label="打开面板" size="large"
+                            onAction="OnAction"
+                            screentip="打开 Tide 侧栏"
+                            supertip="在侧栏中导入术语表、扫描当前工作表并查看命中条目。" />
+                    <button id="btnScanSheet" label="扫描当前表" size="large"
+                            onAction="OnAction"
+                            screentip="扫描当前工作表"
+                            supertip="按术语表逐条匹配中文源文，列出命中行与中英对照。" />
+                </group>
+                <group id="tideArchiveGroup" label="记录">
+                    <button id="btnHistory" label="修改记录" size="large"
+                            onAction="OnAction"
+                            screentip="打开修改归档"
+                            supertip="查看本工作簿已记录的单元格改动，可导出。" />
+                </group>
+                <group id="tideSyncGroup" label="同步">
+                    <button id="btnSync" label="同步" size="large"
+                            onAction="OnAction"
+                            screentip="GitHub 同步"
+                            supertip="需要口令；上传范围与授权方式见侧栏同步页。" />
+                </group>
+            </tab>
+        </tabs>
+    </ribbon>
+</customUI>

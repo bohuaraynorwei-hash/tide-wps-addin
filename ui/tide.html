@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tide · 术语审校</title>
+  <link rel="stylesheet" href="tide.css">
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">TIDE</span>
+    <span class="doc" id="docName">未连接 WPS</span>
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="matches" class="on">命中</button>
+    <button data-tab="terms">术语</button>
+    <button data-tab="history">记录</button>
+    <button data-tab="sync">同步</button>
+    <button data-tab="settings">设置</button>
+  </nav>
+
+  <main>
+    <section id="panel-matches">
+      <div class="toolbar">
+        <button class="act" id="btnScan">扫描当前表</button>
+        <span class="count" id="matchCount">未扫描</span>
+      </div>
+      <table id="matchTable" hidden>
+        <thead><tr><th>行</th><th>源文命中</th><th>批准译法</th><th>当前译文</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="matchEmpty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
+    </section>
+
+    <section id="panel-terms" hidden>
+      <div class="toolbar"><span class="count" id="termCount">术语表未导入</span></div>
+      <table id="termTable" hidden>
+        <thead><tr><th>中文</th><th>英文</th><th>命中</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="termEmpty">尚未导入术语表。<br>到「设置」页导入 JSON。</div>
+    </section>
+
+    <section id="panel-history" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnExport">导出加密归档</button>
+        <button class="act ghost" id="btnClear">清空</button>
+        <span class="count" id="historyCount">0 条</span>
+      </div>
+      <div class="note">每次扫描会对比上一次快照，记录单元格的旧值与新值。归档以口令加密后只存在本机。</div>
+      <div class="lockbar" id="lockBar">
+        <div class="field">
+          <label>归档口令</label>
+          <input id="passInput" type="password" placeholder="至少 8 位">
+        </div>
+        <div class="toolbar">
+          <button class="act" id="btnUnlock">解锁归档</button>
+          <button class="act ghost" id="btnSetPass" hidden>设置口令</button>
+        </div>
+        <div class="status" id="lockStatus"></div>
+      </div>
+      <table id="historyTable" hidden>
+        <thead><tr><th>时间</th><th>表</th><th>单元格</th><th>变化</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="historyEmpty">暂无修改记录。</div>
+    </section>
+
+    <section id="panel-sync" hidden>
+      <div class="field">
+        <label>仓库</label>
+        <input id="syncRepo" placeholder="owner/repo">
+      </div>
+      <div class="field">
+        <label>分支</label>
+        <input id="syncBranch" placeholder="main">
+      </div>
+      <div class="field">
+        <label>口令</label>
+        <input id="syncPass" type="password" placeholder="上传前输入">
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnPull" disabled>拉取</button>
+        <button class="act" id="btnPush" disabled>上传</button>
+      </div>
+      <div class="note danger">
+        上传会把本机数据发到 GitHub。工作区规则要求本地化数据不出本机，
+        因此该功能默认禁用，需你明确授权并指定仓库与内容范围后才可启用。
+      </div>
+      <div class="hint">口令只用于解锁本机助手，不会上传；GitHub 令牌由助手从环境变量读取。</div>
+      <div class="status" id="syncStatus"></div>
+    </section>
+
+    <section id="panel-settings" hidden>
+      <div class="field">
+        <label>导入术语表（JSON）</label>
+        <input id="termFile" type="file" accept=".json,application/json">
+      </div>
+      <div class="note">格式：<code>[{"zh":"刺鱼","en":"Hook","uid":"action.hook"}]</code>
+        或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
+      <div class="field">
+        <label>列设置（用于当前表）</label>
+        <div class="row2">
+          <input id="colSource" placeholder="源文列 C">
+          <input id="colTarget" placeholder="译文列 F">
+          <input id="colUid" placeholder="UID 列 A">
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnSave">保存设置</button>
+      </div>
+      <div class="status" id="settingsStatus"></div>
+      <div class="hint" id="envHint"></div>
+    </section>
+  </main>
+
+  <script src="../js/engine.js"></script>
+  <script src="../js/crypto.js"></script>
+  <script src="tide.js"></script>
+</body>
+</html>
