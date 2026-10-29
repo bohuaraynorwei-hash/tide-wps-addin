@@ -94,14 +94,48 @@
   function sheetByName(name) {
     var app = sheetApp();
     if (!app || !name) return currentSheet();
+    var book = app.ActiveWorkbook;
+    var sheets = book && book.Worksheets;
+    if (!sheets) return currentSheet();
     try {
-      var book = app.ActiveWorkbook;
-      if (book && book.Worksheets && book.Worksheets.Item) {
-        var found = book.Worksheets.Item(name);
-        if (found) return found;
+      var direct = sheets.Item(name);
+      if (direct) return direct;
+    } catch (err) { /* some hosts only accept an index */ }
+    try {
+      var count = sheets.Count;
+      for (var i = 1; i <= count; i += 1) {
+        var candidate = sheets.Item(i);
+        if (candidate && candidate.Name === name) return candidate;
       }
-    } catch (err) { /* fall through to the active sheet */ }
+    } catch (err2) { /* fall through */ }
     return currentSheet();
+  }
+
+  // Reveal a cell reliably: Application.Goto handles activation + scroll in one
+  // call; otherwise activate the sheet, select, then scroll the window.
+  function revealCell(sheet, address) {
+    if (!sheet) return false;
+    var app = sheetApp();
+    try {
+      var cell = sheet.Range(address);
+      if (app && typeof app.Goto === 'function') {
+        app.Goto(cell, true);
+        return true;
+      }
+    } catch (err) { /* fall back below */ }
+    try {
+      sheet.Activate();
+    } catch (err) { /* already active */ }
+    try {
+      var target = sheet.Range(address);
+      target.Select();
+      if (app && app.ActiveWindow && typeof app.ActiveWindow.ScrollIntoView === 'function') {
+        app.ActiveWindow.ScrollIntoView(target, true);
+      }
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
 
   function activateSheet(sheet) {
@@ -653,17 +687,21 @@
   function locateSource() {
     var entry = currentEntry();
     if (!entry) return;
-    var sheet = activateSheet(entrySheet(entry));
-    if (!sheet) return;
-    sheet.Range(state.settings.sourceCol + entry.row).Select();
+    var address = state.settings.sourceCol + entry.row;
+    var ok = revealCell(entrySheet(entry), address);
+    $('entryCheck').textContent = ok
+      ? '已定位原文 ' + address
+      : '定位失败：请在表格中手动跳到 ' + address;
   }
 
   function locateTarget() {
     var entry = currentEntry();
     if (!entry) return;
-    var sheet = activateSheet(entrySheet(entry));
-    if (!sheet) return;
-    sheet.Range(entryAddress(entry.row)).Select();
+    var address = entryAddress(entry.row);
+    var ok = revealCell(entrySheet(entry), address);
+    $('entryCheck').textContent = ok
+      ? '已定位译文 ' + address
+      : '定位失败：请在表格中手动跳到 ' + address;
   }
 
   function deliveryCheck() {
