@@ -27,7 +27,9 @@
     passphrase: null,
     unlocked: false,
     lastTab: 'matches',
-    helper: { ok: false, token: false }
+    helper: { ok: false, token: false },
+    bundledTerms: [],
+    bundledMeta: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -235,6 +237,32 @@
     });
   }
 
+  function renderTermSource() {
+    var el = $('termSource');
+    if (!el) return;
+    if (state.bundledMeta) {
+      var meta = state.bundledMeta;
+      el.textContent = '内置术语表 ' + meta.count + ' 条 · ' + meta.source + ' · 构建 ' +
+        String(meta.built_at || '').slice(0, 10) + (state.terms.length ? '' : '（未启用）');
+    } else {
+      el.textContent = '内置术语表未加载；可用「导入术语表」或「恢复内置术语表」。';
+    }
+  }
+
+  // Bundled termbase ships with the add-in; a user import still wins until reset.
+  function loadBundled() {
+    return fetch('../data/terms.json').then(function (response) {
+      return response.ok ? response.json() : null;
+    }).then(function (data) {
+      if (!data || !Array.isArray(data.terms)) return null;
+      state.bundledTerms = window.TideEngine.parseTermbase(data.terms);
+      state.bundledMeta = data.meta || { count: state.bundledTerms.length, source: 'bundled' };
+      return state.bundledTerms;
+    }).catch(function () {
+      return null;
+    });
+  }
+
   function renderLock() {
     var exists = !!window.localStorage.getItem(K.archive);
     $('btnUnlock').hidden = !exists || state.unlocked;
@@ -398,6 +426,29 @@
       await saveArchive();
       renderHistory();
     });
+    $('btnResetTerms').addEventListener('click', function () {
+      if (!state.bundledTerms.length) {
+        $('settingsStatus').textContent = '没有可恢复的内置术语表。';
+        return;
+      }
+      state.terms = state.bundledTerms.slice();
+      window.localStorage.removeItem(K.terms);
+      $('settingsStatus').textContent = '已恢复内置术语表：' + state.terms.length + ' 条。';
+      renderTermSource();
+      renderTerms();
+    });
+    $('btnExportTerms').addEventListener('click', function () {
+      if (!state.terms.length) {
+        $('settingsStatus').textContent = '当前没有可导出的术语。';
+        return;
+      }
+      var blob = new Blob([JSON.stringify({ meta: state.bundledMeta, terms: state.terms }, null, 1)], { type: 'application/json' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'tide-terms.json';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
     $('btnPush').addEventListener('click', pushTerms);
     $('btnPull').addEventListener('click', refreshHelper);
   }
@@ -435,8 +486,14 @@
     var app = sheetApp();
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
-    if (state.terms.length) renderTerms();
     renderLock();
+    renderTermSource();
+    loadBundled().then(function (terms) {
+      if (!terms) { renderTermSource(); return; }
+      if (!state.terms.length) state.terms = terms.slice();
+      renderTermSource();
+      renderTerms();
+    });
     renderHistory();
     watchRibbon();
   }
