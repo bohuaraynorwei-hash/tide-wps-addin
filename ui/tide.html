@@ -17,6 +17,7 @@
     <button data-tab="matches" class="on">命中</button>
     <button data-tab="translate">翻译</button>
     <button data-tab="free">自由</button>
+    <button data-tab="find">搜索</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -124,6 +125,23 @@
         <button class="act ghost" id="btnFreeClear">清空</button>
       </div>
       <div class="hint" id="freeStatus"></div>
+    </section>
+
+    <section id="panel-find" hidden>
+      <div class="field">
+        <label>全表模糊搜索（包含即命中）</label>
+        <input id="findInput" type="search" placeholder="输入片段，如：宝箱">
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnFindAll">搜索整本工作簿</button>
+        <span class="count" id="findCount"></span>
+      </div>
+      <table id="findTable" hidden>
+        <thead><tr><th>表</th><th>单元格</th><th>列</th><th>内容</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" id="findEmpty">输入片段后开始搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
+      <div class="hint" id="findStatus"></div>
     </section>
 
     <section id="panel-terms" hidden>

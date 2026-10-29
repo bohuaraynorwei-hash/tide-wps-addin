@@ -33,6 +33,7 @@
     bundledMeta: null,
     termsBlob: null,
     entries: [],
+    findResults: [],
     sourceDirty: false,
     memory: [],
     cursor: 0,
@@ -541,6 +542,96 @@
       tr.appendChild(tdUse);
       body.appendChild(tr);
     });
+  }
+
+  // ---------- workbook-wide substring search ----------
+
+  function scanSheetFor(sheet, needle) {
+    var hits = [];
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return hits; }
+    if (!used) return hits;
+    var grid;
+    try { grid = toGrid(used.Value2); } catch (err) { return hits; }
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
+    var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
+    for (var i = 0; i < grid.length; i += 1) {
+      var source = srcIdx >= 0 ? cellText(grid, i, srcIdx) : '';
+      if (source && source.toLowerCase().indexOf(needle) > -1) {
+        hits.push({ sheet: sheet.Name, row: startRow + i, column: 'source', text: source });
+      }
+      var target = tgtIdx >= 0 ? cellText(grid, i, tgtIdx) : '';
+      if (target && target.toLowerCase().indexOf(needle) > -1) {
+        hits.push({ sheet: sheet.Name, row: startRow + i, column: 'target', text: target });
+      }
+    }
+    return hits;
+  }
+
+  function renderFind() {
+    var table = $('findTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var results = state.findResults || [];
+    $('findCount').textContent = results.length ? results.length + ' 处命中' : '';
+    table.hidden = results.length === 0;
+    $('findEmpty').hidden = results.length > 0;
+    results.forEach(function (hit) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', hit.sheet, 'num'));
+      tr.appendChild(textNode('td', (hit.column === 'target' ? state.settings.targetCol : state.settings.sourceCol) + hit.row, 'num'));
+      tr.appendChild(textNode('td', hit.column === 'target' ? '译文' : '原文', 'num'));
+      tr.appendChild(textNode('td', hit.text.slice(0, 60), 'hint'));
+      tr.addEventListener('click', function () {
+        var sheet = sheetByName(hit.sheet);
+        var column = hit.column === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+        var ok = revealCell(sheet, column + hit.row);
+        $('findStatus').textContent = ok
+          ? '已跳转 ' + hit.sheet + ' ' + column + hit.row
+          : '跳转失败：' + hit.sheet + ' ' + column + hit.row;
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // Scans one sheet per tick so a 93-sheet workbook does not freeze the pane.
+  function runFind() {
+    var term = $('findInput').value.trim();
+    if (!term) { $('findStatus').textContent = '先输入要搜索的片段。'; return; }
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    if (!book || !book.Worksheets) { $('findStatus').textContent = '未连接工作簿。'; return; }
+    var sheets = book.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    var needle = term.toLowerCase();
+    var results = [];
+    var index = 1;
+    state.findResults = [];
+    $('findStatus').textContent = '搜索中…';
+    $('btnFindAll').disabled = true;
+
+    function step() {
+      if (index > count || results.length >= 200) {
+        state.findResults = results;
+        renderFind();
+        $('btnFindAll').disabled = false;
+        $('findStatus').textContent = results.length >= 200
+          ? '已到 200 条上限，请把片段写长一点。'
+          : '搜索完成：' + results.length + ' 处。';
+        return;
+      }
+      var sheet;
+      try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
+      index += 1;
+      if (sheet) {
+        try { results = results.concat(scanSheetFor(sheet, needle)); } catch (err) { /* skip sheet */ }
+      }
+      window.setTimeout(step, 0);
+    }
+    step();
   }
 
   function renderPosition() {
@@ -1070,13 +1161,14 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
     writeJSON(K.lastTab, name);
     if (name === 'translate') { loadEntries(); renderEntry(); }
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
+    if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
     if (name === 'terms') renderTerms();
     if (name === 'sync') refreshHelper();
@@ -1252,6 +1344,10 @@
       $('freeSource').value = '';
       $('freeDraft').value = '';
       renderFree();
+    });
+    $('btnFindAll').addEventListener('click', runFind);
+    $('findInput').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') runFind();
     });
     $('btnRefreshEntries').addEventListener('click', function () {
       state.sheetMismatch = '';
