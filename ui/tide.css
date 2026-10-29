@@ -44,3 +44,9 @@ mark{background:#f6e4b8;color:inherit;padding:0 1px}
 .note.danger{border-color:var(--accent);background:#fbf0ee;color:#7a2a20}
 .hint{font:11px/1.6 var(--mono);color:var(--muted)}
 .status{font:11px var(--mono);color:var(--pass);margin-top:8px;min-height:16px}
+
+.readbox{border:1px solid var(--hair);background:var(--panel);padding:8px;
+         font-size:13px;line-height:1.55;min-height:44px;white-space:pre-wrap}
+textarea{width:100%;padding:8px;border:1px solid var(--hair);background:var(--panel);
+         font:13px/1.55 var(--sans);color:var(--ink);resize:vertical}
+textarea:focus{outline:2px solid var(--ink);outline-offset:-1px}

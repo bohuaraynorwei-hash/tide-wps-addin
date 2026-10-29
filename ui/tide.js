@@ -31,7 +31,10 @@
     bundledTerms: [],
     matchTerms: [],
     bundledMeta: null,
-    termsBlob: null
+    termsBlob: null,
+    entries: [],
+    cursor: 0,
+    lastWrite: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -304,6 +307,155 @@
     });
   }
 
+  // ---------- translation workspace ----------
+
+  function loadEntries() {
+    var result = buildRows();
+    if (result.error) {
+      state.entries = [];
+      return [];
+    }
+    state.entries = result.rows;
+    var firstEmpty = 0;
+    for (var i = 0; i < state.entries.length; i += 1) {
+      if (!String(state.entries[i].target || '').trim()) { firstEmpty = i; break; }
+    }
+    state.cursor = firstEmpty;
+    return state.entries;
+  }
+
+  function currentEntry() {
+    return state.entries[state.cursor] || null;
+  }
+
+  function entryAddress(row) {
+    return state.settings.targetCol + row;
+  }
+
+  function writeCell(row, value) {
+    var sheet = currentSheet();
+    if (!sheet) return false;
+    var cell = sheet.Range(entryAddress(row));
+    var before = cell.Value2;
+    cell.Value2 = value;
+    state.lastWrite = { row: row, before: before, after: value, address: entryAddress(row) };
+    return true;
+  }
+
+  function recordWrite(entry, before, after) {
+    if (!state.unlocked) return;
+    state.archive.history.push({
+      ts: new Date().toISOString(),
+      sheet: currentSheet() ? currentSheet().Name : '',
+      cell: entryAddress(entry.row),
+      before: before == null ? '' : String(before),
+      after: String(after)
+    });
+    saveArchive();
+  }
+
+  function renderEntry() {
+    var entry = currentEntry();
+    $('entryPos').textContent = state.entries.length
+      ? (state.cursor + 1) + ' / ' + state.entries.length
+      : '0 / 0';
+    if (!entry) {
+      $('entrySource').textContent = '当前表没有可翻译的条目。';
+      $('entryDraft').value = '';
+      $('entryCheck').textContent = '';
+      return;
+    }
+    $('entrySource').textContent = entry.source;
+    $('entryDraft').value = entry.target || '';
+    $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
+  }
+
+  function describeEntry(entry, draft) {
+    var head = '第 ' + entry.row + ' 行 · ' + entryAddress(entry.row);
+    if (!String(draft || '').trim()) return head + ' · 尚未翻译';
+    var check = window.TideEngine.checkTokens(entry.source, draft);
+    if (check.ok) return head + ' · 占位符一致';
+    return head + ' · 占位符不一致：缺 ' + (check.missing.join(' ') || '无') +
+      ' / 多 ' + (check.extra.join(' ') || '无');
+  }
+
+  function move(delta) {
+    if (!state.entries.length) return;
+    state.cursor = Math.min(Math.max(state.cursor + delta, 0), state.entries.length - 1);
+    renderEntry();
+  }
+
+  function writeAndNext() {
+    var entry = currentEntry();
+    if (!entry) return;
+    var sheet = currentSheet();
+    if (!sheet) { $('entryCheck').textContent = '未连接 WPS，无法写入。'; return; }
+    var value = $('entryDraft').value;
+    if (!value.trim()) { $('entryCheck').textContent = '草稿为空，未写入。'; return; }
+    var before = entry.target;
+    if (!writeCell(entry.row, value)) return;
+    var address = entryAddress(entry.row);
+    entry.target = value;
+    recordWrite(entry, before, value);
+    move(1);
+    $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
+  }
+
+  function undoSelf() {
+    if (!state.lastWrite) { $('entryCheck').textContent = '没有可撤销的写入。'; return; }
+    var sheet = currentSheet();
+    if (!sheet) return;
+    sheet.Range(state.lastWrite.address).Value2 = state.lastWrite.before;
+    var entry = null;
+    for (var i = 0; i < state.entries.length; i += 1) {
+      if (state.entries[i].row === state.lastWrite.row) { entry = state.entries[i]; break; }
+    }
+    if (entry) entry.target = state.lastWrite.before == null ? '' : String(state.lastWrite.before);
+    $('entryCheck').textContent = '已撤销 ' + state.lastWrite.address;
+    state.lastWrite = null;
+    renderEntry();
+  }
+
+  function locateTarget() {
+    var entry = currentEntry();
+    var sheet = currentSheet();
+    if (!entry || !sheet) return;
+    sheet.Range(entryAddress(entry.row)).Select();
+  }
+
+  function deliveryCheck() {
+    loadEntries();
+    var issues = [];
+    state.entries.forEach(function (entry) {
+      var target = String(entry.target || '');
+      if (!target.trim()) {
+        issues.push({ row: entry.row, problem: '空译文', source: entry.source });
+        return;
+      }
+      var check = window.TideEngine.checkTokens(entry.source, target);
+      if (!check.ok) {
+        issues.push({ row: entry.row, problem: '占位符不匹配', source: entry.source });
+        return;
+      }
+      if (target === entry.source && window.TideEngine.hasCJK(target)) {
+        issues.push({ row: entry.row, problem: '疑似未翻译', source: entry.source });
+      }
+    });
+    $('deliveryCount').textContent = issues.length + ' 个问题 / ' + state.entries.length + ' 条';
+    var table = $('deliveryTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    table.hidden = issues.length === 0;
+    issues.slice(0, 100).forEach(function (issue) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', String(issue.row), 'num'));
+      tr.appendChild(textNode('td', issue.problem));
+      tr.appendChild(textNode('td', issue.source.slice(0, 40), 'hint'));
+      body.appendChild(tr);
+    });
+    renderEntry();
+  }
+
   function renderLock() {
     var exists = !!window.localStorage.getItem(K.archive);
     $('btnUnlock').hidden = !exists || state.unlocked;
@@ -353,11 +505,12 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
     writeJSON(K.lastTab, name);
+    if (name === 'translate') { loadEntries(); renderEntry(); }
     if (name === 'history') { renderLock(); renderHistory(); }
     if (name === 'terms') renderTerms();
     if (name === 'sync') refreshHelper();
@@ -489,6 +642,17 @@
       link.download = 'tide-terms.json';
       link.click();
       URL.revokeObjectURL(link.href);
+    });
+    $('btnPrevEntry').addEventListener('click', function () { move(-1); });
+    $('btnNextEntry').addEventListener('click', function () { move(1); });
+    $('btnWriteNext').addEventListener('click', writeAndNext);
+    $('btnLocate').addEventListener('click', locateTarget);
+    $('btnUndoWrite').addEventListener('click', undoSelf);
+    $('btnDelivery').addEventListener('click', deliveryCheck);
+    $('entryDraft').addEventListener('input', function () {
+      var entry = currentEntry();
+      if (!entry) return;
+      $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
     });
     $('btnUnlockTerms').addEventListener('click', function () {
       var pass = $('termsPass').value;

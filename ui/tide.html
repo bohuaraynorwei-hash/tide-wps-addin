@@ -14,6 +14,7 @@
 
   <nav id="tabs">
     <button data-tab="matches" class="on">命中</button>
+    <button data-tab="translate">翻译</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -31,6 +32,36 @@
         <tbody></tbody>
       </table>
       <div class="empty" id="matchEmpty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
+    </section>
+
+    <section id="panel-translate" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnPrevEntry">上一条</button>
+        <button class="act ghost" id="btnNextEntry">下一条</button>
+        <span class="count" id="entryPos">0 / 0</span>
+      </div>
+      <div class="field">
+        <label>原文</label>
+        <div class="readbox" id="entrySource">—</div>
+      </div>
+      <div class="field">
+        <label>译文草稿</label>
+        <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnWriteNext">写入并下一条</button>
+        <button class="act ghost" id="btnLocate">定位译文</button>
+        <button class="act ghost" id="btnUndoWrite">撤销上次写入</button>
+      </div>
+      <div class="hint" id="entryCheck"></div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnDelivery">交付检查</button>
+        <span class="count" id="deliveryCount"></span>
+      </div>
+      <table id="deliveryTable" hidden>
+        <thead><tr><th>行</th><th>问题</th><th>原文</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <section id="panel-terms" hidden>
