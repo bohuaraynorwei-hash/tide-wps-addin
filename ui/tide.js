@@ -67,10 +67,11 @@
   })();
 
   function checkForUpdate() {
-    if (!SELF_BUILD) return;
     fetch('../build.json', { cache: 'no-store' }).then(function (response) {
       return response.ok ? response.json() : null;
     }).then(function (data) {
+      // No stamp (pane opened by an older ribbon) is treated as stale, so the
+      // update button still appears at least once.
       if (!data || !data.build || data.build === SELF_BUILD) return;
       var bar = $('updateBar');
       bar.hidden = false;
@@ -126,6 +127,14 @@
     try {
       sheet.Activate();
     } catch (err) { /* already active */ }
+    try {
+      if (app && app.ActiveWindow && typeof app.ActiveWindow.Activate === 'function') {
+        app.ActiveWindow.Activate();
+      }
+    } catch (err) { /* window may already be frontmost */ }
+    try {
+      if (app) app.ActiveSheet = sheet;
+    } catch (err) { /* read-only in some hosts */ }
     try {
       var target = sheet.Range(address);
       target.Select();
