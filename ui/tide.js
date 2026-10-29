@@ -435,9 +435,13 @@
     var entry = currentEntry();
     var dirty = state.sourceDirty || (entry && draft !== (entry.target || ''));
     if (dirty) {
-      $('entryCheck').textContent = '工作表已切换到 ' + name + '：先保存或点「刷新条目」';
+      // Do not overwrite the result line the user is reading; flag it in the
+      // position line instead and wait for an explicit refresh.
+      state.sheetMismatch = name;
+      renderPosition();
       return false;
     }
+    state.sheetMismatch = '';
     loadEntries();
     renderEntry();
     $('entryCheck').textContent = '工作表已切换到 ' + name + '，条目已更新';
@@ -539,12 +543,18 @@
     });
   }
 
-  function renderEntry() {
-    var entry = currentEntry();
+  function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
-    $('entryPos').textContent = state.entries.length
+    var base = state.entries.length
       ? (state.cursor + 1) + ' / ' + state.entries.length + sheetLabel
       : '0 / 0';
+    if (state.sheetMismatch) base += ' · 表已切换，点「刷新条目」';
+    $('entryPos').textContent = base;
+  }
+
+  function renderEntry() {
+    var entry = currentEntry();
+    renderPosition();
     if (!entry) {
       $('entrySource').value = '';
       $('entryDraft').value = '';
@@ -738,6 +748,54 @@
     renderEntry();
   }
 
+  // Look for the text in one sheet: source column first, then target column.
+  function findInSheet(sheet, text) {
+    if (!sheet || !text) return null;
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return null; }
+    if (!used) return null;
+    var grid;
+    try { grid = toGrid(used.Value2); } catch (err) { return null; }
+    if (!grid.length) return null;
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
+    var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
+    var wanted = String(text).trim();
+    for (var i = 0; i < grid.length; i += 1) {
+      if (srcIdx >= 0 && cellText(grid, i, srcIdx).trim() === wanted) {
+        return { row: startRow + i, foundIn: 'source' };
+      }
+    }
+    for (var j = 0; j < grid.length; j += 1) {
+      if (tgtIdx >= 0 && cellText(grid, j, tgtIdx).trim() === wanted) {
+        return { row: startRow + j, foundIn: 'target' };
+      }
+    }
+    return null;
+  }
+
+  // Search the visible sheet, then every other worksheet in the workbook.
+  function findAcrossWorkbook(text) {
+    var current = currentSheet();
+    var local = findInSheet(current, text);
+    if (local) return { sheet: current, row: local.row, foundIn: local.foundIn };
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    if (!book || !book.Worksheets) return null;
+    var sheets = book.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { return null; }
+    for (var i = 1; i <= count; i += 1) {
+      var sheet;
+      try { sheet = sheets.Item(i); } catch (err) { continue; }
+      if (!sheet || (current && sheet.Name === current.Name)) continue;
+      var hit = findInSheet(sheet, text);
+      if (hit) return { sheet: sheet, row: hit.row, foundIn: hit.foundIn };
+    }
+    return null;
+  }
+
   // Find the worksheet row whose source cell matches the text exactly.
   function findRowBySource(sheet, text) {
     if (!sheet || !text) return 0;
@@ -770,36 +828,38 @@
   function locateSource() {
     var entry = currentEntry();
     var text = currentSourceText().trim() || (entry ? entry.source : '');
-    var sheet = currentSheet();
-    if (!sheet) return;
-    var row = findRowBySource(sheet, text);
-    if (!row) {
-      $('entryCheck').textContent = '在「' + sheet.Name + '」的源文列里没有：' + text.slice(0, 20);
+    if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
+    $('entryCheck').textContent = '全表搜索中：' + text.slice(0, 20);
+    var hit = findAcrossWorkbook(text);
+    if (!hit) {
+      $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
       return;
     }
-    var address = state.settings.sourceCol + row;
-    var ok = revealCell(sheet, address);
-    if (entry && entry.sheet === sheet.Name) entry.row = row;
+    var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+    var address = column + hit.row;
+    var ok = revealCell(hit.sheet, address);
+    if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
+    var where = (hit.foundIn === 'target' ? '译文列' : '原文列');
     $('entryCheck').textContent = ok
-      ? '已定位原文 ' + address + '（' + sheet.Name + '）'
+      ? '已定位 ' + address + '（' + hit.sheet.Name + ' · ' + where + '）'
       : '定位失败：请在表格中手动跳到 ' + address;
   }
 
   function locateTarget() {
     var entry = currentEntry();
     var text = currentSourceText().trim() || (entry ? entry.source : '');
-    var sheet = currentSheet();
-    if (!sheet) return;
-    var row = findRowBySource(sheet, text);
-    if (!row) {
-      $('entryCheck').textContent = '在「' + sheet.Name + '」的源文列里没有：' + text.slice(0, 20);
+    if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
+    $('entryCheck').textContent = '全表搜索中：' + text.slice(0, 20);
+    var hit = findAcrossWorkbook(text);
+    if (!hit) {
+      $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
       return;
     }
-    var address = state.settings.targetCol + row;
-    var ok = revealCell(sheet, address);
-    if (entry && entry.sheet === sheet.Name) entry.row = row;
+    var address = state.settings.targetCol + hit.row;
+    var ok = revealCell(hit.sheet, address);
+    if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
     $('entryCheck').textContent = ok
-      ? '已定位译文 ' + address + '（' + sheet.Name + '）'
+      ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
       : '定位失败：请在表格中手动跳到 ' + address;
   }
 
@@ -1194,6 +1254,7 @@
       renderFree();
     });
     $('btnRefreshEntries').addEventListener('click', function () {
+      state.sheetMismatch = '';
       loadEntries();
       renderEntry();
       $('entryCheck').textContent = '已刷新到 ' + activeSheetName();
