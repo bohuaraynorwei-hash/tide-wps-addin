@@ -220,6 +220,19 @@
         tdPair.appendChild(textNode('div', (match.zh || '') + ' → ' + (match.en || '—'), 'pair'));
       });
       tr.appendChild(tdPair);
+      var tdCopy = document.createElement('td');
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'act ghost';
+      copyBtn.textContent = '复制';
+      copyBtn.addEventListener('click', function () {
+        var pairs = row.matches.map(function (m) { return m.zh + ' → ' + m.en; }).join('\n');
+        copyText(pairs).then(function (ok) {
+          copyBtn.textContent = ok ? '已复制' : '失败';
+          window.setTimeout(function () { copyBtn.textContent = '复制'; }, 1500);
+        });
+      });
+      tdCopy.appendChild(copyBtn);
+      tr.appendChild(tdCopy);
       tr.appendChild(textNode('td', row.target || '—', 'hint'));
       body.appendChild(tr);
     });
@@ -368,6 +381,45 @@
     $('entrySource').textContent = entry.source;
     $('entryDraft').value = entry.target || '';
     $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
+  }
+
+  // WPS's CEF host swallows the usual shortcuts, so copying goes through an
+  // explicit path: async clipboard first, hidden textarea + execCommand second.
+  function copyText(text) {
+    if (!text) return Promise.resolve(false);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }).catch(function () {
+        return legacyCopy(text);
+      });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+
+  function legacyCopy(text) {
+    var area = document.createElement('textarea');
+    area.className = 'clip';
+    area.value = text;
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  function pasteIntoDraft() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      $('entryCheck').textContent = '当前环境不允许读取剪贴板，请用 ⌘V 粘贴到草稿框。';
+      return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      $('entryDraft').value = text;
+      $('entryDraft').dispatchEvent(new Event('input'));
+      $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符。';
+    }).catch(function () {
+      $('entryCheck').textContent = '读取剪贴板被拒绝，请用 ⌘V 粘贴到草稿框。';
+    });
   }
 
   function describeEntry(entry, draft) {
@@ -698,6 +750,19 @@
       link.click();
       URL.revokeObjectURL(link.href);
     });
+    $('btnCopySource').addEventListener('click', function () {
+      var entry = currentEntry();
+      if (!entry) return;
+      copyText(entry.source).then(function (ok) {
+        $('entryCheck').textContent = ok ? '已复制原文（' + entry.row + ' 行）' : '复制失败，请手动选择文本。';
+      });
+    });
+    $('btnCopyDraft').addEventListener('click', function () {
+      copyText($('entryDraft').value).then(function (ok) {
+        $('entryCheck').textContent = ok ? '已复制草稿' : '复制失败，请手动选择文本。';
+      });
+    });
+    $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);

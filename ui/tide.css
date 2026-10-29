@@ -50,3 +50,6 @@ mark{background:#f6e4b8;color:inherit;padding:0 1px}
 textarea{width:100%;padding:8px;border:1px solid var(--hair);background:var(--panel);
          font:13px/1.55 var(--sans);color:var(--ink);resize:vertical}
 textarea:focus{outline:2px solid var(--ink);outline-offset:-1px}
+
+.readbox, td, .hint, .pair { user-select: text; -webkit-user-select: text }
+.clip{position:fixed;left:-9999px;top:0;opacity:0}

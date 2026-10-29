@@ -28,7 +28,7 @@
         <span class="count" id="matchCount">未扫描</span>
       </div>
       <table id="matchTable" hidden>
-        <thead><tr><th>行</th><th>源文命中</th><th>批准译法</th><th>当前译文</th></tr></thead>
+        <thead><tr><th>行</th><th>源文命中</th><th>批准译法</th><th></th><th>当前译文</th></tr></thead>
         <tbody></tbody>
       </table>
       <div class="empty" id="matchEmpty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
@@ -52,6 +52,11 @@
         <button class="act" id="btnWriteNext">写入并下一条</button>
         <button class="act ghost" id="btnLocate">定位译文</button>
         <button class="act ghost" id="btnUndoWrite">撤销上次写入</button>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnCopySource">复制原文</button>
+        <button class="act ghost" id="btnCopyDraft">复制草稿</button>
+        <button class="act ghost" id="btnPasteDraft">粘贴到草稿</button>
       </div>
       <div class="hint" id="entryCheck"></div>
       <div class="toolbar">
