@@ -945,7 +945,7 @@
     } else {
       area.readOnly = false;
       area.value = '';
-      $('manualClipLabel').textContent = '手动粘贴：先点这里，再按 ⌘V / Ctrl+V';
+      $('manualClipLabel').textContent = '窗格收不到 ⌘V：请用「从表格选区读取」，或把文字拖进下面的框';
       $('btnManualApply').hidden = false;
       area.focus();
     }
@@ -953,23 +953,50 @@
 
   // WPS swallows ⌘V before the webview sees it, so the reliable paste path is
   // through a cell: the user pastes there (WPS handles it) and we read the text.
-  function readSelection() {
+  function selectionText() {
     var app = sheetApp();
-    if (!app || !app.Selection) { $('entryCheck').textContent = '未连接 WPS，读不到选区。'; return; }
-    var text = '';
+    if (!app || !app.Selection) return '';
     try {
       var value = app.Selection.Value2;
       if (Array.isArray(value)) {
         var first = Array.isArray(value[1]) ? value[1][1] : value[1];
-        text = first == null ? '' : String(first);
-      } else {
-        text = value == null ? '' : String(value);
+        return first == null ? '' : String(first);
       }
-    } catch (err) { text = ''; }
+      return value == null ? '' : String(value);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  // target: 'draft' (translation) or 'source' (原文)
+  function readSelection(target) {
+    var text = selectionText();
     if (!text.trim()) { $('entryCheck').textContent = '选区是空的，先在表格里选中含文字的单元格。'; return; }
+    if (target === 'source') {
+      $('entrySource').value = text;
+      markSourceDirty();
+      $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符到原文。';
+      return;
+    }
     $('entryDraft').value = text;
     $('entryDraft').dispatchEvent(new Event('input'));
-    $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符。';
+    $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符到译文。';
+  }
+
+  // Drag-and-drop survives where key events do not.
+  function wireDrop(element, target) {
+    if (!element) return;
+    element.addEventListener('dragover', function (event) { event.preventDefault(); });
+    element.addEventListener('drop', function (event) {
+      event.preventDefault();
+      var text = '';
+      try { text = event.dataTransfer.getData('text/plain') || ''; } catch (err) { text = ''; }
+      if (!text) return;
+      element.value = text;
+      element.dispatchEvent(new Event('input'));
+      if (target === 'source') markSourceDirty();
+      $('entryCheck').textContent = '已拖入 ' + text.length + ' 个字符。';
+    });
   }
 
   function pasteIntoDraft() {
@@ -1622,7 +1649,16 @@
       });
     });
     $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
-    $('btnReadCell').addEventListener('click', readSelection);
+    $('btnReadCell').addEventListener('click', function () { readSelection('draft'); });
+    $('btnReadCellSrc').addEventListener('click', function () { readSelection('source'); });
+    $('btnManualReadCell').addEventListener('click', function () {
+      var text = selectionText();
+      if (!text.trim()) { $('entryCheck').textContent = '选区是空的。'; return; }
+      $('manualClipText').value = text;
+      $('manualClipText').readOnly = false;
+    });
+    wireDrop($('entryDraft'), 'draft');
+    wireDrop($('entrySource'), 'source');
     // If the host ever does forward the key, handle it without relying on focus.
     document.addEventListener('keydown', function (event) {
       if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 'v') {

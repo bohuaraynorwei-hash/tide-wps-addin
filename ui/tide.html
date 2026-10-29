@@ -52,6 +52,7 @@
       <div class="toolbar">
         <button class="act ghost" id="btnResetSource">重置为单元格值</button>
         <button class="act ghost" id="btnSaveSource">写回原文</button>
+        <button class="act ghost" id="btnReadCellSrc">读取选区→原文</button>
       </div>
       <div class="field">
         <label>译文草稿</label>
@@ -75,16 +76,18 @@
         <button class="act ghost" id="btnCopySource">复制原文</button>
         <button class="act ghost" id="btnCopyDraft">复制草稿</button>
         <button class="act ghost" id="btnPasteDraft">粘贴到草稿</button>
-        <button class="act ghost" id="btnReadCell">读取选区</button>
+        <button class="act ghost" id="btnReadCell">读取选区→译文</button>
       </div>
       <div class="hint" id="clipHint" style="margin:-4px 0 10px">
-        ⌘V 若在窗格里无效（WPS 会拦截）：先在表格里粘贴到任意单元格并选中它，再点「读取选区」。
+        窗格收不到 ⌘V（WPS 在窗口层拦截）。可靠做法：在表格里粘贴到任意单元格并选中它，
+        再点「读取选区→原文 / →译文」；也可以把文字直接拖进输入框。
       </div>
       <div class="field" id="manualClip" hidden>
         <label id="manualClipLabel">手动剪贴板</label>
         <textarea id="manualClipText" rows="3" spellcheck="false"></textarea>
         <div class="toolbar">
           <button class="act ghost" id="btnManualApply">应用到草稿</button>
+          <button class="act ghost" id="btnManualReadCell">从表格选区读取</button>
           <button class="act ghost" id="btnManualClose">关闭</button>
         </div>
       </div>
