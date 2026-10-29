@@ -421,6 +421,29 @@
 
   // ---------- translation workspace ----------
 
+  function activeSheetName() {
+    var sheet = currentSheet();
+    return sheet && sheet.Name ? String(sheet.Name) : '';
+  }
+
+  // WPS switched the visible worksheet: the batch must follow it, otherwise
+  // every locate and write points at the previous sheet.
+  function syncActiveSheet() {
+    var name = activeSheetName();
+    if (!name || name === state.sheetName) return false;
+    var draft = $('entryDraft') ? $('entryDraft').value : '';
+    var entry = currentEntry();
+    var dirty = state.sourceDirty || (entry && draft !== (entry.target || ''));
+    if (dirty) {
+      $('entryCheck').textContent = '工作表已切换到 ' + name + '：先保存或点「刷新条目」';
+      return false;
+    }
+    loadEntries();
+    renderEntry();
+    $('entryCheck').textContent = '工作表已切换到 ' + name + '，条目已更新';
+    return true;
+  }
+
   function loadEntries() {
     var result = buildRows();
     if (result.error) {
@@ -680,6 +703,10 @@
   }
 
   function writeAndNext() {
+    if (syncActiveSheet()) {
+      $('entryCheck').textContent = '工作表已切换，条目已更新；请确认后再写入。';
+      return;
+    }
     var entry = currentEntry();
     if (!entry) return;
     var sheet = currentSheet();
@@ -742,32 +769,37 @@
 
   function locateSource() {
     var entry = currentEntry();
-    if (!entry) return;
-    var text = currentSourceText().trim() || entry.source;
-    var row = resolveRow(entry, text);
+    var text = currentSourceText().trim() || (entry ? entry.source : '');
+    var sheet = currentSheet();
+    if (!sheet) return;
+    var row = findRowBySource(sheet, text);
     if (!row) {
-      $('entryCheck').textContent = '表格源文列里没有这段原文：' + text.slice(0, 20);
+      $('entryCheck').textContent = '在「' + sheet.Name + '」的源文列里没有：' + text.slice(0, 20);
       return;
     }
     var address = state.settings.sourceCol + row;
-    var ok = revealCell(entrySheet(entry), address);
+    var ok = revealCell(sheet, address);
+    if (entry && entry.sheet === sheet.Name) entry.row = row;
     $('entryCheck').textContent = ok
-      ? '已定位原文 ' + address
+      ? '已定位原文 ' + address + '（' + sheet.Name + '）'
       : '定位失败：请在表格中手动跳到 ' + address;
   }
 
   function locateTarget() {
     var entry = currentEntry();
-    if (!entry) return;
-    var row = resolveRow(entry, currentSourceText().trim() || entry.source);
+    var text = currentSourceText().trim() || (entry ? entry.source : '');
+    var sheet = currentSheet();
+    if (!sheet) return;
+    var row = findRowBySource(sheet, text);
     if (!row) {
-      $('entryCheck').textContent = '表格源文列里没有这段原文，无法定位译文。';
+      $('entryCheck').textContent = '在「' + sheet.Name + '」的源文列里没有：' + text.slice(0, 20);
       return;
     }
-    var address = entryAddress(row);
-    var ok = revealCell(entrySheet(entry), address);
+    var address = state.settings.targetCol + row;
+    var ok = revealCell(sheet, address);
+    if (entry && entry.sheet === sheet.Name) entry.row = row;
     $('entryCheck').textContent = ok
-      ? '已定位译文 ' + address
+      ? '已定位译文 ' + address + '（' + sheet.Name + '）'
       : '定位失败：请在表格中手动跳到 ' + address;
   }
 
@@ -1161,6 +1193,11 @@
       $('freeDraft').value = '';
       renderFree();
     });
+    $('btnRefreshEntries').addEventListener('click', function () {
+      loadEntries();
+      renderEntry();
+      $('entryCheck').textContent = '已刷新到 ' + activeSheetName();
+    });
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
@@ -1227,6 +1264,7 @@
     loadBundled().then(function () { renderTermSource(); });
     renderHistory();
     watchRibbon();
+    if (sheetApp()) window.setInterval(syncActiveSheet, 1200);
     checkForUpdate();
     window.setInterval(checkForUpdate, 120000);
   }
