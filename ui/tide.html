@@ -189,6 +189,24 @@
 
     <section id="panel-terms" hidden>
       <div class="field">
+        <label>本页列映射</label>
+        <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="colfield">
+            <label>源文列</label>
+            <input id="termColSource" placeholder="C" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
+          </div>
+          <div class="colfield">
+            <label>译文列</label>
+            <input id="termColTarget" placeholder="F" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
+          </div>
+          <div class="colfield">
+            <label>UID 列</label>
+            <input id="termColUid" placeholder="A" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px">改完点「刷新」即可按新列重新统计命中，无需回设置页。</div>
+      </div>
+      <div class="field">
         <label>搜索术语（中文或英文，支持片段与近似）</label>
         <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod">
       </div>

@@ -399,13 +399,30 @@
 
   // Re-read the sheet with whatever column letters are in the inputs right now,
   // so a mapping change is visible without visiting 设置 → 保存 first.
-  function refreshTermsFromSheet() {
-    var src = ($('colSource') && $('colSource').value || 'C').toUpperCase();
-    var tgt = ($('colTarget') && $('colTarget').value || 'F').toUpperCase();
-    var uid = ($('colUid') && $('colUid').value || 'A').toUpperCase();
+  function syncTermColumns() {
+    if ($('termColSource')) $('termColSource').value = state.settings.sourceCol || 'C';
+    if ($('termColTarget')) $('termColTarget').value = state.settings.targetCol || 'F';
+    if ($('termColUid')) $('termColUid').value = state.settings.uidCol || 'A';
+  }
+
+  function readTermColumns() {
+    var src = (($('termColSource') && $('termColSource').value) || state.settings.sourceCol || 'C').toUpperCase();
+    var tgt = (($('termColTarget') && $('termColTarget').value) || state.settings.targetCol || 'F').toUpperCase();
+    var uid = (($('termColUid') && $('termColUid').value) || state.settings.uidCol || 'A').toUpperCase();
     state.settings.sourceCol = src;
     state.settings.targetCol = tgt;
     state.settings.uidCol = uid;
+    writeJSON(K.settings, state.settings);
+    if ($('colSource')) $('colSource').value = src;
+    if ($('colTarget')) $('colTarget').value = tgt;
+    if ($('colUid')) $('colUid').value = uid;
+    return { src: src, tgt: tgt };
+  }
+
+  function refreshTermsFromSheet() {
+    var cols = readTermColumns();
+    var src = cols.src;
+    var tgt = cols.tgt;
 
     var result = buildRows();
     if (result.error) {
@@ -1577,7 +1594,7 @@
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
-    if (name === 'terms') renderTerms();
+    if (name === 'terms') { syncTermColumns(); renderTerms(); }
     if (name === 'sync') refreshHelper();
   }
 
