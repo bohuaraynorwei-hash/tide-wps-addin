@@ -43,7 +43,12 @@
       </div>
       <div class="field">
         <label>原文（只读，来自工作表）</label>
-        <div class="readbox" id="entrySource">—</div>
+        <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
+                  placeholder="可直接输入或粘贴原文；默认只影响本窗口，写回需点按钮"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnResetSource">重置为单元格值</button>
+        <button class="act ghost" id="btnSaveSource">写回原文</button>
       </div>
       <div class="field">
         <label>译文草稿</label>

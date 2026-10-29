@@ -33,6 +33,7 @@
     bundledMeta: null,
     termsBlob: null,
     entries: [],
+    sourceDirty: false,
     memory: [],
     cursor: 0,
     lastWrite: null
@@ -379,7 +380,7 @@
     $('entryDraft').focus();
   }
 
-  function renderMemory(entry) {
+  function renderMemory(entry, sourceText) {
     var table = $('memoryTable');
     var body = table.tBodies[0];
     body.textContent = '';
@@ -391,7 +392,7 @@
       count.textContent = state.memory.length ? state.memory.length + ' 条记忆' : '';
       return;
     }
-    var result = window.TideEngine.findMemory(entry.source, state.memory, 0.5, 5);
+    var result = window.TideEngine.findMemory(sourceText || entry.source, state.memory, 0.5, 5);
     var rows = result.exact.map(function (item) { return { item: item, exact: true, score: 1 }; })
       .concat(result.fuzzy.map(function (item) { return { item: item, exact: false, score: item.score }; }));
     count.textContent = rows.length ? rows.length + ' 条匹配 / ' + state.memory.length + ' 条记忆' : '';
@@ -420,16 +421,18 @@
       ? (state.cursor + 1) + ' / ' + state.entries.length
       : '0 / 0';
     if (!entry) {
-      $('entrySource').textContent = '当前表没有可翻译的条目。';
+      $('entrySource').value = '';
       $('entryDraft').value = '';
       $('entryCheck').textContent = '';
       renderMemory(null);
       return;
     }
-    $('entrySource').textContent = entry.source;
+    $('entrySource').value = entry.source;
+    $('entrySource').classList.remove('dirty');
+    state.sourceDirty = false;
     $('entryDraft').value = entry.target || '';
     $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
-    renderMemory(entry);
+    renderMemory(entry, entry.source);
   }
 
   // WPS's CEF host swallows the usual shortcuts, so copying goes through an
@@ -502,6 +505,61 @@
     if (check.ok) return head + ' · 占位符一致';
     return head + ' · 占位符不一致：缺 ' + (check.missing.join(' ') || '无') +
       ' / 多 ' + (check.extra.join(' ') || '无');
+  }
+
+  function currentSourceText() {
+    return $('entrySource').value;
+  }
+
+  function markSourceDirty() {
+    state.sourceDirty = true;
+    $('entrySource').classList.add('dirty');
+    var entry = currentEntry();
+    if (entry) renderMemory(entry, currentSourceText());
+    $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value) + ' · 原文已改（未写回）';
+  }
+
+  function resetSource() {
+    var entry = currentEntry();
+    if (!entry) return;
+    $('entrySource').value = entry.source;
+    $('entrySource').classList.remove('dirty');
+    state.sourceDirty = false;
+    renderMemory(entry, entry.source);
+    $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
+  }
+
+  function saveSource() {
+    var entry = currentEntry();
+    var sheet = currentSheet();
+    if (!entry || !sheet) return;
+    var text = currentSourceText();
+    if (text === entry.source) {
+      $('entryCheck').textContent = '原文没有变化，无需写回。';
+      return;
+    }
+    if (!window.confirm('写回源文单元格 ' + state.settings.sourceCol + entry.row + '？这会修改游戏源文。')) {
+      $('entryCheck').textContent = '已取消写回。';
+      return;
+    }
+    var cell = sheet.Range(state.settings.sourceCol + entry.row);
+    var before = cell.Value2;
+    cell.Value2 = text;
+    if (state.unlocked) {
+      state.archive.history.push({
+        ts: new Date().toISOString(),
+        sheet: currentSheet() ? currentSheet().Name : '',
+        cell: state.settings.sourceCol + entry.row,
+        before: before == null ? '' : String(before),
+        after: text
+      });
+      saveArchive();
+    }
+    entry.source = text;
+    state.sourceDirty = false;
+    $('entrySource').classList.remove('dirty');
+    refreshMemory();
+    $('entryCheck').textContent = '已写回原文 ' + state.settings.sourceCol + entry.row;
   }
 
   function move(delta) {
@@ -949,6 +1007,9 @@
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
+    $('entrySource').addEventListener('input', markSourceDirty);
+    $('btnResetSource').addEventListener('click', resetSource);
+    $('btnSaveSource').addEventListener('click', saveSource);
     $('btnLocateSource').addEventListener('click', locateSource);
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);

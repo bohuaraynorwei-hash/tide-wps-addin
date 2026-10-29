@@ -45,9 +45,11 @@ mark{background:#f6e4b8;color:inherit;padding:0 1px}
 .hint{font:11px/1.6 var(--mono);color:var(--muted)}
 .status{font:11px var(--mono);color:var(--pass);margin-top:8px;min-height:16px}
 
-.readbox{border:1px dashed var(--hair);background:#f1eee8;padding:8px;
+.readbox{width:100%;resize:vertical;border:1px dashed var(--hair);background:#f1eee8;padding:8px;
          font-size:13px;line-height:1.55;min-height:44px;white-space:pre-wrap;
-         cursor:default;color:#3d3733}
+         color:#3d3733;font-family:var(--sans)}
+.readbox:focus{outline:2px solid var(--ink);outline-offset:-1px;background:var(--panel)}
+.readbox.dirty{border-color:var(--accent);background:#fbf3f1}
 textarea{width:100%;padding:8px;border:1px solid var(--hair);background:var(--panel);
          font:13px/1.55 var(--sans);color:var(--ink);resize:vertical}
 textarea:focus{outline:2px solid var(--ink);outline-offset:-1px}
