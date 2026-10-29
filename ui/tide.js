@@ -472,7 +472,12 @@
       tr.appendChild(textNode('td', term.zh || ''));
       tr.appendChild(textNode('td', term.en || '—'));
       var hits = counts[(term.zh || '') + '\u0000' + (term.en || '')] || 0;
-      tr.appendChild(textNode('td', hits ? String(hits) : '—', 'num'));
+      var hitCell = textNode('td', hits ? String(hits) : '—', 'num');
+      if (term.status === 'needs_review') {
+        hitCell = textNode('td', '待确认', 'num');
+        hitCell.style.color = 'var(--orange)';
+      }
+      tr.appendChild(hitCell);
       var td = document.createElement('td');
       var use = document.createElement('button');
       use.className = 'act ghost';
@@ -1452,7 +1457,8 @@
         var key = zh + '\u0000' + en.toLowerCase();
         if (seen[key]) continue;
         seen[key] = 1;
-        if (/[\u4e00-\u9fff]/.test(en) || en.length > 60) status = 'needs_review';
+        var looksLikeNote = zh.indexOf('\n') > -1 || zh.length > 30 || zh.indexOf('改用') > -1 || zh.indexOf('建议') > -1;
+        if (/[\u4e00-\u9fff]/.test(en) || en.length > 60 || looksLikeNote) status = 'needs_review';
         terms.push({ zh: zh, en: en, status: status, sheet: name, note: '' });
       }
     });
