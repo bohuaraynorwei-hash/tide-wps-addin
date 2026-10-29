@@ -951,6 +951,27 @@
     }
   }
 
+  // WPS swallows ⌘V before the webview sees it, so the reliable paste path is
+  // through a cell: the user pastes there (WPS handles it) and we read the text.
+  function readSelection() {
+    var app = sheetApp();
+    if (!app || !app.Selection) { $('entryCheck').textContent = '未连接 WPS，读不到选区。'; return; }
+    var text = '';
+    try {
+      var value = app.Selection.Value2;
+      if (Array.isArray(value)) {
+        var first = Array.isArray(value[1]) ? value[1][1] : value[1];
+        text = first == null ? '' : String(first);
+      } else {
+        text = value == null ? '' : String(value);
+      }
+    } catch (err) { text = ''; }
+    if (!text.trim()) { $('entryCheck').textContent = '选区是空的，先在表格里选中含文字的单元格。'; return; }
+    $('entryDraft').value = text;
+    $('entryDraft').dispatchEvent(new Event('input'));
+    $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符。';
+  }
+
   function pasteIntoDraft() {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
       $('entryCheck').textContent = '此处不能直接读剪贴板，请用下方手动粘贴。';
@@ -1601,6 +1622,15 @@
       });
     });
     $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
+    $('btnReadCell').addEventListener('click', readSelection);
+    // If the host ever does forward the key, handle it without relying on focus.
+    document.addEventListener('keydown', function (event) {
+      if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 'v') {
+        var tag = (event.target && event.target.tagName) || '';
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        $('clipHint').textContent = '⌘V 被 WPS 截获时的替代路径：表格里粘贴 → 选中单元格 → 点「读取选区」。';
+      }
+    });
     $('btnManualApply').addEventListener('click', function () {
       var text = $('manualClipText').value;
       if (!text) return;
