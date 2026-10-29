@@ -369,25 +369,84 @@
     });
   }
 
+  function currentTermQuery() {
+    var el = $('termSearch');
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  // Substring first; when that finds nothing, fall back to similarity so a
+  // partial or mistyped word still surfaces something.
+  function filterTerms(query) {
+    var list = state.terms || [];
+    var q = query.toLowerCase();
+    if (!q) return { rows: list, fuzzy: false };
+    var direct = list.filter(function (t) {
+      return String(t.zh || '').toLowerCase().indexOf(q) > -1 ||
+             String(t.en || '').toLowerCase().indexOf(q) > -1;
+    });
+    if (direct.length) return { rows: direct, fuzzy: false };
+    var scored = [];
+    list.forEach(function (t) {
+      var score = Math.max(
+        window.TideEngine.similarity(query, t.zh || ''),
+        window.TideEngine.similarity(query, t.en || '')
+      );
+      if (score >= 0.34) scored.push({ term: t, score: score });
+    });
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return { rows: scored.slice(0, 60).map(function (x) { return x.term; }), fuzzy: true };
+  }
+
   function renderTerms() {
-    var grouped = window.TideEngine.groupByTerm(state.scanned);
     var table = $('termTable');
+    if (!table) return;
     var body = table.tBodies[0];
     body.textContent = '';
-    $('termCount').textContent = state.terms.length ? state.terms.length + ' 条术语' : '术语表未导入';
-    $('termEmpty').hidden = state.terms.length > 0;
-    table.hidden = !state.terms.length;
-    grouped.forEach(function (group) {
+    var total = (state.terms || []).length;
+    if (!total) {
+      $('termCount').textContent = '术语表未导入';
+      $('termEmpty').hidden = false;
+      table.hidden = true;
+      return;
+    }
+    var query = currentTermQuery();
+    var result = filterTerms(query);
+    var counts = {};
+    (state.scanned || []).forEach(function (row) {
+      row.matches.forEach(function (m) {
+        var key = m.zh + '\u0000' + m.en;
+        counts[key] = (counts[key] || 0) + 1;
+      });
+    });
+    var rows = result.rows.slice(0, 300);
+    $('termCount').textContent = query
+      ? rows.length + ' / ' + total + ' 条' + (result.fuzzy ? ' · 近似匹配' : '')
+      : total + ' 条术语';
+    table.hidden = rows.length === 0;
+    $('termEmpty').hidden = rows.length > 0;
+    $('termEmpty').textContent = query ? '没有匹配的术语，换个词试试。' : '术语表为空。';
+    rows.forEach(function (term) {
       var tr = document.createElement('tr');
-      tr.appendChild(textNode('td', group.zh));
-      tr.appendChild(textNode('td', group.en || '—'));
-      tr.appendChild(textNode('td', String(group.rows.length), 'num'));
+      tr.appendChild(textNode('td', term.zh || ''));
+      tr.appendChild(textNode('td', term.en || '—'));
+      var hits = counts[(term.zh || '') + '\u0000' + (term.en || '')] || 0;
+      tr.appendChild(textNode('td', hits ? String(hits) : '—', 'num'));
+      var td = document.createElement('td');
+      var use = document.createElement('button');
+      use.className = 'act ghost';
+      use.textContent = '采用';
+      use.addEventListener('click', function () {
+        $('entryDraft').value = term.en || '';
+        $('entryDraft').dispatchEvent(new Event('input'));
+        showTab('translate');
+        $('entryCheck').textContent = '已采用术语：' + term.zh + ' → ' + (term.en || '');
+      });
+      td.appendChild(use);
+      tr.appendChild(td);
       body.appendChild(tr);
     });
   }
 
-  // The imported termbase is kept locally in one slot: every import replaces it,
-  // so the saved copy is always the newest one. It is never pushed to GitHub.
   function persistTerms(meta) {
     var payload = { meta: meta || null, terms: state.terms, savedAt: new Date().toISOString() };
     try {
@@ -1704,6 +1763,14 @@
       });
     }
     $('btnFindAll').addEventListener('click', runFind);
+    var termSearch = $('termSearch');
+    if (termSearch) {
+      var termTimer = null;
+      termSearch.addEventListener('input', function () {
+        window.clearTimeout(termTimer);
+        termTimer = window.setTimeout(renderTerms, 150);
+      });
+    }
     $('btnRepPreview').addEventListener('click', previewBatch);
     $('btnRepApply').addEventListener('click', applyBatch);
     $('btnRepUndo').addEventListener('click', undoBatch);
