@@ -72,6 +72,7 @@
   })();
 
   function checkForUpdate() {
+    if (window.location.protocol === 'file:') return;
     fetch('../build.json', { cache: 'no-store' }).then(function (response) {
       return response.ok ? response.json() : null;
     }).then(function (data) {
@@ -476,6 +477,8 @@
   // Portable builds ship the termbase encrypted (data/terms.enc.json); a local
   // build has the plaintext file, which needs no passphrase.
   function loadBundled() {
+    // file:// preview (design lint, local double-click) cannot fetch; stay quiet.
+    if (window.location.protocol === 'file:') return Promise.resolve(null);
     return fetch('../data/terms.json').then(function (response) {
       return response.ok ? response.json() : null;
     }).then(function (data) {
