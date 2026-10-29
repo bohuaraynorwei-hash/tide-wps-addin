@@ -126,10 +126,11 @@
     <section id="panel-settings" hidden>
       <div class="field">
         <label>导入术语表（JSON）</label>
-        <input id="termFile" type="file" accept=".json,application/json">
+        <input id="termFile" type="file" accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
       </div>
-      <div class="note">格式：<code>[{"zh":"刺鱼","en":"Hook","uid":"action.hook"}]</code>
-        或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
+      <div class="note">支持 <b>.xlsx</b>、<b>.xls</b> 与 JSON。Excel 会按表头识别
+        <code>中文</code> / <code>最终英文</code>（优先）或 <code>现有英文</code>；无表头时按前两列。
+        JSON 格式：<code>[{"zh":"刺鱼","en":"Hook"}]</code> 或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
       <div class="field">
         <label>列设置（用于当前表）</label>
         <div class="row2">
@@ -154,6 +155,7 @@
     </section>
   </main>
 
+  <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/crypto.js"></script>
   <script src="tide.js"></script>

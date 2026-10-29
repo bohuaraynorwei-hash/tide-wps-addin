@@ -456,6 +456,55 @@
     renderEntry();
   }
 
+  // ---- workbook import (SheetJS) ----
+
+  function mapSheetColumns(header) {
+    var map = {};
+    (header || []).forEach(function (cell, index) {
+      var text = String(cell == null ? '' : cell).trim();
+      if (!text) return;
+      if (map.zh === undefined && /中文|源文|原文|source|^zh$/i.test(text)) map.zh = index;
+      else if (map.approved === undefined && /最终英文|确认英文|approved|final/i.test(text)) map.approved = index;
+      else if (map.working === undefined && /现有英文|英文|current|target|^en$/i.test(text)) map.working = index;
+      else if (map.note === undefined && /备注|注释|说明|note|comment/i.test(text)) map.note = index;
+    });
+    if (map.zh === undefined) map.zh = 0;
+    if (map.approved === undefined && map.working === undefined) map.working = 1;
+    return map;
+  }
+
+  function parseWorkbook(buffer) {
+    if (typeof XLSX === 'undefined') throw new Error('xlsx 解析库未加载');
+    var workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+    var terms = [];
+    var seen = {};
+    workbook.SheetNames.forEach(function (name) {
+      var rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, blankrows: false, defval: '' });
+      if (!rows.length) return;
+      var map = mapSheetColumns(rows[0]);
+      for (var i = 1; i < rows.length; i += 1) {
+        var row = rows[i] || [];
+        var zh = String(row[map.zh] == null ? '' : row[map.zh]).trim();
+        var en = '';
+        var status = 'working';
+        if (map.approved !== undefined && String(row[map.approved] == null ? '' : row[map.approved]).trim()) {
+          en = String(row[map.approved]).trim();
+          status = 'approved';
+        } else if (map.working !== undefined) {
+          en = String(row[map.working] == null ? '' : row[map.working]).trim();
+        }
+        if (!zh || !en) continue;
+        var key = zh + '\u0000' + en.toLowerCase();
+        if (seen[key]) continue;
+        seen[key] = 1;
+        if (/[\u4e00-\u9fff]/.test(en) || en.length > 60) status = 'needs_review';
+        terms.push({ zh: zh, en: en, status: status, sheet: name, note: '' });
+      }
+    });
+    if (!terms.length) throw new Error('没有读到中英对照行');
+    return window.TideEngine.parseTermbase(terms);
+  }
+
   function renderLock() {
     var exists = !!window.localStorage.getItem(K.archive);
     $('btnUnlock').hidden = !exists || state.unlocked;
@@ -574,18 +623,24 @@
     $('termFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
       if (!file) return;
+      var isSheet = /\.(xlsx|xls)$/i.test(file.name);
       var reader = new FileReader();
       reader.onload = function () {
         try {
-          setTerms(window.TideEngine.parseTermbase(JSON.parse(String(reader.result))));
+          var terms = isSheet
+            ? parseWorkbook(reader.result)
+            : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+          setTerms(terms);
           writeJSON(K.terms, state.terms);
-          $('settingsStatus').textContent = '已导入 ' + state.terms.length + ' 条术语。';
+          $('settingsStatus').textContent = '已导入 ' + state.terms.length + ' 条术语（' + file.name + '）。';
+          renderTermSource();
           renderTerms();
         } catch (err) {
-          $('settingsStatus').textContent = '术语表解析失败：' + err.message;
+          $('settingsStatus').textContent = '导入失败：' + err.message;
         }
       };
-      reader.readAsText(file, 'utf-8');
+      if (isSheet) reader.readAsArrayBuffer(file);
+      else reader.readAsText(file, 'utf-8');
     });
     $('btnUnlock').addEventListener('click', async function () {
       try {
