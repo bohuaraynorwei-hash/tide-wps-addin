@@ -29,6 +29,7 @@
     lastTab: 'matches',
     helper: { ok: false, token: false },
     bundledTerms: [],
+    matchTerms: [],
     bundledMeta: null
   };
 
@@ -237,13 +238,24 @@
     });
   }
 
+  // Entries flagged needs_review carry notes or several variants in the English
+  // column; they would produce false matches, so they stay visible but unused.
+  function setTerms(list) {
+    state.terms = list || [];
+    state.matchTerms = state.terms.filter(function (term) {
+      return term.status !== 'needs_review';
+    });
+  }
+
   function renderTermSource() {
     var el = $('termSource');
     if (!el) return;
     if (state.bundledMeta) {
       var meta = state.bundledMeta;
+      var held = state.terms.length - state.matchTerms.length;
       el.textContent = '内置术语表 ' + meta.count + ' 条 · ' + meta.source + ' · 构建 ' +
-        String(meta.built_at || '').slice(0, 10) + (state.terms.length ? '' : '（未启用）');
+        String(meta.built_at || '').slice(0, 10) +
+        (held ? ' · ' + held + ' 条待确认，不参与匹配' : '');
     } else {
       el.textContent = '内置术语表未加载；可用「导入术语表」或「恢复内置术语表」。';
     }
@@ -298,7 +310,7 @@
       $('matchCount').textContent = '未在 WPS 中运行';
       return;
     }
-    state.scanned = window.TideEngine.scanRows(result.rows, state.terms);
+    state.scanned = window.TideEngine.scanRows(result.rows, state.matchTerms);
     renderMatches();
     if (state.terms.length) {
       var changed = archiveChanges(result.sheetName, result);
@@ -383,7 +395,7 @@
       var reader = new FileReader();
       reader.onload = function () {
         try {
-          state.terms = window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+          setTerms(window.TideEngine.parseTermbase(JSON.parse(String(reader.result))));
           writeJSON(K.terms, state.terms);
           $('settingsStatus').textContent = '已导入 ' + state.terms.length + ' 条术语。';
           renderTerms();
@@ -431,7 +443,7 @@
         $('settingsStatus').textContent = '没有可恢复的内置术语表。';
         return;
       }
-      state.terms = state.bundledTerms.slice();
+      setTerms(state.bundledTerms.slice());
       window.localStorage.removeItem(K.terms);
       $('settingsStatus').textContent = '已恢复内置术语表：' + state.terms.length + ' 条。';
       renderTermSource();
@@ -456,7 +468,7 @@
   function loadSettings() {
     var saved = readJSON(K.settings, null);
     if (saved) state.settings = saved;
-    state.terms = readJSON(K.terms, []) || [];
+    setTerms(readJSON(K.terms, []));
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
@@ -490,7 +502,7 @@
     renderTermSource();
     loadBundled().then(function (terms) {
       if (!terms) { renderTermSource(); return; }
-      if (!state.terms.length) state.terms = terms.slice();
+      if (!state.terms.length) setTerms(terms.slice());
       renderTermSource();
       renderTerms();
     });
