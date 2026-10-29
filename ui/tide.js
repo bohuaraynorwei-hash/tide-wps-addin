@@ -160,6 +160,32 @@
     return sheetByName(entry && entry.sheet ? entry.sheet : state.sheetName);
   }
 
+  function numberToCol(value) {
+    var n = Number(value) || 0;
+    if (n <= 0) return '';
+    var text = '';
+    while (n > 0) {
+      var rem = (n - 1) % 26;
+      text = String.fromCharCode(65 + rem) + text;
+      n = Math.floor((n - 1) / 26);
+    }
+    return text;
+  }
+
+  // Column letter of whatever cell is selected in WPS right now.
+  function selectedColumnLetter() {
+    var app = sheetApp();
+    if (!app || !app.Selection) return '';
+    try {
+      var column = Number(app.Selection.Column);
+      if (column > 0) return numberToCol(column);
+      var address = String(app.Selection.Address || '');
+      var match = /\$?([A-Z]{1,3})\$?\d+/.exec(address);
+      if (match) return match[1];
+    } catch (err) { /* no selection */ }
+    return '';
+  }
+
   function colToNumber(letter) {
     var text = String(letter || '').toUpperCase().replace(/[^A-Z]/g, '');
     var value = 0;
@@ -1377,6 +1403,19 @@
       $('freeDraft').value = '';
       renderFree();
     });
+    var colButtons = document.querySelectorAll('button[data-col]');
+    for (var c = 0; c < colButtons.length; c += 1) {
+      colButtons[c].addEventListener('click', function (event) {
+        var target = $(event.currentTarget.getAttribute('data-col'));
+        var letter = selectedColumnLetter();
+        if (!letter) {
+          $('settingsStatus').textContent = '请先在表格里选中一个单元格。';
+          return;
+        }
+        target.value = letter;
+        $('settingsStatus').textContent = '已填入第 ' + letter + ' 列，记得点「保存设置」。';
+      });
+    }
     $('btnFindAll').addEventListener('click', runFind);
     $('findInput').addEventListener('keydown', function (event) {
       if (event.key === 'Enter') runFind();

@@ -213,10 +213,26 @@
         JSON 格式：<code>[{"zh":"刺鱼","en":"Hook"}]</code> 或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
       <div class="field">
         <label>列设置（用于当前表）</label>
-        <div class="row2">
-          <input id="colSource" placeholder="源文列 C">
-          <input id="colTarget" placeholder="译文列 F">
-          <input id="colUid" placeholder="UID 列 A">
+        <div class="hint" style="margin-bottom:8px">
+          填<b>列字母</b>，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如
+          <code>C12</code>，字母 <code>C</code> 就是列。示例：A=UID，C=中文原文，F=英文译文。
+        </div>
+        <div class="colrow">
+          <div class="colfield">
+            <label>源文列（中文）</label>
+            <div class="colinput"><input id="colSource" placeholder="C"><button class="act ghost" data-col="colSource">用当前列</button></div>
+            <div class="hint">术语匹配、定位、原文搜索都读这一列。</div>
+          </div>
+          <div class="colfield">
+            <label>译文列（英文）</label>
+            <div class="colinput"><input id="colTarget" placeholder="F"><button class="act ghost" data-col="colTarget">用当前列</button></div>
+            <div class="hint">写入并下一条、定位译文写的是这一列。</div>
+          </div>
+          <div class="colfield">
+            <label>UID 列（可选）</label>
+            <div class="colinput"><input id="colUid" placeholder="A"><button class="act ghost" data-col="colUid">用当前列</button></div>
+            <div class="hint">只用于结果显示与追溯，可以留空。</div>
+          </div>
         </div>
       </div>
       <div class="toolbar">
