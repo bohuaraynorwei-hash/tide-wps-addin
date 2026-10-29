@@ -10,6 +10,7 @@
   var K = {
     settings: 'tide.settings',
     terms: 'tide.terms',
+    termStore: 'tide.termbase.v1',
     archive: 'tide.archive',
     snapshot: 'tide.snapshot',
     lastTab: 'tide.lastTab',
@@ -32,6 +33,7 @@
     matchTerms: [],
     bundledMeta: null,
     termsBlob: null,
+    termsMeta: null,
     entries: [],
     findResults: [],
     batchPreview: [],
@@ -383,18 +385,72 @@
     });
   }
 
+  // The imported termbase is kept locally in one slot: every import replaces it,
+  // so the saved copy is always the newest one. It is never pushed to GitHub.
+  function persistTerms(meta) {
+    var payload = { meta: meta || null, terms: state.terms, savedAt: new Date().toISOString() };
+    try {
+      window.localStorage.setItem(K.termStore, JSON.stringify(payload));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function loadSavedTerms() {
+    try {
+      var raw = window.localStorage.getItem(K.termStore);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        if (saved && Array.isArray(saved.terms) && saved.terms.length) {
+          setTerms(window.TideEngine.parseTermbase(saved.terms), saved.meta || { count: saved.terms.length, source: '本机保存' });
+          return true;
+        }
+      }
+      // migrate a termbase imported by an older build
+      var legacy = window.localStorage.getItem(K.terms);
+      if (legacy) {
+        var list = window.TideEngine.parseTermbase(JSON.parse(legacy));
+        if (list.length) {
+          setTerms(list, { count: list.length, source: '旧版本导入' });
+          persistTerms(state.termsMeta);
+          window.localStorage.removeItem(K.terms);
+          return true;
+        }
+      }
+    } catch (err) { /* corrupted store: fall back to the bundled termbase */ }
+    return false;
+  }
+
   // Entries flagged needs_review carry notes or several variants in the English
   // column; they would produce false matches, so they stay visible but unused.
-  function setTerms(list) {
+  function setTerms(list, meta) {
     state.terms = list || [];
+    state.termsMeta = meta || null;
     state.matchTerms = state.terms.filter(function (term) {
       return term.status !== 'needs_review';
     });
   }
 
+  function localStamp(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) +
+      ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
+  }
+
   function renderTermSource() {
     var el = $('termSource');
     if (!el) return;
+    if (state.termsMeta) {
+      var meta = state.termsMeta;
+      var held = state.terms.length - state.matchTerms.length;
+      el.textContent = '已保存导入：' + meta.count + ' 条 · ' + (meta.source || '本机') +
+        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') +
+        ' · 仅存本机' + (held ? ' · ' + held + ' 条待确认' : '');
+      return;
+    }
     if (state.bundledMeta) {
       var meta = state.bundledMeta;
       var held = state.terms.length - state.matchTerms.length;
@@ -1455,9 +1511,10 @@
           var terms = isSheet
             ? parseWorkbook(reader.result)
             : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
-          setTerms(terms);
-          writeJSON(K.terms, state.terms);
-          $('settingsStatus').textContent = '已导入 ' + state.terms.length + ' 条术语（' + file.name + '）。';
+          var meta = { source: file.name, count: terms.length, importedAt: new Date().toISOString() };
+          setTerms(terms, meta);
+          persistTerms(meta);
+          $('settingsStatus').textContent = '已导入并保存到本机：' + terms.length + ' 条（' + file.name + '）。';
           renderTermSource();
           renderTerms();
         } catch (err) {
@@ -1505,9 +1562,12 @@
         $('settingsStatus').textContent = '没有可恢复的内置术语表。';
         return;
       }
-      setTerms(state.bundledTerms.slice());
-      window.localStorage.removeItem(K.terms);
-      $('settingsStatus').textContent = '已恢复内置术语表：' + state.terms.length + ' 条。';
+      setTerms(state.bundledTerms.slice(), null);
+      try {
+        window.localStorage.removeItem(K.termStore);
+        window.localStorage.removeItem(K.terms);
+      } catch (err) { /* ignore */ }
+      $('settingsStatus').textContent = '已清除本机保存的术语表，恢复内置：' + state.terms.length + ' 条。';
       renderTermSource();
       renderTerms();
     });
@@ -1618,7 +1678,7 @@
   function loadSettings() {
     var saved = readJSON(K.settings, null);
     if (saved) state.settings = saved;
-    setTerms(readJSON(K.terms, []));
+    if (!loadSavedTerms()) setTerms([]);
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
