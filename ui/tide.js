@@ -137,6 +137,9 @@
     } catch (err) { /* read-only in some hosts */ }
     try {
       var target = sheet.Range(address);
+      // Activate sets the active cell (the visible cursor); Select sets the
+      // highlighted block. Some hosts need Activate before Select takes effect.
+      if (typeof target.Activate === 'function') target.Activate();
       target.Select();
       if (app && app.ActiveWindow && typeof app.ActiveWindow.ScrollIntoView === 'function') {
         app.ActiveWindow.ScrollIntoView(target, true);
