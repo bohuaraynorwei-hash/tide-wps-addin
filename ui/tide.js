@@ -68,6 +68,28 @@
     return app && app.ActiveSheet ? app.ActiveSheet : null;
   }
 
+  function sheetByName(name) {
+    var app = sheetApp();
+    if (!app || !name) return currentSheet();
+    try {
+      var book = app.ActiveWorkbook;
+      if (book && book.Worksheets && book.Worksheets.Item) {
+        var found = book.Worksheets.Item(name);
+        if (found) return found;
+      }
+    } catch (err) { /* fall through to the active sheet */ }
+    return currentSheet();
+  }
+
+  function activateSheet(sheet) {
+    try { if (sheet && sheet.Activate) sheet.Activate(); } catch (err) { /* already active */ }
+    return sheet;
+  }
+
+  function entrySheet(entry) {
+    return sheetByName(entry && entry.sheet ? entry.sheet : state.sheetName);
+  }
+
   function colToNumber(letter) {
     var text = String(letter || '').toUpperCase().replace(/[^A-Z]/g, '');
     var value = 0;
@@ -335,6 +357,8 @@
     for (var i = 0; i < state.entries.length; i += 1) {
       if (!String(state.entries[i].target || '').trim()) { firstEmpty = i; break; }
     }
+    state.sheetName = result.sheetName;
+    state.entries.forEach(function (entry) { entry.sheet = result.sheetName; });
     state.cursor = firstEmpty;
     refreshMemory();
     return state.entries;
@@ -348,13 +372,15 @@
     return state.settings.targetCol + row;
   }
 
-  function writeCell(row, value) {
-    var sheet = currentSheet();
+  function writeCell(entry, value) {
+    var sheet = entrySheet(entry);
     if (!sheet) return false;
-    var cell = sheet.Range(entryAddress(row));
+    var cell = sheet.Range(entryAddress(entry.row));
     var before = cell.Value2;
     cell.Value2 = value;
-    state.lastWrite = { row: row, before: before, after: value, address: entryAddress(row) };
+    state.lastWrite = {
+      row: entry.row, sheet: entry.sheet, before: before, after: value, address: entryAddress(entry.row)
+    };
     return true;
   }
 
@@ -362,7 +388,7 @@
     if (!state.unlocked) return;
     state.archive.history.push({
       ts: new Date().toISOString(),
-      sheet: currentSheet() ? currentSheet().Name : '',
+      sheet: entry.sheet || (currentSheet() ? currentSheet().Name : ''),
       cell: entryAddress(entry.row),
       before: before == null ? '' : String(before),
       after: String(after)
@@ -417,8 +443,9 @@
 
   function renderEntry() {
     var entry = currentEntry();
+    var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     $('entryPos').textContent = state.entries.length
-      ? (state.cursor + 1) + ' / ' + state.entries.length
+      ? (state.cursor + 1) + ' / ' + state.entries.length + sheetLabel
       : '0 / 0';
     if (!entry) {
       $('entrySource').value = '';
@@ -576,7 +603,7 @@
     var value = $('entryDraft').value;
     if (!value.trim()) { $('entryCheck').textContent = '草稿为空，未写入。'; return; }
     var before = entry.target;
-    if (!writeCell(entry.row, value)) return;
+    if (!writeCell(entry, value)) return;
     var address = entryAddress(entry.row);
     entry.target = value;
     refreshMemory();
@@ -587,7 +614,7 @@
 
   function undoSelf() {
     if (!state.lastWrite) { $('entryCheck').textContent = '没有可撤销的写入。'; return; }
-    var sheet = currentSheet();
+    var sheet = sheetByName(state.lastWrite.sheet);
     if (!sheet) return;
     sheet.Range(state.lastWrite.address).Value2 = state.lastWrite.before;
     var entry = null;
@@ -602,15 +629,17 @@
 
   function locateSource() {
     var entry = currentEntry();
-    var sheet = currentSheet();
-    if (!entry || !sheet) return;
+    if (!entry) return;
+    var sheet = activateSheet(entrySheet(entry));
+    if (!sheet) return;
     sheet.Range(state.settings.sourceCol + entry.row).Select();
   }
 
   function locateTarget() {
     var entry = currentEntry();
-    var sheet = currentSheet();
-    if (!entry || !sheet) return;
+    if (!entry) return;
+    var sheet = activateSheet(entrySheet(entry));
+    if (!sheet) return;
     sheet.Range(entryAddress(entry.row)).Select();
   }
 
