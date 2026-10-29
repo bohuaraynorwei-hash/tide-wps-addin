@@ -20,7 +20,7 @@ function tidePaneUrl() {
 // Open the task pane, optionally jumping to one tab.
 // Replaced by pack.sh on every release: a new stamp forces a fresh pane URL,
 // so updates load without restarting WPS.
-var TIDE_PANE_BUILD = "202610291900"
+var TIDE_PANE_BUILD = "202610291904"
 
 function TideOpenPane(tab) {
     if (tab) {

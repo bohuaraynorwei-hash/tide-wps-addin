@@ -397,6 +397,31 @@
     return { rows: scored.slice(0, 60).map(function (x) { return x.term; }), fuzzy: true };
   }
 
+  // Re-read the sheet with whatever column letters are in the inputs right now,
+  // so a mapping change is visible without visiting 设置 → 保存 first.
+  function refreshTermsFromSheet() {
+    var src = ($('colSource') && $('colSource').value || 'C').toUpperCase();
+    var tgt = ($('colTarget') && $('colTarget').value || 'F').toUpperCase();
+    var uid = ($('colUid') && $('colUid').value || 'A').toUpperCase();
+    state.settings.sourceCol = src;
+    state.settings.targetCol = tgt;
+    state.settings.uidCol = uid;
+
+    var result = buildRows();
+    if (result.error) {
+      $('termRefreshStatus').textContent = '未连接 WPS，无法刷新。';
+      renderTerms();
+      return;
+    }
+    state.scanned = window.TideEngine.scanRows(result.rows, state.matchTerms);
+    var hitRows = state.scanned.length;
+    var hitTerms = 0;
+    state.scanned.forEach(function (row) { hitTerms += row.matches.length; });
+    renderTerms();
+    $('termRefreshStatus').textContent = '已刷新「' + (result.sheetName || '当前表') + '」：' +
+      result.rows.length + ' 条原文，' + hitRows + ' 行命中（' + src + '→' + tgt + '），共 ' + hitTerms + ' 个术语命中。';
+  }
+
   function renderTerms() {
     var table = $('termTable');
     if (!table) return;
@@ -1763,6 +1788,8 @@
       });
     }
     $('btnFindAll').addEventListener('click', runFind);
+    var refreshTerms = $('btnRefreshTerms');
+    if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
     var termSearch = $('termSearch');
     if (termSearch) {
       var termTimer = null;

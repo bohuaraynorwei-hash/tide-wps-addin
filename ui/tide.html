@@ -192,7 +192,11 @@
         <label>搜索术语（中文或英文，支持片段与近似）</label>
         <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod">
       </div>
-      <div class="toolbar"><span class="count" id="termCount">术语表未导入</span></div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnRefreshTerms">刷新</button>
+        <span class="count" id="termCount">术语表未导入</span>
+      </div>
+      <div class="hint" id="termRefreshStatus"></div>
       <table id="termTable" hidden>
         <thead><tr><th>中文</th><th>英文</th><th>命中</th><th></th></tr></thead>
         <tbody></tbody>
