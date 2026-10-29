@@ -631,6 +631,82 @@
     return window.TideEngine.parseTermbase(terms);
   }
 
+  // ---------- free input (no sheet writes) ----------
+
+  var freeTimer = null;
+
+  function adoptIntoFree(text) {
+    $('freeDraft').value = text;
+    $('freeDraft').focus();
+  }
+
+  function renderFree() {
+    var text = $('freeSource').value;
+    var termBody = $('freeTermTable').tBodies[0];
+    var memoryBody = $('freeMemoryTable').tBodies[0];
+    termBody.textContent = '';
+    memoryBody.textContent = '';
+    if (!text.trim()) {
+      $('freeTermTable').hidden = true;
+      $('freeMemoryTable').hidden = true;
+      $('freeTermEmpty').hidden = false;
+      $('freeMemoryEmpty').hidden = false;
+      $('freeTermCount').textContent = '';
+      $('freeMemoryCount').textContent = '';
+      $('freeStatus').textContent = '';
+      return;
+    }
+
+    var hits = window.TideEngine.findMatches(text, state.matchTerms);
+    var seen = {};
+    var unique = [];
+    hits.forEach(function (hit) {
+      var key = hit.term.zh + '\u0000' + hit.term.en;
+      if (seen[key]) return;
+      seen[key] = 1;
+      unique.push(hit.term);
+    });
+    $('freeTermCount').textContent = unique.length ? unique.length + ' 条' : '';
+    $('freeTermTable').hidden = unique.length === 0;
+    $('freeTermEmpty').hidden = unique.length > 0;
+    unique.forEach(function (term) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', term.zh));
+      tr.appendChild(textNode('td', term.en || '—'));
+      var td = document.createElement('td');
+      var use = document.createElement('button');
+      use.className = 'act ghost';
+      use.textContent = '采用';
+      use.addEventListener('click', function () { adoptIntoFree(term.en || ''); });
+      td.appendChild(use);
+      tr.appendChild(td);
+      termBody.appendChild(tr);
+    });
+
+    var memory = window.TideEngine.findMemory(text, state.memory, 0.5, 5);
+    var rows = memory.exact.map(function (item) { return { item: item, exact: true, score: 1 }; })
+      .concat(memory.fuzzy.map(function (item) { return { item: item, exact: false, score: item.score }; }));
+    $('freeMemoryCount').textContent = rows.length ? rows.length + ' 条 / ' + state.memory.length + ' 条记忆' : '';
+    $('freeMemoryTable').hidden = rows.length === 0;
+    $('freeMemoryEmpty').hidden = rows.length > 0;
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', row.exact ? '精确' : Math.round(row.score * 100) + '%', 'num'));
+      tr.appendChild(textNode('td', row.item.source.slice(0, 30), 'hint'));
+      tr.appendChild(textNode('td', row.item.target.slice(0, 30)));
+      var td = document.createElement('td');
+      var use = document.createElement('button');
+      use.className = 'act ghost';
+      use.textContent = '采用';
+      use.addEventListener('click', function () { adoptIntoFree(row.item.target); });
+      td.appendChild(use);
+      tr.appendChild(td);
+      memoryBody.appendChild(tr);
+    });
+
+    $('freeStatus').textContent = '字符 ' + text.length + ' · 术语 ' + unique.length + ' · 记忆 ' + rows.length;
+  }
+
   function renderLock() {
     var exists = !!window.localStorage.getItem(K.archive);
     $('btnUnlock').hidden = !exists || state.unlocked;
@@ -680,12 +756,13 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
     writeJSON(K.lastTab, name);
     if (name === 'translate') { loadEntries(); renderEntry(); }
+    if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'history') { renderLock(); renderHistory(); }
     if (name === 'terms') renderTerms();
     if (name === 'sync') refreshHelper();
@@ -848,6 +925,20 @@
       $('entryCheck').textContent = '已从手动粘贴区应用 ' + text.length + ' 个字符。';
     });
     $('btnManualClose').addEventListener('click', function () { $('manualClip').hidden = true; });
+    $('freeSource').addEventListener('input', function () {
+      window.clearTimeout(freeTimer);
+      freeTimer = window.setTimeout(renderFree, 250);
+    });
+    $('btnFreeCopy').addEventListener('click', function () {
+      copyText($('freeDraft').value).then(function (ok) {
+        $('freeStatus').textContent = ok ? '已复制译文' : '复制失败，请手动选择。';
+      });
+    });
+    $('btnFreeClear').addEventListener('click', function () {
+      $('freeSource').value = '';
+      $('freeDraft').value = '';
+      renderFree();
+    });
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);

@@ -15,6 +15,7 @@
   <nav id="tabs">
     <button data-tab="matches" class="on">命中</button>
     <button data-tab="translate">翻译</button>
+    <button data-tab="free">自由</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -83,6 +84,38 @@
         <thead><tr><th>行</th><th>问题</th><th>原文</th></tr></thead>
         <tbody></tbody>
       </table>
+    </section>
+
+    <section id="panel-free" hidden>
+      <div class="field">
+        <label>自由输入（不写回表格）</label>
+        <textarea id="freeSource" rows="4" spellcheck="false" placeholder="粘贴任意中文原文…"></textarea>
+      </div>
+      <div class="field">
+        <label>术语命中 <span class="count" id="freeTermCount"></span></label>
+        <table id="freeTermTable" hidden>
+          <thead><tr><th>中文</th><th>英文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="freeTermEmpty">没有命中术语。</div>
+      </div>
+      <div class="field">
+        <label>记忆匹配 <span class="count" id="freeMemoryCount"></span></label>
+        <table id="freeMemoryTable" hidden>
+          <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="freeMemoryEmpty">没有记忆匹配。</div>
+      </div>
+      <div class="field">
+        <label>译文草稿（仅本页，不写入工作表）</label>
+        <textarea id="freeDraft" rows="3" spellcheck="false"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnFreeCopy">复制译文</button>
+        <button class="act ghost" id="btnFreeClear">清空</button>
+      </div>
+      <div class="hint" id="freeStatus"></div>
     </section>
 
     <section id="panel-terms" hidden>
