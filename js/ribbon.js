@@ -18,25 +18,34 @@ function tidePaneUrl() {
 }
 
 // Open the task pane, optionally jumping to one tab.
+// Replaced by pack.sh on every release: a new stamp forces a fresh pane URL,
+// so updates load without restarting WPS.
+var TIDE_PANE_BUILD = "202610291655"
+
 function TideOpenPane(tab) {
     if (tab) {
         window.Application.PluginStorage.setItem(TIDE_TAB_KEY, tab)
     }
-    var paneId = window.Application.PluginStorage.getItem(TIDE_PANE_KEY)
-    if (!paneId) {
-        var pane = window.Application.CreateTaskPane(tidePaneUrl())
-        window.Application.PluginStorage.setItem(TIDE_PANE_KEY, pane.ID)
-        pane.Visible = true
-        return
+    var storage = window.Application.PluginStorage
+    var paneId = storage.getItem(TIDE_PANE_KEY)
+    var storedBuild = storage.getItem("tide_pane_build")
+    if (paneId && storedBuild === TIDE_PANE_BUILD) {
+        var existing = window.Application.GetTaskPane(paneId)
+        if (existing) {
+            existing.Visible = true
+            return
+        }
     }
-    var existing = window.Application.GetTaskPane(paneId)
-    if (existing) {
-        existing.Visible = true
-    } else {
-        var fresh = window.Application.CreateTaskPane(tidePaneUrl())
-        window.Application.PluginStorage.setItem(TIDE_PANE_KEY, fresh.ID)
-        fresh.Visible = true
+    if (paneId) {
+        try {
+            var stale = window.Application.GetTaskPane(paneId)
+            if (stale) stale.Visible = false
+        } catch (err) { /* pane already gone */ }
     }
+    var pane = window.Application.CreateTaskPane(tidePaneUrl() + "?b=" + TIDE_PANE_BUILD)
+    storage.setItem(TIDE_PANE_KEY, pane.ID)
+    storage.setItem("tide_pane_build", TIDE_PANE_BUILD)
+    pane.Visible = true
 }
 
 function OnAction(control) {
