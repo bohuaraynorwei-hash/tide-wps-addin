@@ -887,6 +887,35 @@
     return null;
   }
 
+  // Non-blocking workbook scan: one sheet per tick, with progress feedback.
+  // A synchronous sweep of 93 sheets freezes the pane and reads as "no response".
+  function searchWorkbookAsync(text, onHit, onDone) {
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    if (!book || !book.Worksheets) { onDone(); return; }
+    var current = currentSheet();
+    var local = findInSheet(current, text);
+    if (local) { onHit({ sheet: current, row: local.row, foundIn: local.foundIn }); return; }
+    var sheets = book.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { onDone(); return; }
+    var index = 1;
+    function step() {
+      if (index > count) { onDone(); return; }
+      var sheet = null;
+      try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
+      if (sheet && current && sheet.Name === current.Name) { index += 1; step(); return; }
+      index += 1;
+      if (sheet) {
+        var hit = findInSheet(sheet, text);
+        if (hit) { onHit({ sheet: sheet, row: hit.row, foundIn: hit.foundIn }); return; }
+      }
+      if (index % 5 === 0) $('entryCheck').textContent = '搜索中 ' + index + '/' + count;
+      window.setTimeout(step, 0);
+    }
+    step();
+  }
+
   // Find the worksheet row whose source cell matches the text exactly.
   function findRowBySource(sheet, text) {
     if (!sheet || !text) return 0;
@@ -920,38 +949,36 @@
     var entry = currentEntry();
     var text = currentSourceText().trim() || (entry ? entry.source : '');
     if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
-    $('entryCheck').textContent = '全表搜索中：' + text.slice(0, 20);
-    var hit = findAcrossWorkbook(text);
-    if (!hit) {
+    $('entryCheck').textContent = '搜索中：' + text.slice(0, 20);
+    searchWorkbookAsync(text, function (hit) {
+      var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+      var address = column + hit.row;
+      var ok = revealCell(hit.sheet, address);
+      if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
+      var where = (hit.foundIn === 'target' ? '译文列' : '原文列');
+      $('entryCheck').textContent = ok
+        ? '已定位 ' + address + '（' + hit.sheet.Name + ' · ' + where + '）'
+        : '定位失败：请在表格中手动跳到 ' + address;
+    }, function () {
       $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
-      return;
-    }
-    var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
-    var address = column + hit.row;
-    var ok = revealCell(hit.sheet, address);
-    if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
-    var where = (hit.foundIn === 'target' ? '译文列' : '原文列');
-    $('entryCheck').textContent = ok
-      ? '已定位 ' + address + '（' + hit.sheet.Name + ' · ' + where + '）'
-      : '定位失败：请在表格中手动跳到 ' + address;
+    });
   }
 
   function locateTarget() {
     var entry = currentEntry();
     var text = currentSourceText().trim() || (entry ? entry.source : '');
     if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
-    $('entryCheck').textContent = '全表搜索中：' + text.slice(0, 20);
-    var hit = findAcrossWorkbook(text);
-    if (!hit) {
+    $('entryCheck').textContent = '搜索中：' + text.slice(0, 20);
+    searchWorkbookAsync(text, function (hit) {
+      var address = state.settings.targetCol + hit.row;
+      var ok = revealCell(hit.sheet, address);
+      if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
+      $('entryCheck').textContent = ok
+        ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
+        : '定位失败：请在表格中手动跳到 ' + address;
+    }, function () {
       $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
-      return;
-    }
-    var address = state.settings.targetCol + hit.row;
-    var ok = revealCell(hit.sheet, address);
-    if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
-    $('entryCheck').textContent = ok
-      ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
-      : '定位失败：请在表格中手动跳到 ' + address;
+    });
   }
 
   function deliveryCheck() {
