@@ -166,7 +166,46 @@
     });
   }
 
+  var TOKEN_PATTERNS = [
+    /\{\{[^{}]*\}\}/g,
+    /\{[A-Za-z0-9_.]+\}/g,
+    /%\d*\$?[-+#0 ]*(?:\d+|\*)?(?:\.\d+)?[sdif]/g,
+    /<\/?[A-Za-z][^<>]{0,40}>/g
+  ];
+
+  /** Runtime tokens that must survive translation unchanged. */
+  function tokens(text) {
+    if (!text) return [];
+    var found = [];
+    TOKEN_PATTERNS.forEach(function (pattern) {
+      var match;
+      pattern.lastIndex = 0;
+      while ((match = pattern.exec(text)) !== null) {
+        found.push(match[0]);
+      }
+    });
+    return found.sort();
+  }
+
+  /** Compare token multisets; returns the differing tokens on each side. */
+  function checkTokens(source, target) {
+    var a = tokens(source);
+    var b = tokens(target);
+    var missing = [];
+    var extra = [];
+    var pool = b.slice();
+    a.forEach(function (token) {
+      var at = pool.indexOf(token);
+      if (at === -1) missing.push(token);
+      else pool.splice(at, 1);
+    });
+    pool.forEach(function (token) { extra.push(token); });
+    return { ok: missing.length === 0 && extra.length === 0, missing: missing, extra: extra };
+  }
+
   var api = {
+    tokens: tokens,
+    checkTokens: checkTokens,
     parseTermbase: parseTermbase,
     findMatches: findMatches,
     scanRows: scanRows,
