@@ -646,10 +646,19 @@
     $('entryCheck').textContent = '已写回原文 ' + state.settings.sourceCol + entry.row;
   }
 
+  // Navigation moves the grid too, so the sheet and the pane never disagree
+  // about which row is being worked on.
   function move(delta) {
     if (!state.entries.length) return;
-    state.cursor = Math.min(Math.max(state.cursor + delta, 0), state.entries.length - 1);
+    var next = Math.min(Math.max(state.cursor + delta, 0), state.entries.length - 1);
+    if (next === state.cursor && delta !== 0) {
+      $('entryCheck').textContent = delta < 0 ? '已经是第一条' : '已经是最后一条';
+      return;
+    }
+    state.cursor = next;
     renderEntry();
+    var entry = currentEntry();
+    if (entry) revealCell(entrySheet(entry), state.settings.sourceCol + entry.row);
   }
 
   function writeAndNext() {
