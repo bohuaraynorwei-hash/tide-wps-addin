@@ -112,6 +112,11 @@
         <button class="act ghost" id="btnResetTerms">恢复内置术语表</button>
         <button class="act ghost" id="btnExportTerms">导出术语表 JSON</button>
       </div>
+      <div class="field" id="termsUnlockBlock" hidden>
+        <label>术语表口令（加密包）</label>
+        <input id="termsPass" type="password" placeholder="与其他设备相同的口令">
+        <div class="toolbar"><button class="act" id="btnUnlockTerms">解锁术语表</button></div>
+      </div>
       <div class="hint" id="termSource">内置术语表未加载</div>
       <div class="status" id="settingsStatus"></div>
       <div class="hint" id="envHint"></div>

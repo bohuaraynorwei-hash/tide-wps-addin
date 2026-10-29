@@ -30,7 +30,8 @@
     helper: { ok: false, token: false },
     bundledTerms: [],
     matchTerms: [],
-    bundledMeta: null
+    bundledMeta: null,
+    termsBlob: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -256,22 +257,50 @@
       el.textContent = '内置术语表 ' + meta.count + ' 条 · ' + meta.source + ' · 构建 ' +
         String(meta.built_at || '').slice(0, 10) +
         (held ? ' · ' + held + ' 条待确认，不参与匹配' : '');
+    } else if (state.termsBlob) {
+      el.textContent = '术语表已加密随包分发；到下方输入口令解锁。';
     } else {
       el.textContent = '内置术语表未加载；可用「导入术语表」或「恢复内置术语表」。';
     }
   }
 
-  // Bundled termbase ships with the add-in; a user import still wins until reset.
+  function usePayload(data) {
+    state.bundledTerms = window.TideEngine.parseTermbase(data.terms);
+    state.bundledMeta = data.meta || { count: state.bundledTerms.length, source: 'bundled' };
+    if (!state.terms.length) setTerms(state.bundledTerms.slice());
+    renderTermSource();
+    renderTerms();
+    return state.bundledTerms;
+  }
+
+  // Portable builds ship the termbase encrypted (data/terms.enc.json); a local
+  // build has the plaintext file, which needs no passphrase.
   function loadBundled() {
     return fetch('../data/terms.json').then(function (response) {
       return response.ok ? response.json() : null;
     }).then(function (data) {
-      if (!data || !Array.isArray(data.terms)) return null;
-      state.bundledTerms = window.TideEngine.parseTermbase(data.terms);
-      state.bundledMeta = data.meta || { count: state.bundledTerms.length, source: 'bundled' };
-      return state.bundledTerms;
+      if (data && Array.isArray(data.terms)) return usePayload(data);
+      return fetch('../data/terms.enc.json').then(function (response) {
+        return response.ok ? response.json() : null;
+      }).then(function (blob) {
+        if (!blob) return null;
+        state.termsBlob = blob;
+        var saved = window.localStorage.getItem('tide.termsPass');
+        if (saved) return decryptTerms(saved).catch(function () { return null; });
+        $('termsUnlockBlock').hidden = false;
+        renderTermSource();
+        return null;
+      });
     }).catch(function () {
       return null;
+    });
+  }
+
+  function decryptTerms(passphrase) {
+    return window.TideCrypto.decrypt(passphrase, state.termsBlob).then(function (text) {
+      window.localStorage.setItem('tide.termsPass', passphrase);
+      $('termsUnlockBlock').hidden = true;
+      return usePayload(JSON.parse(text));
     });
   }
 
@@ -461,6 +490,15 @@
       link.click();
       URL.revokeObjectURL(link.href);
     });
+    $('btnUnlockTerms').addEventListener('click', function () {
+      var pass = $('termsPass').value;
+      if (!pass) { $('settingsStatus').textContent = '请输入术语表口令。'; return; }
+      decryptTerms(pass).then(function () {
+        $('settingsStatus').textContent = '术语表已解锁：' + state.terms.length + ' 条。';
+      }).catch(function () {
+        $('settingsStatus').textContent = '口令错误，或加密包已损坏。';
+      });
+    });
     $('btnPush').addEventListener('click', pushTerms);
     $('btnPull').addEventListener('click', refreshHelper);
   }
@@ -500,12 +538,7 @@
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
     renderLock();
     renderTermSource();
-    loadBundled().then(function (terms) {
-      if (!terms) { renderTermSource(); return; }
-      if (!state.terms.length) setTerms(terms.slice());
-      renderTermSource();
-      renderTerms();
-    });
+    loadBundled().then(function () { renderTermSource(); });
     renderHistory();
     watchRibbon();
   }
