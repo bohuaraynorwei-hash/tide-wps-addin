@@ -542,6 +542,13 @@
     renderEntry();
   }
 
+  function locateSource() {
+    var entry = currentEntry();
+    var sheet = currentSheet();
+    if (!entry || !sheet) return;
+    sheet.Range(state.settings.sourceCol + entry.row).Select();
+  }
+
   function locateTarget() {
     var entry = currentEntry();
     var sheet = currentSheet();
@@ -942,6 +949,7 @@
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
+    $('btnLocateSource').addEventListener('click', locateSource);
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnDelivery').addEventListener('click', deliveryCheck);
