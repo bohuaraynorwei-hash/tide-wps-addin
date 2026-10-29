@@ -840,7 +840,7 @@
   }
 
   // Look for the text in one sheet: source column first, then target column.
-  function findInSheet(sheet, text) {
+  function findInSheet(sheet, text, prefer) {
     if (!sheet || !text) return null;
     var used;
     try { used = sheet.UsedRange; } catch (err) { return null; }
@@ -853,14 +853,17 @@
     var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
     var wanted = String(text).trim();
-    for (var i = 0; i < grid.length; i += 1) {
-      if (srcIdx >= 0 && cellText(grid, i, srcIdx).trim() === wanted) {
-        return { row: startRow + i, foundIn: 'source' };
-      }
-    }
-    for (var j = 0; j < grid.length; j += 1) {
-      if (tgtIdx >= 0 && cellText(grid, j, tgtIdx).trim() === wanted) {
-        return { row: startRow + j, foundIn: 'target' };
+    var order = prefer === 'target'
+      ? [['target', tgtIdx], ['source', srcIdx]]
+      : [['source', srcIdx], ['target', tgtIdx]];
+    for (var c = 0; c < order.length; c += 1) {
+      var kind = order[c][0];
+      var col = order[c][1];
+      if (col < 0) continue;
+      for (var i = 0; i < grid.length; i += 1) {
+        if (cellText(grid, i, col).trim() === wanted) {
+          return { row: startRow + i, foundIn: kind };
+        }
       }
     }
     return null;
@@ -869,7 +872,7 @@
   // Search the visible sheet, then every other worksheet in the workbook.
   function findAcrossWorkbook(text) {
     var current = currentSheet();
-    var local = findInSheet(current, text);
+    var local = findInSheet(current, text, prefer);
     if (local) return { sheet: current, row: local.row, foundIn: local.foundIn };
     var app = sheetApp();
     var book = app && app.ActiveWorkbook;
@@ -889,12 +892,12 @@
 
   // Non-blocking workbook scan: one sheet per tick, with progress feedback.
   // A synchronous sweep of 93 sheets freezes the pane and reads as "no response".
-  function searchWorkbookAsync(text, onHit, onDone) {
+  function searchWorkbookAsync(text, prefer, onHit, onDone) {
     var app = sheetApp();
     var book = app && app.ActiveWorkbook;
     if (!book || !book.Worksheets) { onDone(); return; }
     var current = currentSheet();
-    var local = findInSheet(current, text);
+    var local = findInSheet(current, text, prefer);
     if (local) { onHit({ sheet: current, row: local.row, foundIn: local.foundIn }); return; }
     var sheets = book.Worksheets;
     var count = 0;
@@ -907,7 +910,7 @@
       if (sheet && current && sheet.Name === current.Name) { index += 1; step(); return; }
       index += 1;
       if (sheet) {
-        var hit = findInSheet(sheet, text);
+        var hit = findInSheet(sheet, text, prefer);
         if (hit) { onHit({ sheet: sheet, row: hit.row, foundIn: hit.foundIn }); return; }
       }
       if (index % 5 === 0) $('entryCheck').textContent = '搜索中 ' + index + '/' + count;
@@ -950,7 +953,7 @@
     var text = currentSourceText().trim() || (entry ? entry.source : '');
     if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
     $('entryCheck').textContent = '搜索中：' + text.slice(0, 20);
-    searchWorkbookAsync(text, function (hit) {
+    searchWorkbookAsync(text, 'source', function (hit) {
       var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
       var address = column + hit.row;
       var ok = revealCell(hit.sheet, address);
@@ -966,11 +969,13 @@
 
   function locateTarget() {
     var entry = currentEntry();
-    var text = currentSourceText().trim() || (entry ? entry.source : '');
-    if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
-    $('entryCheck').textContent = '搜索中：' + text.slice(0, 20);
-    searchWorkbookAsync(text, function (hit) {
-      var address = state.settings.targetCol + hit.row;
+    // Search what the translation box actually holds, not the source.
+    var text = ($('entryDraft').value || '').trim();
+    if (!text) { $('entryCheck').textContent = '译文草稿为空，没有可定位的内容。'; return; }
+    $('entryCheck').textContent = '搜索译文：' + text.slice(0, 20);
+    searchWorkbookAsync(text, 'target', function (hit) {
+      var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+      var address = column + hit.row;
       var ok = revealCell(hit.sheet, address);
       if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
       $('entryCheck').textContent = ok
