@@ -193,8 +193,14 @@
     var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
     var uidIdx = colToNumber(state.settings.uidCol) - startCol;
+    // The used range may start on a blank row; the header is the first row with
+    // a non-empty source cell, and data starts after it.
+    var headerAt = 0;
+    for (var h = 0; h < grid.length; h += 1) {
+      if (cellText(grid, h, srcIdx).trim()) { headerAt = h; break; }
+    }
     var rows = [];
-    for (var r = 1; r < grid.length; r += 1) {
+    for (var r = headerAt + 1; r < grid.length; r += 1) {
       var source = cellText(grid, r, srcIdx);
       if (!source.trim()) continue;
       rows.push({
@@ -702,10 +708,45 @@
     renderEntry();
   }
 
+  // Find the worksheet row whose source cell matches the text exactly.
+  function findRowBySource(sheet, text) {
+    if (!sheet || !text) return 0;
+    var used = sheet.UsedRange;
+    if (!used) return 0;
+    var grid = toGrid(used.Value2);
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
+    var wanted = String(text).trim();
+    for (var i = 0; i < grid.length; i += 1) {
+      if (cellText(grid, i, srcIdx).trim() === wanted) return startRow + i;
+    }
+    return 0;
+  }
+
+  // The row to operate on: the entry's row when it still holds this text, the
+  // searched row when the text moved, 0 when it is nowhere in the sheet.
+  function resolveRow(entry, text) {
+    var sheet = entrySheet(entry);
+    var row = findRowBySource(sheet, text);
+    if (!row) return 0;
+    if (entry && row !== entry.row) {
+      entry.row = row;
+      state.cursor = state.entries.indexOf(entry);
+    }
+    return row;
+  }
+
   function locateSource() {
     var entry = currentEntry();
     if (!entry) return;
-    var address = state.settings.sourceCol + entry.row;
+    var text = currentSourceText().trim() || entry.source;
+    var row = resolveRow(entry, text);
+    if (!row) {
+      $('entryCheck').textContent = '表格源文列里没有这段原文：' + text.slice(0, 20);
+      return;
+    }
+    var address = state.settings.sourceCol + row;
     var ok = revealCell(entrySheet(entry), address);
     $('entryCheck').textContent = ok
       ? '已定位原文 ' + address
@@ -715,7 +756,12 @@
   function locateTarget() {
     var entry = currentEntry();
     if (!entry) return;
-    var address = entryAddress(entry.row);
+    var row = resolveRow(entry, currentSourceText().trim() || entry.source);
+    if (!row) {
+      $('entryCheck').textContent = '表格源文列里没有这段原文，无法定位译文。';
+      return;
+    }
+    var address = entryAddress(row);
     var ok = revealCell(entrySheet(entry), address);
     $('entryCheck').textContent = ok
       ? '已定位译文 ' + address
