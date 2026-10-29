@@ -53,3 +53,7 @@ textarea:focus{outline:2px solid var(--ink);outline-offset:-1px}
 
 .readbox, td, .hint, .pair { user-select: text; -webkit-user-select: text }
 .clip{position:fixed;left:-9999px;top:0;opacity:0}
+
+body, textarea, input, td, .readbox { -webkit-user-select: text; user-select: text }
+
+[hidden]{display:none !important}

@@ -457,9 +457,32 @@
     return ok;
   }
 
+  // Last resort that never depends on clipboard permissions or key forwarding:
+  // the text is put in a plain textarea the user can select / paste into.
+  function showManualClip(text, mode) {
+    var block = $('manualClip');
+    var area = $('manualClipText');
+    block.hidden = false;
+    if (mode === 'copy') {
+      area.readOnly = true;
+      area.value = text;
+      $('manualClipLabel').textContent = '手动复制：已选中，按 ⌘C / Ctrl+C';
+      area.focus();
+      area.select();
+      $('btnManualApply').hidden = true;
+    } else {
+      area.readOnly = false;
+      area.value = '';
+      $('manualClipLabel').textContent = '手动粘贴：先点这里，再按 ⌘V / Ctrl+V';
+      $('btnManualApply').hidden = false;
+      area.focus();
+    }
+  }
+
   function pasteIntoDraft() {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
-      $('entryCheck').textContent = '当前环境不允许读取剪贴板，请用 ⌘V 粘贴到草稿框。';
+      $('entryCheck').textContent = '此处不能直接读剪贴板，请用下方手动粘贴。';
+      showManualClip('', 'paste');
       return;
     }
     navigator.clipboard.readText().then(function (text) {
@@ -467,7 +490,8 @@
       $('entryDraft').dispatchEvent(new Event('input'));
       $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符。';
     }).catch(function () {
-      $('entryCheck').textContent = '读取剪贴板被拒绝，请用 ⌘V 粘贴到草稿框。';
+      $('entryCheck').textContent = '读取剪贴板被拒绝，请用下方手动粘贴。';
+      showManualClip('', 'paste');
     });
   }
 
@@ -804,15 +828,26 @@
       var entry = currentEntry();
       if (!entry) return;
       copyText(entry.source).then(function (ok) {
-        $('entryCheck').textContent = ok ? '已复制原文（' + entry.row + ' 行）' : '复制失败，请手动选择文本。';
+        if (ok) { $('entryCheck').textContent = '已复制原文（' + entry.row + ' 行）'; }
+        else { $('entryCheck').textContent = '复制被拒绝，请用下方手动复制。'; showManualClip(entry.source, 'copy'); }
       });
     });
     $('btnCopyDraft').addEventListener('click', function () {
       copyText($('entryDraft').value).then(function (ok) {
-        $('entryCheck').textContent = ok ? '已复制草稿' : '复制失败，请手动选择文本。';
+        if (ok) { $('entryCheck').textContent = '已复制草稿'; }
+        else { $('entryCheck').textContent = '复制被拒绝，请用下方手动复制。'; showManualClip($('entryDraft').value, 'copy'); }
       });
     });
     $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
+    $('btnManualApply').addEventListener('click', function () {
+      var text = $('manualClipText').value;
+      if (!text) return;
+      $('entryDraft').value = text;
+      $('entryDraft').dispatchEvent(new Event('input'));
+      $('manualClip').hidden = true;
+      $('entryCheck').textContent = '已从手动粘贴区应用 ' + text.length + ' 个字符。';
+    });
+    $('btnManualClose').addEventListener('click', function () { $('manualClip').hidden = true; });
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
