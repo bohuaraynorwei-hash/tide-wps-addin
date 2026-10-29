@@ -34,6 +34,8 @@
     termsBlob: null,
     entries: [],
     findResults: [],
+    batchPreview: [],
+    lastBatch: [],
     sourceDirty: false,
     memory: [],
     cursor: 0,
@@ -658,6 +660,162 @@
       window.setTimeout(step, 0);
     }
     step();
+  }
+
+  // ---------- batch find & replace ----------
+
+  function replaceAllIn(text, find, repl, caseSensitive) {
+    if (!find) return text;
+    if (caseSensitive) return text.split(find).join(repl);
+    var escaped = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(escaped, 'gi'), repl);
+  }
+
+  function batchColumns() {
+    var mode = $('repColumn').value;
+    var cols = [];
+    if (mode === 'source' || mode === 'both') cols.push({ kind: 'source', letter: state.settings.sourceCol });
+    if (mode === 'target' || mode === 'both') cols.push({ kind: 'target', letter: state.settings.targetCol });
+    return cols;
+  }
+
+  function scanSheetForReplace(sheet, find, repl, caseSensitive, cols) {
+    var hits = [];
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return hits; }
+    if (!used) return hits;
+    var grid;
+    try { grid = toGrid(used.Value2); } catch (err) { return hits; }
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    for (var c = 0; c < cols.length; c += 1) {
+      var idx = colToNumber(cols[c].letter) - startCol;
+      if (idx < 0) continue;
+      for (var i = 0; i < grid.length; i += 1) {
+        var before = cellText(grid, i, idx);
+        if (!before) continue;
+        var after = replaceAllIn(before, find, repl, caseSensitive);
+        if (after === before) continue;
+        hits.push({
+          sheet: sheet.Name, row: startRow + i, column: cols[c].kind,
+          letter: cols[c].letter, before: before, after: after
+        });
+      }
+    }
+    return hits;
+  }
+
+  function runBatchScan(find, repl, caseSensitive, scope, onDone) {
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    if (!book || !book.Worksheets) { onDone([]); return; }
+    var sheets = book.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    var current = currentSheet();
+    var cols = batchColumns();
+    var hits = [];
+    var index = 1;
+
+    function step() {
+      if (index > count || hits.length >= 500) { onDone(hits); return; }
+      var sheet = null;
+      try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
+      index += 1;
+      var skip = scope === 'sheet' && current && (!sheet || sheet.Name !== current.Name);
+      if (sheet && !skip) {
+        try { hits = hits.concat(scanSheetForReplace(sheet, find, repl, caseSensitive, cols)); } catch (err) { /* skip */ }
+      }
+      if (index % 5 === 0) $('repStatus').textContent = '扫描中 ' + index + '/' + count;
+      window.setTimeout(step, 0);
+    }
+    step();
+  }
+
+  function renderBatch() {
+    var table = $('repTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var hits = state.batchPreview || [];
+    $('repCount').textContent = hits.length ? hits.length + ' 处待替换' : '';
+    table.hidden = hits.length === 0;
+    hits.slice(0, 200).forEach(function (hit) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', hit.sheet, 'num'));
+      tr.appendChild(textNode('td', hit.letter + hit.row, 'num'));
+      tr.appendChild(textNode('td', hit.before.slice(0, 34), 'hint'));
+      tr.appendChild(textNode('td', hit.after.slice(0, 34)));
+      body.appendChild(tr);
+    });
+    $('btnRepApply').disabled = hits.length === 0;
+  }
+
+  function previewBatch() {
+    var find = $('repFind').value;
+    if (!find) { $('repStatus').textContent = '先填写查找内容。'; return; }
+    var repl = $('repWith').value;
+    $('repStatus').textContent = '扫描中…';
+    $('btnRepPreview').disabled = true;
+    runBatchScan(find, repl, $('repCase').checked, $('repScope').value, function (hits) {
+      state.batchPreview = hits;
+      renderBatch();
+      $('btnRepPreview').disabled = false;
+      $('repStatus').textContent = hits.length
+        ? '预览完成：' + hits.length + ' 处。确认后点「执行替换」。'
+        : '没有匹配的单元格。';
+    });
+  }
+
+  function applyBatch() {
+    var hits = state.batchPreview || [];
+    if (!hits.length) return;
+    if (!window.confirm('将修改 ' + hits.length + ' 个单元格，确定执行？')) return;
+    var sheetCache = {};
+    var applied = [];
+    var stamp = new Date().toISOString();
+    hits.forEach(function (hit) {
+      var sheet = sheetCache[hit.sheet] || (sheetCache[hit.sheet] = sheetByName(hit.sheet));
+      if (!sheet) return;
+      try {
+        var cell = sheet.Range(hit.letter + hit.row);
+        cell.Value2 = hit.after;
+        applied.push(hit);
+      } catch (err) { /* skip unreadable cell */ }
+    });
+    state.lastBatch = applied;
+    if (state.unlocked) {
+      applied.forEach(function (hit) {
+        state.archive.history.push({
+          ts: stamp, sheet: hit.sheet, cell: hit.letter + hit.row,
+          before: hit.before, after: hit.after
+        });
+      });
+      saveArchive();
+    }
+    state.batchPreview = [];
+    renderBatch();
+    $('btnRepUndo').disabled = applied.length === 0;
+    $('repStatus').textContent = '已替换 ' + applied.length + ' 个单元格' + (state.unlocked ? '，已记入归档。' : '（归档未解锁，未记录）。');
+    loadEntries();
+    renderEntry();
+  }
+
+  function undoBatch() {
+    var batch = state.lastBatch || [];
+    if (!batch.length) return;
+    if (!window.confirm('撤销上次批量替换（' + batch.length + ' 个单元格）？')) return;
+    var sheetCache = {};
+    var restored = 0;
+    batch.forEach(function (hit) {
+      var sheet = sheetCache[hit.sheet] || (sheetCache[hit.sheet] = sheetByName(hit.sheet));
+      if (!sheet) return;
+      try { sheet.Range(hit.letter + hit.row).Value2 = hit.before; restored += 1; } catch (err) { /* skip */ }
+    });
+    state.lastBatch = [];
+    $('btnRepUndo').disabled = true;
+    $('repStatus').textContent = '已撤销 ' + restored + ' 个单元格。';
+    loadEntries();
+    renderEntry();
   }
 
   function renderPosition() {
@@ -1417,6 +1575,9 @@
       });
     }
     $('btnFindAll').addEventListener('click', runFind);
+    $('btnRepPreview').addEventListener('click', previewBatch);
+    $('btnRepApply').addEventListener('click', applyBatch);
+    $('btnRepUndo').addEventListener('click', undoBatch);
     $('findInput').addEventListener('keydown', function (event) {
       if (event.key === 'Enter') runFind();
     });

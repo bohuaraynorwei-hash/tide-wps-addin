@@ -76,3 +76,11 @@ body, textarea, input, td, .readbox { -webkit-user-select: text; user-select: te
 .colinput button{white-space:nowrap;padding:6px 8px;font-size:10px}
 .colfield .hint{margin-top:4px}
 #settingsStatus{white-space:pre-wrap}
+
+.rule{border:0;border-top:1px solid var(--hair);margin:18px 0 12px}
+.sub{margin:0 0 10px;font:600 11px/1 var(--mono);letter-spacing:.12em;
+     text-transform:uppercase;color:var(--muted)}
+.mini{padding:6px 8px;border:1px solid var(--hair);background:var(--panel);
+      font:11px var(--mono);color:var(--ink)}
+.chk{display:flex;align-items:center;gap:5px;font:11px var(--mono);color:var(--muted)}
+.chk input{accent-color:var(--accent)}

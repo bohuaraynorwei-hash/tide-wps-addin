@@ -142,6 +142,42 @@
       </table>
       <div class="hint" id="findEmpty">输入片段后开始搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
       <div class="hint" id="findStatus"></div>
+
+      <hr class="rule">
+      <h3 class="sub">批量替换</h3>
+      <div class="colrow">
+        <div class="colfield">
+          <label>查找</label>
+          <input id="repFind" placeholder="要查找的文字" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+        </div>
+        <div class="colfield">
+          <label>替换为</label>
+          <input id="repWith" placeholder="留空表示删除" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <select id="repScope" class="mini">
+          <option value="book">整本工作簿</option>
+          <option value="sheet">仅当前表</option>
+        </select>
+        <select id="repColumn" class="mini">
+          <option value="both">原文 + 译文</option>
+          <option value="source">仅原文列</option>
+          <option value="target">仅译文列</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="repCase"> 区分大小写</label>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnRepPreview">预览</button>
+        <button class="act" id="btnRepApply" disabled>执行替换</button>
+        <button class="act ghost" id="btnRepUndo" disabled>撤销上次批量</button>
+        <span class="count" id="repCount"></span>
+      </div>
+      <div class="hint" id="repStatus"></div>
+      <table id="repTable" hidden>
+        <thead><tr><th>表</th><th>单元格</th><th>替换前</th><th>替换后</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <section id="panel-terms" hidden>
