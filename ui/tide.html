@@ -48,6 +48,14 @@
         <label>译文草稿</label>
         <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
       </div>
+      <div class="field">
+        <label>记忆匹配 <span class="count" id="memoryCount"></span></label>
+        <table id="memoryTable" hidden>
+          <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="memoryEmpty">当前表还没有可用的已确认译文。</div>
+      </div>
       <div class="toolbar">
         <button class="act" id="btnWriteNext">写入并下一条</button>
         <button class="act ghost" id="btnLocate">定位译文</button>

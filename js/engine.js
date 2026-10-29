@@ -203,7 +203,81 @@
     return { ok: missing.length === 0 && extra.length === 0, missing: missing, extra: extra };
   }
 
+  /** Levenshtein distance over Unicode code points. */
+  function levenshtein(a, b) {
+    var left = Array.from(String(a || ''));
+    var right = Array.from(String(b || ''));
+    if (!left.length) return right.length;
+    if (!right.length) return left.length;
+    var previous = [];
+    for (var j = 0; j <= right.length; j += 1) previous[j] = j;
+    for (var i = 1; i <= left.length; i += 1) {
+      var current = [i];
+      for (var k = 1; k <= right.length; k += 1) {
+        var cost = left[i - 1] === right[k - 1] ? 0 : 1;
+        current[k] = Math.min(current[k - 1] + 1, previous[k] + 1, previous[k - 1] + cost);
+      }
+      previous = current;
+    }
+    return previous[right.length];
+  }
+
+  function similarity(a, b) {
+    var left = String(a || '');
+    var right = String(b || '');
+    if (!left && !right) return 1;
+    var longest = Math.max(Array.from(left).length, Array.from(right).length);
+    if (!longest) return 1;
+    return 1 - levenshtein(left, right) / longest;
+  }
+
+  /** Build a source→target memory from reviewed rows. */
+  function buildMemory(rows) {
+    var seen = {};
+    var memory = [];
+    (rows || []).forEach(function (row) {
+      var source = String(row.source || '').trim();
+      var target = String(row.target || '').trim();
+      if (!source || !target) return;
+      var key = source + '\u0000' + target;
+      if (seen[key]) return;
+      seen[key] = 1;
+      memory.push({ source: source, target: target, row: row.row, sheet: row.sheet || '', uid: row.uid || '' });
+    });
+    return memory;
+  }
+
+  /**
+   * Exact matches first, then fuzzy ones above the threshold.
+   * Returns { exact: [...], fuzzy: [{...entry, score}] }.
+   */
+  function findMemory(source, memory, minScore, limit) {
+    var text = String(source || '').trim();
+    var floor = typeof minScore === 'number' ? minScore : 0.5;
+    var cap = typeof limit === 'number' ? limit : 5;
+    var exact = [];
+    var fuzzy = [];
+    if (!text) return { exact: exact, fuzzy: fuzzy };
+    (memory || []).forEach(function (entry) {
+      if (entry.source === text) {
+        exact.push(entry);
+        return;
+      }
+      // Length alone bounds similarity, so skip entries that cannot reach the floor.
+      var longest = Math.max(Array.from(text).length, Array.from(entry.source).length);
+      if (longest && 1 - Math.abs(Array.from(text).length - Array.from(entry.source).length) / longest < floor) return;
+      var score = similarity(text, entry.source);
+      if (score >= floor) fuzzy.push(Object.assign({}, entry, { score: score }));
+    });
+    fuzzy.sort(function (a, b) { return b.score - a.score; });
+    return { exact: exact, fuzzy: fuzzy.slice(0, cap) };
+  }
+
   var api = {
+    levenshtein: levenshtein,
+    similarity: similarity,
+    buildMemory: buildMemory,
+    findMemory: findMemory,
     tokens: tokens,
     checkTokens: checkTokens,
     parseTermbase: parseTermbase,

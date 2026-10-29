@@ -33,6 +33,7 @@
     bundledMeta: null,
     termsBlob: null,
     entries: [],
+    memory: [],
     cursor: 0,
     lastWrite: null
   };
@@ -334,6 +335,7 @@
       if (!String(state.entries[i].target || '').trim()) { firstEmpty = i; break; }
     }
     state.cursor = firstEmpty;
+    refreshMemory();
     return state.entries;
   }
 
@@ -367,6 +369,51 @@
     saveArchive();
   }
 
+  function refreshMemory() {
+    state.memory = window.TideEngine.buildMemory(state.entries);
+  }
+
+  function applyMemory(target) {
+    $('entryDraft').value = target;
+    $('entryDraft').dispatchEvent(new Event('input'));
+    $('entryDraft').focus();
+  }
+
+  function renderMemory(entry) {
+    var table = $('memoryTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var count = $('memoryCount');
+    if (!entry || !state.memory.length) {
+      table.hidden = true;
+      $('memoryEmpty').hidden = false;
+      $('memoryEmpty').textContent = state.memory.length ? '当前条目没有匹配。' : '当前表还没有可用的已确认译文。';
+      count.textContent = state.memory.length ? state.memory.length + ' 条记忆' : '';
+      return;
+    }
+    var result = window.TideEngine.findMemory(entry.source, state.memory, 0.5, 5);
+    var rows = result.exact.map(function (item) { return { item: item, exact: true, score: 1 }; })
+      .concat(result.fuzzy.map(function (item) { return { item: item, exact: false, score: item.score }; }));
+    count.textContent = rows.length ? rows.length + ' 条匹配 / ' + state.memory.length + ' 条记忆' : '';
+    table.hidden = rows.length === 0;
+    $('memoryEmpty').hidden = rows.length > 0;
+    $('memoryEmpty').textContent = '当前条目没有匹配。';
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', row.exact ? '精确' : Math.round(row.score * 100) + '%', 'num'));
+      tr.appendChild(textNode('td', row.item.source.slice(0, 40), 'hint'));
+      tr.appendChild(textNode('td', row.item.target.slice(0, 40)));
+      var tdUse = document.createElement('td');
+      var use = document.createElement('button');
+      use.className = 'act ghost';
+      use.textContent = '采用';
+      use.addEventListener('click', function () { applyMemory(row.item.target); });
+      tdUse.appendChild(use);
+      tr.appendChild(tdUse);
+      body.appendChild(tr);
+    });
+  }
+
   function renderEntry() {
     var entry = currentEntry();
     $('entryPos').textContent = state.entries.length
@@ -376,11 +423,13 @@
       $('entrySource').textContent = '当前表没有可翻译的条目。';
       $('entryDraft').value = '';
       $('entryCheck').textContent = '';
+      renderMemory(null);
       return;
     }
     $('entrySource').textContent = entry.source;
     $('entryDraft').value = entry.target || '';
     $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
+    renderMemory(entry);
   }
 
   // WPS's CEF host swallows the usual shortcuts, so copying goes through an
@@ -448,6 +497,7 @@
     if (!writeCell(entry.row, value)) return;
     var address = entryAddress(entry.row);
     entry.target = value;
+    refreshMemory();
     recordWrite(entry, before, value);
     move(1);
     $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
