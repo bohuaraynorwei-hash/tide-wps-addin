@@ -59,6 +59,29 @@
     }
   }
 
+  // The pane knows the build it was opened with (?b=…); build.json on the server
+  // says what is deployed. A mismatch is offered as a one-click reload.
+  var SELF_BUILD = (function () {
+    var m = /[?&]b=([^&]+)/.exec(window.location.search);
+    return m ? decodeURIComponent(m[1]) : '';
+  })();
+
+  function checkForUpdate() {
+    if (!SELF_BUILD) return;
+    fetch('../build.json', { cache: 'no-store' }).then(function (response) {
+      return response.ok ? response.json() : null;
+    }).then(function (data) {
+      if (!data || !data.build || data.build === SELF_BUILD) return;
+      var bar = $('updateBar');
+      bar.hidden = false;
+      bar.onclick = function () {
+        var url = new URL(window.location.href);
+        url.searchParams.set('b', data.build);
+        window.location.replace(url.toString());
+      };
+    }).catch(function () { /* offline: keep the current pane */ });
+  }
+
   function sheetApp() {
     return (typeof window.Application !== 'undefined' && window.Application) ? window.Application : null;
   }
@@ -1099,6 +1122,8 @@
     loadBundled().then(function () { renderTermSource(); });
     renderHistory();
     watchRibbon();
+    checkForUpdate();
+    window.setInterval(checkForUpdate, 120000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

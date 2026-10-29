@@ -60,3 +60,6 @@ textarea:focus{outline:2px solid var(--ink);outline-offset:-1px}
 body, textarea, input, td, .readbox { -webkit-user-select: text; user-select: text }
 
 [hidden]{display:none !important}
+
+#updateBar{background:var(--accent);border-color:var(--accent);color:#fff;
+           font-size:10px;padding:4px 6px;letter-spacing:0}
