@@ -108,7 +108,26 @@ nav button.on{
 }
 
 /* ---------- content ---------- */
-main{flex:1;overflow:auto;padding:12px 14px 24px}
+.content{flex:1;min-height:0;position:relative;display:flex}
+main{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:12px 22px 24px 14px;
+  scrollbar-width:none}
+main::-webkit-scrollbar{display:none}
+/* Content scrollbars: native bars are overlays here and fade out, so they are
+   drawn as elements and stay visible exactly while the content overflows. */
+.scroll-rail{
+  position:absolute;border-radius:99px;background:rgba(118,118,128,.18);
+  opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:3;
+}
+.scroll-rail.on{opacity:1;pointer-events:auto}
+.scroll-rail.v{top:6px;right:3px;bottom:10px;width:7px}
+.scroll-rail.h{left:6px;right:14px;bottom:3px;height:7px}
+.scroll-thumb{
+  position:absolute;background:var(--accent);border-radius:99px;cursor:grab;
+  min-height:30px;min-width:30px;
+}
+.scroll-rail.v .scroll-thumb{left:0;width:7px}
+.scroll-rail.h .scroll-thumb{top:0;height:7px}
+.scroll-thumb:active{cursor:grabbing;background:var(--accent-press,#0055ad)}
 section[hidden]{display:none}
 
 h2,.sub{

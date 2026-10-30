@@ -43,7 +43,8 @@
   </nav>
   <div class="tab-scroll" id="tabScroll"><div class="tab-thumb" id="tabThumb"></div></div>
 
-  <main>
+  <div class="content">
+  <main id="mainScroll">
     <section id="panel-matches">
       <div class="toolbar">
         <button class="act" id="btnScan">扫描当前表</button>
@@ -447,6 +448,9 @@
       <div class="hint" id="envHint"></div>
     </section>
   </main>
+  <div class="scroll-rail v" id="mainRailV"><div class="scroll-thumb" id="mainThumbV"></div></div>
+  <div class="scroll-rail h" id="mainRailH"><div class="scroll-thumb" id="mainThumbH"></div></div>
+  </div>
 
   <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>

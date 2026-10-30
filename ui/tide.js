@@ -1960,6 +1960,85 @@
     persistProfiles();
   }
 
+  // ---------- content scrollbars (vertical + horizontal) ----------
+
+  function updateMainScroll() {
+    var el = $('mainScroll');
+    if (!el) return;
+    updateRail('V', el.scrollHeight, el.clientHeight, el.scrollTop, el);
+    updateRail('H', el.scrollWidth, el.clientWidth, el.scrollLeft, el);
+  }
+
+  function updateRail(axis, total, view, offset) {
+    var rail = $('mainRail' + axis);
+    var thumb = $('mainThumb' + axis);
+    if (!rail || !thumb) return;
+    var overflow = total > view + 1;
+    rail.classList.toggle('on', overflow);
+    if (!overflow) return;
+    var track = axis === 'V' ? rail.clientHeight : rail.clientWidth;
+    var size = Math.max(30, Math.round(track * (view / total)));
+    var max = track - size;
+    var progress = offset / Math.max(1, total - view);
+    if (axis === 'V') {
+      thumb.style.height = size + 'px';
+      thumb.style.top = Math.round(max * progress) + 'px';
+    } else {
+      thumb.style.width = size + 'px';
+      thumb.style.left = Math.round(max * progress) + 'px';
+    }
+  }
+
+  function wireMainScroll() {
+    var el = $('mainScroll');
+    if (!el) return;
+    el.addEventListener('scroll', updateMainScroll);
+    window.addEventListener('resize', updateMainScroll);
+    ['V', 'H'].forEach(function (axis) {
+      var rail = $('mainRail' + axis);
+      var thumb = $('mainThumb' + axis);
+      if (!rail || !thumb) return;
+      var dragging = false;
+      var start = 0;
+      var startOffset = 0;
+      thumb.addEventListener('mousedown', function (event) {
+        dragging = true;
+        start = axis === 'V' ? event.clientY : event.clientX;
+        startOffset = axis === 'V' ? el.scrollTop : el.scrollLeft;
+        event.preventDefault();
+      });
+      document.addEventListener('mousemove', function (event) {
+        if (!dragging) return;
+        var track = axis === 'V' ? rail.clientHeight : rail.clientWidth;
+        var size = axis === 'V' ? thumb.offsetHeight : thumb.offsetWidth;
+        var max = track - size;
+        if (max <= 0) return;
+        var total = axis === 'V' ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
+        var delta = ((axis === 'V' ? event.clientY : event.clientX) - start) * (total / max);
+        if (axis === 'V') el.scrollTop = startOffset + delta;
+        else el.scrollLeft = startOffset + delta;
+      });
+      document.addEventListener('mouseup', function () { dragging = false; });
+      rail.addEventListener('mousedown', function (event) {
+        if (event.target === thumb) return;
+        var rect = rail.getBoundingClientRect();
+        var ratio = axis === 'V'
+          ? (event.clientY - rect.top) / rect.height
+          : (event.clientX - rect.left) / rect.width;
+        if (axis === 'V') el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
+        else el.scrollLeft = ratio * (el.scrollWidth - el.clientWidth);
+      });
+    });
+    if (window.MutationObserver) {
+      var timer = 0;
+      new MutationObserver(function () {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(updateMainScroll, 60);
+      }).observe(el, { childList: true, subtree: true, characterData: true });
+    }
+    updateMainScroll();
+  }
+
   // ---------- tab strip scrollbar ----------
 
   function updateTabScroll() {
@@ -2009,6 +2088,7 @@
       nav.scrollLeft = ratio * (nav.scrollWidth - nav.clientWidth);
     });
     updateTabScroll();
+    updateMainScroll();
   }
 
   function renderPosition() {
@@ -2627,6 +2707,7 @@
     state.lastTab = name;
     writeJSON(K.lastTab, name);
     updateTabScroll();
+    updateMainScroll();
     var activeTab = $('tabs').querySelector('button.on');
     if (activeTab && activeTab.scrollIntoView) {
       try { activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
@@ -2872,6 +2953,7 @@
       state.tmTimer = window.setTimeout(renderTM, 200);
     });
     wireTabScroll();
+    wireMainScroll();
     $('tabs').addEventListener('wheel', function (event) {
       if (event.deltaY && !event.deltaX) {
         this.scrollLeft += event.deltaY;
