@@ -1960,6 +1960,57 @@
     persistProfiles();
   }
 
+  // ---------- tab strip scrollbar ----------
+
+  function updateTabScroll() {
+    var nav = $('tabs');
+    var bar = $('tabScroll');
+    var thumb = $('tabThumb');
+    if (!nav || !bar || !thumb) return;
+    var overflow = nav.scrollWidth > nav.clientWidth + 1;
+    bar.classList.toggle('on', overflow);
+    if (!overflow) return;
+    var trackWidth = bar.clientWidth;
+    var width = Math.max(32, Math.round(trackWidth * (nav.clientWidth / nav.scrollWidth)));
+    var maxLeft = trackWidth - width;
+    var progress = nav.scrollLeft / Math.max(1, nav.scrollWidth - nav.clientWidth);
+    thumb.style.width = width + 'px';
+    thumb.style.left = Math.round(maxLeft * progress) + 'px';
+  }
+
+  function wireTabScroll() {
+    var nav = $('tabs');
+    var thumb = $('tabThumb');
+    var bar = $('tabScroll');
+    if (!nav || !thumb || !bar) return;
+    nav.addEventListener('scroll', updateTabScroll);
+    window.addEventListener('resize', updateTabScroll);
+    var dragging = false;
+    var startX = 0;
+    var startLeft = 0;
+    thumb.addEventListener('mousedown', function (event) {
+      dragging = true;
+      startX = event.clientX;
+      startLeft = nav.scrollLeft;
+      event.preventDefault();
+    });
+    document.addEventListener('mousemove', function (event) {
+      if (!dragging) return;
+      var maxLeft = bar.clientWidth - thumb.offsetWidth;
+      if (maxLeft <= 0) return;
+      var delta = (event.clientX - startX) * ((nav.scrollWidth - nav.clientWidth) / maxLeft);
+      nav.scrollLeft = startLeft + delta;
+    });
+    document.addEventListener('mouseup', function () { dragging = false; });
+    bar.addEventListener('mousedown', function (event) {
+      if (event.target === thumb) return;
+      var rect = bar.getBoundingClientRect();
+      var ratio = (event.clientX - rect.left) / rect.width;
+      nav.scrollLeft = ratio * (nav.scrollWidth - nav.clientWidth);
+    });
+    updateTabScroll();
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2575,6 +2626,11 @@
     });
     state.lastTab = name;
     writeJSON(K.lastTab, name);
+    updateTabScroll();
+    var activeTab = $('tabs').querySelector('button.on');
+    if (activeTab && activeTab.scrollIntoView) {
+      try { activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
+    }
     if (name === 'translate') { loadEntries(); renderEntry(); }
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
@@ -2815,6 +2871,13 @@
       window.clearTimeout(state.tmTimer);
       state.tmTimer = window.setTimeout(renderTM, 200);
     });
+    wireTabScroll();
+    $('tabs').addEventListener('wheel', function (event) {
+      if (event.deltaY && !event.deltaX) {
+        this.scrollLeft += event.deltaY;
+        event.preventDefault();
+      }
+    }, { passive: false });
     $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
     $('btnAddComment').addEventListener('click', addComment);
     var termSearch = $('termSearch');

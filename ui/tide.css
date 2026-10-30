@@ -69,12 +69,27 @@ body{
 nav{
   display:flex;gap:2px;
   margin:10px 12px 0;
-  padding:2px;
+  padding:2px 2px 9px;
   background:rgba(118,118,128,.12);
   border-radius:10px;
-  overflow-x:auto;scrollbar-width:none;
+  overflow-x:auto;overflow-y:hidden;
 }
+nav button[hidden]{display:none}
+/* Native bars auto-hide (overlay) and never render in screenshots; the bar is
+   drawn as its own element so it is always visible and draggable. */
+nav{scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
+.tab-scroll{
+  display:none;position:relative;height:6px;margin:6px 14px 0;
+  border-radius:99px;background:rgba(118,118,128,.22);
+}
+.tab-scroll.on{display:block}
+.tab-thumb{
+  position:absolute;top:0;left:0;height:6px;border-radius:99px;
+  background:var(--accent);min-width:32px;cursor:grab;
+}
+.tab-thumb:active{cursor:grabbing;background:var(--accent-press,#0055ad)}
+nav::-webkit-scrollbar-thumb:hover{background:var(--accent-press,#0055ad)}
 nav button{
   flex:0 0 auto;
   padding:6px 10px;
