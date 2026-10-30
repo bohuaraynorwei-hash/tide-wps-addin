@@ -1018,17 +1018,28 @@
     return record;
   }
 
+  // Keys are "sheet!row", which collide across workbooks; scope storage by
+  // workbook name so one project's revisions never appear in another.
+  function reviewStoreKey() {
+    var book = sheetApp() && sheetApp().ActiveWorkbook;
+    var name = book && (book.FullName || book.Name) ? String(book.FullName || book.Name) : 'default';
+    return 'tide.review:' + name;
+  }
+
   function saveProject() {
     var project = ensureProject();
     if (window.TideProject) { window.TideProject.save(project); return; }
-    // WPS pane has no file system access: keep the review layer in storage so
-    // the tab still works, and say so in the UI when exported.
-    try { window.localStorage.setItem('tide.review', JSON.stringify(project)); } catch (err) { /* quota */ }
+    try { window.localStorage.setItem(reviewStoreKey(), JSON.stringify(project)); } catch (err) { /* quota */ }
   }
 
   function recordRevision(sheet, row, sourceText, before, after) {
     if (String(before == null ? '' : before) === String(after == null ? '' : after)) return;
     var record = segmentRecord(sheet, row, sourceText, after);
+    // A new edit replaces any earlier pending revision of the same segment;
+    // keeping both is what made the review list look like stacked versions.
+    (record.revisions || []).forEach(function (rev) {
+      if (rev.state === 'pending') rev.state = 'superseded';
+    });
     record.revisions.push({
       id: 'r' + Date.now() + Math.floor(Math.random() * 1000),
       ts: new Date().toISOString(),
@@ -1083,7 +1094,34 @@
     return (record.comments || []).filter(function (c) { return !c.resolved; }).length;
   }
 
+  // Bring the stored revisions back in line with the sheet: anything whose
+  // result is no longer in the cell is history, not a pending decision.
+  function reconcileReview() {
+    var project = ensureProject();
+    var changed = false;
+    Object.keys(project.segments).forEach(function (key) {
+      var record = project.segments[key];
+      var match = /^(.*)!(\d+)$/.exec(key);
+      if (!match) return;
+      var sheet = sheetByName(match[1]);
+      var row = Number(match[2]);
+      var current = '';
+      try { current = String(sheet.Range(state.settings.targetCol + row).Value2 == null ? '' : sheet.Range(state.settings.targetCol + row).Value2); }
+      catch (err) { return; }
+      if (record.target !== current) { record.target = current; changed = true; }
+      (record.revisions || []).forEach(function (rev) {
+        if (rev.state === 'pending' && String(rev.after) !== current) {
+          rev.state = 'superseded';
+          changed = true;
+        }
+      });
+    });
+    if (changed) saveProject();
+    return changed;
+  }
+
   function renderReview() {
+    reconcileReview();
     var project = ensureProject();
     var keys = Object.keys(project.segments);
     var table = $('reviewTable');
@@ -1146,7 +1184,9 @@
       line.className = 'rev' + (rev.state === 'accepted' ? ' accepted' : '');
       line.appendChild(textNode('span', rev.author + ' · ' + rev.ts.slice(5, 16).replace('T', ' '), 'who'));
       line.appendChild(diffNode(rev.before, rev.after));
-      if (rev.state === 'pending') {
+      if (rev.state === 'superseded') {
+        line.appendChild(textNode('span', '已过期（单元格已是别的值）', 'badge'));
+      } else if (rev.state === 'pending') {
         var accept = document.createElement('button');
         accept.className = 'act ghost';
         accept.textContent = '接受';
@@ -1236,7 +1276,7 @@
   function loadProject() {
     if (!window.TideProject) {
       try {
-        var raw = window.localStorage.getItem('tide.review');
+        var raw = window.localStorage.getItem(reviewStoreKey());
         state.project = raw ? JSON.parse(raw) : { version: 1, segments: {} };
       } catch (err) {
         state.project = { version: 1, segments: {} };
