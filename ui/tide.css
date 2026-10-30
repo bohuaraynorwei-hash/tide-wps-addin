@@ -126,10 +126,11 @@ main::-webkit-scrollbar{display:none}
 .scroll-rail.h{left:8px;right:18px;bottom:2px;height:5.5px}
 .scroll-thumb{
   position:absolute;background:var(--accent);border-radius:99px;cursor:grab;
-  min-height:26px;min-width:26px;
 }
-.scroll-rail.v .scroll-thumb{left:0;width:5.5px}
-.scroll-rail.h .scroll-thumb{top:0;height:5.5px}
+/* The minimum applies along the axis of travel only: a vertical thumb needs a
+   minimum height, a horizontal one a minimum width. */
+.scroll-rail.v .scroll-thumb{left:0;width:5.5px;min-height:26px}
+.scroll-rail.h .scroll-thumb{top:0;height:5.5px;min-width:26px}
 .scroll-thumb:active{cursor:grabbing;background:var(--accent-press,#0055ad)}
 section[hidden]{display:none}
 
