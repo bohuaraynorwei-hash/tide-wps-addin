@@ -83,13 +83,13 @@ nav button[hidden]{display:none}
 nav{scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
 .tab-scroll{
-  display:none;position:relative;height:6px;margin:6px 14px 0;
+  display:none;position:relative;height:5px;margin:6px 14px 0;
   border-radius:99px;background:rgba(118,118,128,.22);
 }
 .tab-scroll.on{display:block}
 .tab-thumb{
-  position:absolute;top:0;left:0;height:6px;border-radius:99px;
-  background:var(--accent);min-width:32px;cursor:grab;
+  position:absolute;top:0;left:0;height:5px;border-radius:99px;
+  background:var(--accent);min-width:28px;cursor:grab;
 }
 .tab-thumb:active{cursor:grabbing;background:var(--accent-press,#0055ad)}
 nav::-webkit-scrollbar-thumb:hover{background:var(--accent-press,#0055ad)}
@@ -122,14 +122,14 @@ main::-webkit-scrollbar{display:none}
   opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:3;
 }
 .scroll-rail.on{opacity:1;pointer-events:auto}
-.scroll-rail.v{top:6px;right:3px;bottom:10px;width:7px}
-.scroll-rail.h{left:8px;right:18px;bottom:2px;height:8px}
+.scroll-rail.v{top:6px;right:3px;bottom:10px;width:5.5px}
+.scroll-rail.h{left:8px;right:18px;bottom:2px;height:5.5px}
 .scroll-thumb{
   position:absolute;background:var(--accent);border-radius:99px;cursor:grab;
-  min-height:30px;min-width:30px;
+  min-height:26px;min-width:26px;
 }
-.scroll-rail.v .scroll-thumb{left:0;width:7px}
-.scroll-rail.h .scroll-thumb{top:0;height:7px}
+.scroll-rail.v .scroll-thumb{left:0;width:5.5px}
+.scroll-rail.h .scroll-thumb{top:0;height:5.5px}
 .scroll-thumb:active{cursor:grabbing;background:var(--accent-press,#0055ad)}
 section[hidden]{display:none}
 
