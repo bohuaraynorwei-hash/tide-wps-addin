@@ -1110,7 +1110,18 @@
       if (openComments(record)) status.appendChild(textNode('span', openComments(record) + ' 条评论', 'badge'));
       tr.appendChild(status);
       tr.appendChild(textNode('td', key.split('!')[0], 'num'));
-      tr.addEventListener('click', function () { state.selectedSegment = key; renderReviewDetail(); });
+      tr.addEventListener('click', function () {
+        state.selectedSegment = key;
+        renderReviewDetail();
+        // Jump to the target cell this revision belongs to.
+        var parts = key.split('!');
+        var targetSheet = sheetByName(parts[0]);
+        var address = state.settings.targetCol + parts[1];
+        var ok = revealCell(targetSheet, address);
+        $('reviewStatus').textContent = ok
+          ? '已定位 ' + address + '（' + parts[0] + '）'
+          : '定位失败：请手动跳到 ' + address;
+      });
       body.appendChild(tr);
     });
     if (state.selectedSegment && project.segments[state.selectedSegment]) renderReviewDetail();
