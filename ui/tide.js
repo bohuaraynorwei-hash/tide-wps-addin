@@ -306,6 +306,40 @@
     return null;
   }
 
+  // Repeated "Source Text / EN" blocks in one sheet are separate segment
+  // groups: B–F, G–K, L–P … Each becomes its own set of segments.
+  function detectColumnGroups(grid, startCol) {
+    var limit = Math.min(grid.length, 12);
+    for (var r = 0; r < limit; r += 1) {
+      var line = grid[r] || [];
+      var groups = [];
+      var current = null;
+      for (var c = 0; c < line.length; c += 1) {
+        var text = String(line[c] == null ? '' : line[c]).trim();
+        if (!text) continue;
+        if (/^source(\s*text)?(\s*\(old\))?$/i.test(text)) {
+          current = { sourceIdx: c, targetIdx: -1, oldIdx: -1 };
+          groups.push(current);
+        } else if (current && /^en\s*\(old\)$/i.test(text) && current.oldIdx < 0) {
+          current.oldIdx = c;
+        } else if (current && /^en$/i.test(text) && current.targetIdx < 0) {
+          current.targetIdx = c;
+        }
+      }
+      var valid = groups.filter(function (group) { return group.targetIdx > group.sourceIdx; });
+      if (valid.length) {
+        return valid.map(function (group) {
+          return {
+            sourceCol: numberToCol(startCol + group.sourceIdx),
+            targetCol: numberToCol(startCol + group.targetIdx),
+            oldCol: group.oldIdx > -1 ? numberToCol(startCol + group.oldIdx) : numberToCol(startCol + group.targetIdx - 1)
+          };
+        });
+      }
+    }
+    return null;
+  }
+
   function buildRows() {
     var sheet = currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
@@ -319,38 +353,48 @@
     var uidIdx = colToNumber(state.settings.uidCol) - startCol;
     var headerAt = detectHeaderEnd(grid);
 
-    // The header is the source of truth: Source Text -> source, EN -> target,
-    // EN (old) -> archive. Sheets without those labels keep the manual mapping.
-    var resolved = detectColumns(grid, startCol);
-    if (resolved) {
-      state.settings.sourceCol = resolved.sourceCol;
-      state.settings.targetCol = resolved.targetCol;
-      state.settings.oldCol = resolved.oldCol;
-      state.perSheetCols[sheet.Name] = resolved;
-      if ($('colSource')) $('colSource').value = resolved.sourceCol;
-      if ($('colTarget')) $('colTarget').value = resolved.targetCol;
-      if ($('colOld')) $('colOld').value = resolved.oldCol;
+    // The header is the source of truth: every Source Text / EN pair becomes a
+    // group. Sheets without those labels keep the manual mapping.
+    var groups = detectColumnGroups(grid, startCol);
+    if (groups && groups.length) {
+      state.settings.sourceCol = groups[0].sourceCol;
+      state.settings.targetCol = groups[0].targetCol;
+      state.settings.oldCol = groups[0].oldCol;
+      state.perSheetCols[sheet.Name] = groups[0];
+      if ($('colSource')) $('colSource').value = groups[0].sourceCol;
+      if ($('colTarget')) $('colTarget').value = groups[0].targetCol;
+      if ($('colOld')) $('colOld').value = groups[0].oldCol;
       writeJSON(K.settings, state.settings);
-      srcIdx = colToNumber(resolved.sourceCol) - startCol;
-      tgtIdx = colToNumber(resolved.targetCol) - startCol;
+    } else {
+      groups = [{ sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol, oldCol: state.settings.oldCol }];
     }
+
     var rows = [];
-    for (var r = headerAt + 1; r < grid.length; r += 1) {
-      var source = cellText(grid, r, srcIdx);
-      if (!source.trim()) continue;
-      rows.push({
-        row: startRow + r,
-        sheet: sheet.Name,
-        uid: uidIdx >= 0 ? cellText(grid, r, uidIdx) : '',
-        source: source,
-        target: tgtIdx >= 0 ? cellText(grid, r, tgtIdx) : ''
-      });
-    }
+    groups.forEach(function (group, groupIndex) {
+      var groupSrc = colToNumber(group.sourceCol) - startCol;
+      var groupTgt = colToNumber(group.targetCol) - startCol;
+      for (var r = headerAt + 1; r < grid.length; r += 1) {
+        var source = cellText(grid, r, groupSrc);
+        if (!source.trim()) continue;
+        rows.push({
+          row: startRow + r,
+          sheet: sheet.Name,
+          group: groupIndex,
+          sourceCol: group.sourceCol,
+          targetCol: group.targetCol,
+          oldCol: group.oldCol,
+          uid: uidIdx >= 0 ? cellText(grid, r, uidIdx) : '',
+          source: source,
+          target: groupTgt >= 0 ? cellText(grid, r, groupTgt) : ''
+        });
+      }
+    });
+    rows.sort(function (a, b) { return (a.row - b.row) || (a.group - b.group); });
     return {
       rows: rows,
       sheetName: sheet.Name,
       headerEnd: headerAt,
-      detected: detectColumns(grid, startCol)
+      groups: groups
     };
   }
 
@@ -449,7 +493,7 @@
     state.scanned.forEach(function (row) {
       var tr = document.createElement('tr');
       tr.dataset.row = String(row.row);
-      tr.appendChild(textNode('td', String(row.row), 'num'));
+      tr.appendChild(textNode('td', (row.targetCol || state.settings.targetCol) + row.row, 'num'));
       var tdSource = document.createElement('td');
       tdSource.appendChild(highlighted(row.source, row.matches));
       tr.appendChild(tdSource);
@@ -783,13 +827,13 @@
   }
 
   function entryAddress(row) {
-    return state.settings.targetCol + row;
+    return (row.targetCol || state.settings.targetCol) + row.row;
   }
 
   // EN (old) holds exactly the previous translation; the current EN is the
   // only official text. Keeping the archive in the sheet lets anyone roll back.
-  function archivePrevious(sheet, row, before) {
-    var column = state.settings.oldCol;
+  function archivePrevious(sheet, row, before, oldColumn) {
+    var column = oldColumn || state.settings.oldCol;
     if (!column || !sheet) return;
     var previous = String(before == null ? '' : before);
     if (!previous.trim()) return;
@@ -800,7 +844,7 @@
     var entry = currentEntry();
     if (!entry) return;
     var sheet = entrySheet(entry);
-    var oldAddress = state.settings.oldCol + entry.row;
+    var oldAddress = (entry.oldCol || state.settings.oldCol) + entry.row;
     var archived = '';
     try { archived = String(sheet.Range(oldAddress).Value2 == null ? '' : sheet.Range(oldAddress).Value2); }
     catch (err) { archived = ''; }
@@ -1140,7 +1184,9 @@
     return window.localStorage.getItem('tide.author') || '本机';
   }
 
-  function segKey(sheet, row) { return String(sheet) + '!' + row; }
+  function segKey(sheet, row, column) {
+    return String(sheet) + '!' + (column || state.settings.targetCol) + row;
+  }
 
   function ensureProject() {
     if (!state.project) state.project = { version: 1, segments: {} };
@@ -1148,9 +1194,9 @@
     return state.project;
   }
 
-  function segmentRecord(sheet, row, sourceText, targetText) {
+  function segmentRecord(sheet, row, sourceText, targetText, column) {
     var project = ensureProject();
-    var key = segKey(sheet, row);
+    var key = segKey(sheet, row, column);
     var record = project.segments[key];
     if (!record) {
       record = project.segments[key] = { source: sourceText || '', target: targetText || '', revisions: [], comments: [], status: '' };
@@ -1175,9 +1221,9 @@
     try { window.localStorage.setItem(reviewStoreKey(), JSON.stringify(project)); } catch (err) { /* quota */ }
   }
 
-  function recordRevision(sheet, row, sourceText, before, after) {
+  function recordRevision(sheet, row, sourceText, before, after, column) {
     if (String(before == null ? '' : before) === String(after == null ? '' : after)) return;
-    var record = segmentRecord(sheet, row, sourceText, after);
+    var record = segmentRecord(sheet, row, sourceText, after, column);
     // A new edit replaces any earlier pending revision of the same segment;
     // keeping both is what made the review list look like stacked versions.
     (record.revisions || []).forEach(function (rev) {
@@ -1244,12 +1290,12 @@
     var changed = false;
     Object.keys(project.segments).forEach(function (key) {
       var record = project.segments[key];
-      var match = /^(.*)!(\d+)$/.exec(key);
+      var match = /^(.*)!([A-Z]+)(\d+)$/.exec(key);
       if (!match) return;
       var sheet = sheetByName(match[1]);
-      var row = Number(match[2]);
+      var address = match[2] + match[3];
       var current = '';
-      try { current = String(sheet.Range(state.settings.targetCol + row).Value2 == null ? '' : sheet.Range(state.settings.targetCol + row).Value2); }
+      try { current = String(sheet.Range(address).Value2 == null ? '' : sheet.Range(address).Value2); }
       catch (err) { return; }
       if (record.target !== current) { record.target = current; changed = true; }
       (record.revisions || []).forEach(function (rev) {
@@ -1280,8 +1326,8 @@
     rows.forEach(function (key) {
       var record = project.segments[key];
       var tr = document.createElement('tr');
-      var rowNumber = key.split('!')[1];
-      tr.appendChild(textNode('td', rowNumber, 'num'));
+      var address = key.split('!')[1];
+      tr.appendChild(textNode('td', address, 'num'));
       var summary = document.createElement('td');
       summary.appendChild(textNode('div', record.source.slice(0, 30), 'zh'));
       summary.appendChild(textNode('div', (record.target || '—').slice(0, 40), 'hint'));
@@ -1383,11 +1429,10 @@
     if (!rev) return;
     rev.state = next;
     if (next === 'rejected') {
-      var match = /^(.*)!(\d+)$/.exec(key);
+      var match = /^(.*)!([A-Z]+)(\d+)$/.exec(key);
       if (match) {
         var sheet = sheetByName(match[1]);
-        var row = Number(match[2]);
-        try { sheet.Range(state.settings.targetCol + row).Value2 = rev.before; } catch (err) { /* cell gone */ }
+        try { sheet.Range(match[2] + match[3]).Value2 = rev.before; } catch (err) { /* cell gone */ }
       }
       record.target = rev.before;
     }
@@ -1651,7 +1696,7 @@
   function gridPendingRevision(row) {
     var project = state.project;
     if (!project || !project.segments) return 0;
-    var record = project.segments[segKey(row.sheet, row.row)];
+    var record = project.segments[segKey(row.sheet, row.row, row.targetCol)];
     return record ? pendingCount(record) : 0;
   }
 
@@ -1659,15 +1704,15 @@
     var sheet = sheetByName(row.sheet);
     if (!sheet) { $('gridHint').textContent = '未连接表格。'; return false; }
     var before = row.target;
-    archivePrevious(sheet, row.row, before);
+    archivePrevious(sheet, row.row, before, row.oldCol);
     try {
-      sheet.Range(state.settings.targetCol + row.row).Value2 = value;
+      sheet.Range((row.targetCol || state.settings.targetCol) + row.row).Value2 = value;
     } catch (err) {
       $('gridHint').textContent = '写入失败：' + err.message;
       return false;
     }
     row.target = value;
-    recordRevision(row.sheet, row.row, row.source, before, value);
+    recordRevision(row.sheet, row.row, row.source, before, value, row.targetCol);
     recordWrite({ sheet: row.sheet, row: row.row, source: row.source }, before, value);
     return true;
   }
@@ -1713,7 +1758,7 @@
     shown.forEach(function (row) {
       var tr = document.createElement('tr');
       tr.dataset.row = String(row.row);
-      tr.appendChild(textNode('td', String(row.row), 'num'));
+      tr.appendChild(textNode('td', (row.targetCol || state.settings.targetCol) + row.row, 'num'));
       var tdSource = document.createElement('td');
       tdSource.appendChild(textNode('div', row.source.slice(0, 60), 'zh'));
       tr.appendChild(tdSource);
@@ -2124,13 +2169,13 @@
     var value = $('entryDraft').value;
     if (!value.trim()) { $('entryCheck').textContent = '草稿为空，未写入。'; return; }
     var before = entry.target;
-    archivePrevious(entrySheet(entry), entry.row, before);
+    archivePrevious(entrySheet(entry), entry.row, before, entry.oldCol);
     if (!writeCell(entry, value)) return;
     var address = entryAddress(entry.row);
     entry.target = value;
     refreshMemory();
     recordWrite(entry, before, value);
-    recordRevision(entry.sheet, entry.row, entry.source, before, value);
+    recordRevision(entry.sheet, entry.row, entry.source, before, value, entry.targetCol);
     move(1);
     $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
   }
