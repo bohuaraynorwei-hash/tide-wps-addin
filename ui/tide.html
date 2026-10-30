@@ -21,6 +21,7 @@
     <button data-tab="review">审校</button>
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">网格</button>
+    <button data-tab="project">项目</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -228,6 +229,18 @@
       <div class="hint" id="qaSummary"></div>
       <table id="qaTable" hidden>
         <thead><tr><th>行</th><th>级别</th><th>类别</th><th>说明</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-project" hidden>
+      <div class="toolbar">
+        <button class="act" id="btnProjectScan">分析整本工作簿</button>
+        <span class="count" id="projectCount"></span>
+      </div>
+      <div class="hint" id="projectSummary">逐表统计条目、已译、内存库复用率与 QA 问题数。</div>
+      <table id="projectTable" hidden>
+        <thead><tr><th>工作表</th><th>条目</th><th>已译</th><th>复用率</th><th>QA</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>

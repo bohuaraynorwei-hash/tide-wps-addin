@@ -39,6 +39,7 @@
     tm: [],
     qaFindings: [],
     gridRows: [],
+    projectScan: [],
     project: null,
     projectPath: '',
     selectedSegment: '',
@@ -1503,6 +1504,106 @@
     });
   }
 
+  // ---------- project-wide analysis ----------
+
+  function rowsForSheet(sheet) {
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return []; }
+    if (!used) return [];
+    var grid = toGrid(used.Value2);
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
+    var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
+    if (srcIdx < 0) return [];
+    var headerAt = 0;
+    for (var h = 0; h < grid.length; h += 1) {
+      if (cellText(grid, h, srcIdx).trim()) { headerAt = h; break; }
+    }
+    var rows = [];
+    for (var r = headerAt + 1; r < grid.length; r += 1) {
+      var source = cellText(grid, r, srcIdx);
+      if (!source.trim()) continue;
+      rows.push({
+        row: startRow + r,
+        sheet: sheet.Name,
+        source: source,
+        target: tgtIdx >= 0 ? cellText(grid, r, tgtIdx) : ''
+      });
+    }
+    return rows;
+  }
+
+  function analyzeWorkbook() {
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    if (!book || !book.Worksheets) { $('projectSummary').textContent = '未连接工作簿。'; return; }
+    var sheets = book.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    var results = [];
+    var index = 1;
+    var btn = $('btnProjectScan');
+    btn.disabled = true;
+    $('projectSummary').textContent = '分析中…';
+
+    function step() {
+      if (index > count) {
+        state.projectScan = results;
+        renderProject();
+        btn.disabled = false;
+        return;
+      }
+      var sheet = null;
+      try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
+      if (sheet) {
+        var rows = rowsForSheet(sheet);
+        if (rows.length) {
+          var translated = rows.filter(function (row) { return String(row.target || '').trim(); }).length;
+          var stats = window.TideTM.analyze(rows.map(function (r) { return r.source; }), tmIndex());
+          var issues = 0;
+          try { issues = window.TideQA.runQA(rows.slice(0, 2000), state.matchTerms, {}).length; } catch (err) { issues = 0; }
+          results.push({
+            name: sheet.Name, total: rows.length, translated: translated,
+            empty: rows.length - translated, leverage: stats.leveragePct, issues: issues
+          });
+        }
+      }
+      index += 1;
+      $('projectSummary').textContent = '分析中 ' + index + '/' + count + ' …';
+      window.setTimeout(step, 0);
+    }
+    step();
+  }
+
+  function renderProject() {
+    var table = $('projectTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var rows = state.projectScan || [];
+    table.hidden = rows.length === 0;
+    var totals = rows.reduce(function (acc, row) {
+      acc.total += row.total; acc.translated += row.translated; acc.empty += row.empty; acc.issues += row.issues;
+      return acc;
+    }, { total: 0, translated: 0, empty: 0, issues: 0 });
+    $('projectCount').textContent = rows.length
+      ? rows.length + ' 张表 · ' + totals.total + ' 条 · 已译 ' + totals.translated + ' · 问题 ' + totals.issues
+      : '';
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', row.name, 'hint'));
+      tr.appendChild(textNode('td', String(row.total), 'num'));
+      tr.appendChild(textNode('td', row.translated + ' / ' + row.total, 'num'));
+      tr.appendChild(textNode('td', row.leverage + '%', 'num'));
+      tr.appendChild(textNode('td', String(row.issues), 'num'));
+      body.appendChild(tr);
+    });
+    if (rows.length) {
+      $('projectSummary').textContent = '合计 ' + totals.total + ' 条，已译 ' + totals.translated +
+        '，未译 ' + totals.empty + '，QA 问题 ' + totals.issues + '。';
+    }
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2112,7 +2213,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'grid', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'grid', 'project', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -2125,6 +2226,7 @@
     if (name === 'review') renderReview();
     if (name === 'tm') renderTM();
     if (name === 'grid') renderGrid();
+    if (name === 'project') renderProject();
     if (name === 'sync') refreshHelper();
   }
 
@@ -2337,6 +2439,7 @@
     $('btnFindAll').addEventListener('click', runFind);
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    $('btnProjectScan').addEventListener('click', analyzeWorkbook);
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
     $('btnRunQA').addEventListener('click', runQA);
