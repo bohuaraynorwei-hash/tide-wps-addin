@@ -75,6 +75,7 @@
         <button class="act ghost" id="btnLocateSource">定位原文</button>
         <button class="act ghost" id="btnLocate">定位译文</button>
         <button class="act ghost" id="btnUndoWrite">撤销上次写入</button>
+        <button class="act ghost" id="btnRollback">回退旧译文</button>
       </div>
       <div class="toolbar">
         <button class="act ghost" id="btnCopySource">复制原文</button>
@@ -395,6 +396,11 @@
             <label>译文列（英文）</label>
             <div class="colinput"><input id="colTarget" placeholder="F"><button class="act ghost" data-col="colTarget">用当前列</button></div>
             <div class="hint">写入并下一条、定位译文写的是这一列。</div>
+          </div>
+          <div class="colfield">
+            <label>旧译文列（EN old，存档）</label>
+            <div class="colinput"><input id="colOld" placeholder="E"><button class="act ghost" data-col="colOld">用当前列</button></div>
+            <div class="hint">写入新译文前，旧值自动存到这里，可用于回退。</div>
           </div>
           <div class="colfield">
             <label>UID 列（可选）</label>

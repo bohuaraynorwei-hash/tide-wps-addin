@@ -22,7 +22,7 @@
 
   var state = {
     terms: [],
-    settings: { sourceCol: 'C', targetCol: 'F', uidCol: 'A' },
+    settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A' },
     scanned: [],
     archive: { history: [], snapshot: {} },
     passphrase: null,
@@ -674,6 +674,39 @@
 
   function entryAddress(row) {
     return state.settings.targetCol + row;
+  }
+
+  // EN (old) holds exactly the previous translation; the current EN is the
+  // only official text. Keeping the archive in the sheet lets anyone roll back.
+  function archivePrevious(sheet, row, before) {
+    var column = state.settings.oldCol;
+    if (!column || !sheet) return;
+    var previous = String(before == null ? '' : before);
+    if (!previous.trim()) return;
+    try { sheet.Range(column + row).Value2 = previous; } catch (err) { /* read-only cell */ }
+  }
+
+  function rollbackEntry() {
+    var entry = currentEntry();
+    if (!entry) return;
+    var sheet = entrySheet(entry);
+    var oldAddress = state.settings.oldCol + entry.row;
+    var archived = '';
+    try { archived = String(sheet.Range(oldAddress).Value2 == null ? '' : sheet.Range(oldAddress).Value2); }
+    catch (err) { archived = ''; }
+    if (!archived.trim()) { $('entryCheck').textContent = '旧译文列是空的，没有可回退的版本。'; return; }
+    var current = entry.target;
+    try {
+      sheet.Range(entryAddress(entry.row)).Value2 = archived;
+      sheet.Range(oldAddress).Value2 = current;   // swap, so pressing again undoes
+    } catch (err) {
+      $('entryCheck').textContent = '回退失败：' + err.message;
+      return;
+    }
+    recordRevision(entry.sheet, entry.row, entry.source, current, archived);
+    entry.target = archived;
+    renderEntry();
+    $('entryCheck').textContent = '已回退到旧译文（' + oldAddress + '），再次点击可换回。';
   }
 
   function writeCell(entry, value) {
@@ -1505,6 +1538,7 @@
     var sheet = sheetByName(row.sheet);
     if (!sheet) { $('gridHint').textContent = '未连接表格。'; return false; }
     var before = row.target;
+    archivePrevious(sheet, row.row, before);
     try {
       sheet.Range(state.settings.targetCol + row.row).Value2 = value;
     } catch (err) {
@@ -1914,6 +1948,7 @@
     var value = $('entryDraft').value;
     if (!value.trim()) { $('entryCheck').textContent = '草稿为空，未写入。'; return; }
     var before = entry.target;
+    archivePrevious(entrySheet(entry), entry.row, before);
     if (!writeCell(entry, value)) return;
     var address = entryAddress(entry.row);
     entry.target = value;
@@ -2359,7 +2394,8 @@
       state.settings = {
         sourceCol: $('colSource').value.toUpperCase() || 'C',
         targetCol: $('colTarget').value.toUpperCase() || 'F',
-        uidCol: $('colUid').value.toUpperCase() || 'A'
+        uidCol: $('colUid').value.toUpperCase() || 'A',
+        oldCol: ($('colOld') && $('colOld').value.toUpperCase()) || 'E'
       };
       writeJSON(K.settings, state.settings);
       writeJSON(K.repo, $('syncRepo').value);
@@ -2568,6 +2604,7 @@
     $('btnLocateSource').addEventListener('click', locateSource);
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
+    $('btnRollback').addEventListener('click', rollbackEntry);
     $('btnDelivery').addEventListener('click', deliveryCheck);
     $('entryDraft').addEventListener('input', function () {
       var entry = currentEntry();
@@ -2594,6 +2631,7 @@
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
+    if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
     $('syncRepo').value = readJSON(K.repo, '') || '';
     $('syncBranch').value = readJSON(K.branch, 'main') || 'main';
     $('envHint').textContent = sheetApp() ? '已连接 WPS 表格。' : '当前不在 WPS 中，仅能查看设置与记录。';
