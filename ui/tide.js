@@ -24,6 +24,7 @@
   var state = {
     terms: [],
     settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A' },
+    perSheetCols: {},
     scanned: [],
     archive: { history: [], snapshot: {} },
     passphrase: null,
@@ -287,13 +288,19 @@
       var line = grid[r] || [];
       var srcIdx = -1;
       var tgtIdx = -1;
+      var oldIdx = -1;
       for (var c = 0; c < line.length; c += 1) {
         var text = String(line[c] == null ? '' : line[c]).trim();
         if (srcIdx < 0 && /^source(\s*text)?(\s*\(old\))?$/i.test(text)) srcIdx = c;
         if (tgtIdx < 0 && /^en$/i.test(text)) tgtIdx = c;
+        if (oldIdx < 0 && /^en\s*\(old\)$/i.test(text)) oldIdx = c;
       }
       if (srcIdx > -1 && tgtIdx > -1 && tgtIdx > srcIdx) {
-        return { sourceCol: numberToCol(startCol + srcIdx), targetCol: numberToCol(startCol + tgtIdx) };
+        return {
+          sourceCol: numberToCol(startCol + srcIdx),
+          targetCol: numberToCol(startCol + tgtIdx),
+          oldCol: oldIdx > -1 ? numberToCol(startCol + oldIdx) : numberToCol(startCol + tgtIdx - 1)
+        };
       }
     }
     return null;
@@ -311,6 +318,22 @@
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
     var uidIdx = colToNumber(state.settings.uidCol) - startCol;
     var headerAt = detectHeaderEnd(grid);
+
+    // The header is the source of truth: Source Text -> source, EN -> target,
+    // EN (old) -> archive. Sheets without those labels keep the manual mapping.
+    var resolved = detectColumns(grid, startCol);
+    if (resolved) {
+      state.settings.sourceCol = resolved.sourceCol;
+      state.settings.targetCol = resolved.targetCol;
+      state.settings.oldCol = resolved.oldCol;
+      state.perSheetCols[sheet.Name] = resolved;
+      if ($('colSource')) $('colSource').value = resolved.sourceCol;
+      if ($('colTarget')) $('colTarget').value = resolved.targetCol;
+      if ($('colOld')) $('colOld').value = resolved.oldCol;
+      writeJSON(K.settings, state.settings);
+      srcIdx = colToNumber(resolved.sourceCol) - startCol;
+      tgtIdx = colToNumber(resolved.targetCol) - startCol;
+    }
     var rows = [];
     for (var r = headerAt + 1; r < grid.length; r += 1) {
       var source = cellText(grid, r, srcIdx);
@@ -1566,16 +1589,9 @@
       return key + ' ' + summary.byCategory[key];
     });
     $('qaCount').textContent = findings.length ? findings.length + ' 个问题' : '无问题';
-    var detected = result.detected;
-    var mismatch = detected && (detected.sourceCol !== state.settings.sourceCol ||
-                                detected.targetCol !== state.settings.targetCol);
-    $('btnApplyDetected').hidden = !mismatch;
-    var warning = mismatch
-      ? '⚠ 表头显示源文 ' + detected.sourceCol + '、译文 ' + detected.targetCol +
-        '，当前设置 ' + state.settings.sourceCol + '/' + state.settings.targetCol + '。'
-      : '';
-    $('qaSummary').textContent = warning + (findings.length
-      ? '「' + result.sheetName + '」表头至第 ' + (result.headerEnd + 1) + ' 行，' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
+    $('qaSummary').textContent = (findings.length
+      ? '「' + result.sheetName + '」源文 ' + state.settings.sourceCol + ' / 译文 ' + state.settings.targetCol +
+        '，表头至第 ' + (result.headerEnd + 1) + ' 行，' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
         ' · 中 ' + summary.bySeverity.medium + ' · 低 ' + summary.bySeverity.low +
         '（' + parts.join('，') + '）'
       : '「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。');
@@ -2721,19 +2737,6 @@
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
     $('btnRunQA').addEventListener('click', runQA);
-    $('btnApplyDetected').addEventListener('click', function () {
-      var result = buildRows();
-      if (!result.detected) { $('qaSummary').textContent = '表头里没有可识别的 Source Text / EN 列。'; return; }
-      state.settings.sourceCol = result.detected.sourceCol;
-      state.settings.targetCol = result.detected.targetCol;
-      writeJSON(K.settings, state.settings);
-      saveColumnsToProfile();
-      $('colSource').value = state.settings.sourceCol;
-      $('colTarget').value = state.settings.targetCol;
-      loadEntries();
-      renderEntry();
-      runQA();
-    });
     $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
