@@ -261,3 +261,5 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 #gridTable tr.dirty input.grid-cell{background:rgba(255,159,10,.08)}
 .grid-qa{font:400 11px/1 var(--mono);color:var(--red)}
 .grid-qa.ok{color:var(--label-3)}
+
+#matchTable tbody tr.rowlink,#termTable tbody tr.rowlink,#tmTable tbody tr.rowlink,#qaTable tbody tr.rowlink{cursor:pointer}

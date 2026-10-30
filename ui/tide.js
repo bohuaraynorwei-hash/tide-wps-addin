@@ -166,6 +166,33 @@
     }
   }
 
+  // Click-to-locate for every list that names a row: reveal the cell that the
+  // item came from, so the pane always points at something real in the sheet.
+  function jumpToRow(row, sheetName, messageEl) {
+    var sheet = sheetName ? sheetByName(sheetName) : currentSheet();
+    var address = state.settings.targetCol + row;
+    var ok = revealCell(sheet, address);
+    if (messageEl) {
+      messageEl.textContent = ok
+        ? '已定位 ' + address + (sheetName ? '（' + sheetName + '）' : '')
+        : '定位失败：' + address;
+    }
+    return ok;
+  }
+
+  function jumpToText(text, prefer, messageEl) {
+    var sheet = currentSheet();
+    var found = findInSheet(sheet, text, prefer);
+    if (!found) {
+      if (messageEl) messageEl.textContent = '当前表里找不到「' + String(text).slice(0, 20) + '」';
+      return false;
+    }
+    var column = found.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+    var ok = revealCell(sheet, column + found.row);
+    if (messageEl) messageEl.textContent = ok ? '已定位第 ' + found.row + ' 行' : '定位失败：第 ' + found.row + ' 行';
+    return ok;
+  }
+
   function activateSheet(sheet) {
     try { if (sheet && sheet.Activate) sheet.Activate(); } catch (err) { /* already active */ }
     return sheet;
@@ -376,6 +403,12 @@
       tdCopy.appendChild(copyBtn);
       tr.appendChild(tdCopy);
       tr.appendChild(textNode('td', row.target || '—', 'hint'));
+      tr.classList.add('rowlink');
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.tagName === 'BUTTON') return;
+        revealCell(currentSheet(), state.settings.sourceCol + row.row);
+        $('matchCount').textContent = '已定位第 ' + row.row + ' 行';
+      });
       body.appendChild(tr);
     });
   }
@@ -501,6 +534,11 @@
       });
       td.appendChild(use);
       tr.appendChild(td);
+      tr.classList.add('rowlink');
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.tagName === 'BUTTON') return;
+        jumpToText(term.zh, 'source', $('termEmpty'));
+      });
       body.appendChild(tr);
     });
   }
@@ -1395,6 +1433,13 @@
       });
       td.appendChild(use);
       tr.appendChild(td);
+      tr.classList.add('rowlink');
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.tagName === 'BUTTON') return;
+        if (!jumpToText(hit.entry.source, 'source', $('tmStats'))) {
+          jumpToText(hit.entry.target, 'target', $('tmStats'));
+        }
+      });
       body.appendChild(tr);
     });
   }
@@ -1493,9 +1538,12 @@
       tr.appendChild(sev);
       tr.appendChild(textNode('td', finding.category, 'num'));
       tr.appendChild(textNode('td', finding.message, 'hint'));
+      tr.classList.add('rowlink');
       tr.addEventListener('click', function () {
-        $('qaSummary').textContent = '第 ' + finding.row + ' 行 · 原文：' + finding.source.slice(0, 40) +
-          ' · 译文：' + (finding.target || '（空）').slice(0, 40);
+        var sheetName = finding.sheet || state.sheetName;
+        jumpToRow(finding.row, sheetName, $('qaSummary'));
+        $('qaSummary').textContent = '第 ' + finding.row + ' 行 · ' + $('qaSummary').textContent +
+          ' · ' + finding.category + '：' + finding.message.slice(0, 40);
       });
       body.appendChild(tr);
     });
