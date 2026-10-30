@@ -326,13 +326,24 @@
           current.targetIdx = c;
         }
       }
-      var valid = groups.filter(function (group) { return group.targetIdx > group.sourceIdx; });
+      var valid = groups.filter(function (group) {
+        return group.sourceIdx > -1 && (group.targetIdx > group.sourceIdx || group.oldIdx > group.sourceIdx);
+      });
       if (valid.length) {
         return valid.map(function (group) {
+          // A block with EN (old) but no EN still exists: the target is blank,
+          // and writing creates the EN column where it belongs (right of old).
+          var hasTarget = group.targetIdx > group.sourceIdx;
+          var targetIdx = hasTarget ? group.targetIdx : (group.oldIdx + 1);
+          // If the slot right of EN (old) belongs to the next block's header,
+          // the target is blank but must never be written.
+          var occupied = !hasTarget && String(line[targetIdx] == null ? '' : line[targetIdx]).trim() !== '';
           return {
             sourceCol: numberToCol(startCol + group.sourceIdx),
-            targetCol: numberToCol(startCol + group.targetIdx),
-            oldCol: group.oldIdx > -1 ? numberToCol(startCol + group.oldIdx) : numberToCol(startCol + group.targetIdx - 1)
+            targetCol: numberToCol(startCol + targetIdx),
+            oldCol: group.oldIdx > -1 ? numberToCol(startCol + group.oldIdx) : numberToCol(startCol + targetIdx - 1),
+            missingTarget: !hasTarget,
+            blocked: occupied
           };
         });
       }
@@ -383,9 +394,12 @@
           sourceCol: group.sourceCol,
           targetCol: group.targetCol,
           oldCol: group.oldCol,
+          missingTarget: !!group.missingTarget,
+          blocked: !!group.blocked,
           uid: uidIdx >= 0 ? cellText(grid, r, uidIdx) : '',
           source: source,
-          target: groupTgt >= 0 ? cellText(grid, r, groupTgt) : ''
+          // A blocked group has no EN column; never mirror the neighbour's text.
+          target: group.blocked ? '' : (groupTgt >= 0 ? cellText(grid, r, groupTgt) : '')
         });
       }
     });
@@ -1703,6 +1717,7 @@
   function writeGridCell(row, value) {
     var sheet = sheetByName(row.sheet);
     if (!sheet) { $('gridHint').textContent = '未连接表格。'; return false; }
+    if (row.blocked) { $('gridHint').textContent = '该组没有 EN 列，右侧被下一组占用，不能写入。'; return false; }
     var before = row.target;
     archivePrevious(sheet, row.row, before, row.oldCol);
     try {
@@ -1766,6 +1781,11 @@
       var input = document.createElement('input');
       input.className = 'grid-cell';
       input.value = row.target || '';
+      if (row.missingTarget) input.placeholder = 'BLANK';
+      if (row.blocked) {
+        input.disabled = true;
+        input.title = '该组没有 EN 列，右侧是下一组的表头，不能写入';
+      }
       input.addEventListener('change', function () {
         if (writeGridCell(row, input.value)) {
           tr.classList.add('dirty');
