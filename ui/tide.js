@@ -1336,18 +1336,27 @@
   }
 
   function tmImport(file) {
+    var isSheet = /\.(xlsx|xls)$/i.test(file.name);
     var reader = new FileReader();
     reader.onload = function () {
       try {
-        var units = window.TideTM.parseTmx(String(reader.result));
+        var units;
+        if (isSheet) {
+          var terms = parseWorkbook(reader.result);
+          units = terms.map(function (term) { return { source: term.zh, target: term.en }; });
+        } else {
+          units = window.TideTM.parseTmx(String(reader.result));
+        }
         var added = mergeTM(units);
         renderTM();
-        $('tmStats').textContent = '导入 ' + units.length + ' 条，新增 ' + added + ' 条。';
+        $('tmStats').textContent = (isSheet ? 'Excel ' : 'TMX ') + '导入 ' + units.length +
+          ' 条，新增 ' + added + ' 条。';
       } catch (err) {
-        $('tmStats').textContent = 'TMX 解析失败：' + err.message;
+        $('tmStats').textContent = '导入失败：' + err.message;
       }
     };
-    reader.readAsText(file, 'utf-8');
+    if (isSheet) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file, 'utf-8');
   }
 
   function tmExport() {
