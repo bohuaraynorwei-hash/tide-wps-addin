@@ -19,6 +19,7 @@
     <button data-tab="free">自由</button>
     <button data-tab="find">搜索</button>
     <button data-tab="review">审校</button>
+    <button data-tab="tm">记忆库</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -218,6 +219,29 @@
       </div>
     </section>
 
+    <section id="panel-tm" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTmImport">导入 TMX</button>
+        <button class="act ghost" id="btnTmExport">导出 TMX</button>
+        <button class="act ghost" id="btnTmCollect">合并当前表</button>
+        <input id="tmFile" type="file" accept=".tmx,.xml" hidden>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTmAnalyze">复用率分析</button>
+        <span class="count" id="tmCount">记忆库为空</span>
+      </div>
+      <div class="hint" id="tmStats"></div>
+      <div class="field">
+        <label>检索（源文或译文）</label>
+        <input id="tmQuery" type="search" placeholder="输入片段，查看记忆库里的旧译">
+      </div>
+      <table id="tmTable" hidden>
+        <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" id="tmEmpty">导入 TMX，或把当前工作表的已有译文合并进来。</div>
+    </section>
+
     <section id="panel-terms" hidden>
       <div class="field">
         <label>本页列映射</label>
@@ -353,6 +377,7 @@
 
   <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>
+  <script src="../js/tm.js"></script>
   <script src="../js/crypto.js"></script>
   <script src="tide.js"></script>
 </body>

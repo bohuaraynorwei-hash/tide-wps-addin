@@ -36,6 +36,7 @@
     termsMeta: null,
     entries: [],
     findResults: [],
+    tm: [],
     project: null,
     projectPath: '',
     selectedSegment: '',
@@ -1238,6 +1239,126 @@
     });
   }
 
+  // ---------- translation memory ----------
+
+  function tmIndex() {
+    return window.TideTM.buildIndex(state.tm || []);
+  }
+
+  function persistTM() {
+    try { window.localStorage.setItem('tide.tm', JSON.stringify(state.tm)); } catch (err) { /* quota */ }
+  }
+
+  function loadTM() {
+    try {
+      var raw = window.localStorage.getItem('tide.tm');
+      state.tm = raw ? JSON.parse(raw) : [];
+    } catch (err) { state.tm = []; }
+    if (!Array.isArray(state.tm)) state.tm = [];
+  }
+
+  function mergeTM(units) {
+    var index = tmIndex();
+    var added = 0;
+    (units || []).forEach(function (unit) {
+      var source = String(unit.source || '').trim();
+      var target = String(unit.target || '').trim();
+      if (!source || !target || index.bySource[source]) return;
+      state.tm.push({ source: source, target: target });
+      index.bySource[source] = { source: source, target: target };
+      added += 1;
+    });
+    persistTM();
+    return added;
+  }
+
+  function renderTM() {
+    var table = $('tmTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    $('tmCount').textContent = state.tm.length ? state.tm.length + ' 条记忆' : '记忆库为空';
+    var query = ($('tmQuery').value || '').trim();
+    if (!query) {
+      table.hidden = true;
+      $('tmEmpty').hidden = state.tm.length > 0;
+      $('tmEmpty').textContent = state.tm.length ? '输入片段开始检索。' : '导入 TMX，或把当前工作表的已有译文合并进来。';
+      return;
+    }
+    var hits = window.TideTM.concordance(tmIndex(), query, { limit: 50, threshold: 0.4 });
+    table.hidden = hits.length === 0;
+    $('tmEmpty').hidden = hits.length > 0;
+    $('tmEmpty').textContent = '记忆库里没有匹配。';
+    hits.forEach(function (hit) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', Math.round(hit.score * 100) + '%', 'num'));
+      tr.appendChild(textNode('td', hit.entry.source.slice(0, 30), 'hint'));
+      tr.appendChild(textNode('td', hit.entry.target.slice(0, 34)));
+      var td = document.createElement('td');
+      var use = document.createElement('button');
+      use.className = 'act ghost';
+      use.textContent = '采用';
+      use.addEventListener('click', function () {
+        $('entryDraft').value = hit.entry.target;
+        $('entryDraft').dispatchEvent(new Event('input'));
+        showTab('translate');
+      });
+      td.appendChild(use);
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+  }
+
+  function tmAnalyze() {
+    var result = buildRows();
+    if (result.error) { $('tmStats').textContent = '未连接表格。'; return; }
+    var sources = result.rows.map(function (row) { return row.source; });
+    var stats = window.TideTM.analyze(sources, tmIndex());
+    $('tmStats').textContent = '「' + result.sheetName + '」' + stats.total + ' 条源文：'
+      + '精确 ' + stats.exact + '（' + stats.exactPct + '%） · '
+      + '高相似 ' + stats.high + '（' + stats.highPct + '%） · '
+      + '低相似 ' + stats.low + '（' + stats.lowPct + '%） · '
+      + '新增 ' + stats.new + '（' + stats.newPct + '%） · '
+      + '复用率 ' + stats.leveragePct + '%';
+  }
+
+  function tmCollectFromSheet() {
+    var result = buildRows();
+    if (result.error) { $('tmStats').textContent = '未连接表格。'; return; }
+    var pairs = result.rows.filter(function (row) {
+      return String(row.source || '').trim() && String(row.target || '').trim();
+    });
+    var added = mergeTM(pairs);
+    renderTM();
+    $('tmStats').textContent = '从「' + result.sheetName + '」合并 ' + added + ' 条新记忆。';
+  }
+
+  function tmImport(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var units = window.TideTM.parseTmx(String(reader.result));
+        var added = mergeTM(units);
+        renderTM();
+        $('tmStats').textContent = '导入 ' + units.length + ' 条，新增 ' + added + ' 条。';
+      } catch (err) {
+        $('tmStats').textContent = 'TMX 解析失败：' + err.message;
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function tmExport() {
+    if (!state.tm.length) { $('tmStats').textContent = '记忆库为空，无法导出。'; return; }
+    var xml = window.TideTM.buildTmx(state.tm, 'zh-CN', 'en-US');
+    var blob = new Blob([xml], { type: 'application/xml' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'tide-memory.tmx';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    $('tmStats').textContent = '已导出 ' + state.tm.length + ' 条记忆。';
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -1847,7 +1968,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'find', 'review', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -1858,6 +1979,7 @@
     if (name === 'history') { renderLock(); renderHistory(); }
     if (name === 'terms') { syncTermColumns(); renderTerms(); }
     if (name === 'review') renderReview();
+    if (name === 'tm') renderTM();
     if (name === 'sync') refreshHelper();
   }
 
@@ -2070,6 +2192,18 @@
     $('btnFindAll').addEventListener('click', runFind);
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
+    $('tmFile').addEventListener('change', function (event) {
+      var file = event.target.files && event.target.files[0];
+      if (file) tmImport(file);
+    });
+    $('btnTmExport').addEventListener('click', tmExport);
+    $('btnTmCollect').addEventListener('click', tmCollectFromSheet);
+    $('btnTmAnalyze').addEventListener('click', tmAnalyze);
+    $('tmQuery').addEventListener('input', function () {
+      window.clearTimeout(state.tmTimer);
+      state.tmTimer = window.setTimeout(renderTM, 200);
+    });
     $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
     $('btnAddComment').addEventListener('click', addComment);
     var termSearch = $('termSearch');
@@ -2157,6 +2291,7 @@
     renderTermSource();
     loadBundled().then(function () { renderTermSource(); });
     renderHistory();
+    loadTM();
     loadProject().then(function () {
       if (state.lastTab === 'review') renderReview();
     });
