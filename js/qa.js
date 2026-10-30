@@ -34,7 +34,11 @@
       var en = String(term.en || '');
       if (!zh || !en || term.status === 'needs_review') return;
       if (source.indexOf(zh) === -1) return;
-      if (target.toLowerCase().indexOf(en.toLowerCase()) === -1) {
+      // Accept inflected forms: "Hook" is satisfied by "hooked" / "hooks".
+      var present = root.TideMorph
+        ? root.TideMorph.containsPhrase(target, en)
+        : target.toLowerCase().indexOf(en.toLowerCase()) > -1;
+      if (!present) {
         misses.push({ zh: zh, en: en });
       }
     });
