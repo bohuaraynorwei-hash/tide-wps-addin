@@ -48,9 +48,12 @@ body{
   position:sticky;top:0;z-index:5;
 }
 .brand{
-  font:600 12px/1 var(--font);
-  letter-spacing:.10em;text-transform:uppercase;
-  color:#0055ad;
+  display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;flex:0 0 auto;
+}
+.brand .logo{
+  width:24px;height:24px;display:block;
+  filter:drop-shadow(0 1px 1px rgba(0,60,120,.18));
 }
 .doc{
   font:400 12px/1 var(--mono);
