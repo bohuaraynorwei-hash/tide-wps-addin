@@ -107,9 +107,12 @@ nav button.on{
   box-shadow:0 1px 2px rgba(0,0,0,.10),0 0 0 .5px rgba(0,0,0,.04);
 }
 
+/* Wide bilingual tables scroll horizontally instead of collapsing columns. */
+#matchTable{min-width:560px}
+
 /* ---------- content ---------- */
 .content{flex:1;min-height:0;position:relative;display:flex}
-main{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:12px 22px 24px 14px;
+main{flex:1;min-width:0;overflow-y:auto;overflow-x:auto;padding:12px 22px 18px 14px;
   scrollbar-width:none}
 main::-webkit-scrollbar{display:none}
 /* Content scrollbars: native bars are overlays here and fade out, so they are
@@ -120,7 +123,7 @@ main::-webkit-scrollbar{display:none}
 }
 .scroll-rail.on{opacity:1;pointer-events:auto}
 .scroll-rail.v{top:6px;right:3px;bottom:10px;width:7px}
-.scroll-rail.h{left:6px;right:14px;bottom:3px;height:7px}
+.scroll-rail.h{left:8px;right:18px;bottom:2px;height:8px}
 .scroll-thumb{
   position:absolute;background:var(--accent);border-radius:99px;cursor:grab;
   min-height:30px;min-width:30px;
