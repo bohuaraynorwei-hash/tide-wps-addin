@@ -38,6 +38,7 @@
     findResults: [],
     tm: [],
     qaFindings: [],
+    gridRows: [],
     project: null,
     projectPath: '',
     selectedSegment: '',
@@ -1421,6 +1422,87 @@
     URL.revokeObjectURL(link.href);
   }
 
+  // ---------- segment grid ----------
+
+  function gridIssuesFor(row, terms) {
+    try {
+      return window.TideQA.checkRow({ row: row.row, sheet: row.sheet, source: row.source, target: row.target }, terms, {}).length;
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function gridPendingRevision(row) {
+    var project = state.project;
+    if (!project || !project.segments) return 0;
+    var record = project.segments[segKey(row.sheet, row.row)];
+    return record ? pendingCount(record) : 0;
+  }
+
+  function writeGridCell(row, value) {
+    var sheet = sheetByName(row.sheet);
+    if (!sheet) { $('gridHint').textContent = '未连接表格。'; return false; }
+    var before = row.target;
+    try {
+      sheet.Range(state.settings.targetCol + row.row).Value2 = value;
+    } catch (err) {
+      $('gridHint').textContent = '写入失败：' + err.message;
+      return false;
+    }
+    row.target = value;
+    recordRevision(row.sheet, row.row, row.source, before, value);
+    recordWrite({ sheet: row.sheet, row: row.row, source: row.source }, before, value);
+    return true;
+  }
+
+  function renderGrid() {
+    var result = buildRows();
+    if (result.error) { $('gridHint').textContent = '未连接表格。'; return; }
+    state.gridRows = result.rows.map(function (row) {
+      row.sheet = result.sheetName;
+      return row;
+    });
+    var filter = $('gridFilter').value;
+    var rows = state.gridRows.filter(function (row) {
+      if (filter === 'empty') return !String(row.target || '').trim();
+      if (filter === 'qa') return gridIssuesFor(row, state.matchTerms) > 0;
+      if (filter === 'rev') return gridPendingRevision(row) > 0;
+      return true;
+    });
+    var shown = rows.slice(0, 200);
+    var table = $('gridTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    table.hidden = shown.length === 0;
+    $('gridCount').textContent = rows.length
+      ? shown.length + ' / ' + rows.length + ' 条' + (rows.length > shown.length ? '（仅显示前 200）' : '')
+      : '没有符合条件的条目';
+    shown.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', String(row.row), 'num'));
+      var tdSource = document.createElement('td');
+      tdSource.appendChild(textNode('div', row.source.slice(0, 60), 'zh'));
+      tr.appendChild(tdSource);
+      var tdTarget = document.createElement('td');
+      var input = document.createElement('input');
+      input.className = 'grid-cell';
+      input.value = row.target || '';
+      input.addEventListener('change', function () {
+        if (writeGridCell(row, input.value)) {
+          tr.classList.add('dirty');
+          renderGrid();
+        }
+      });
+      tdTarget.appendChild(input);
+      tr.appendChild(tdTarget);
+      var issues = gridIssuesFor(row, state.matchTerms);
+      var tdQA = textNode('td', issues ? String(issues) : '—', 'num');
+      tdQA.className = issues ? 'grid-qa' : 'grid-qa ok';
+      tr.appendChild(tdQA);
+      body.appendChild(tr);
+    });
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2030,7 +2112,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'grid', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -2042,6 +2124,7 @@
     if (name === 'terms') { syncTermColumns(); renderTerms(); }
     if (name === 'review') renderReview();
     if (name === 'tm') renderTM();
+    if (name === 'grid') renderGrid();
     if (name === 'sync') refreshHelper();
   }
 
@@ -2254,6 +2337,8 @@
     $('btnFindAll').addEventListener('click', runFind);
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    $('btnGridRefresh').addEventListener('click', renderGrid);
+    $('gridFilter').addEventListener('change', renderGrid);
     $('btnRunQA').addEventListener('click', runQA);
     $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });

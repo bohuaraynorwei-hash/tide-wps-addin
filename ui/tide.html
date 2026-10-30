@@ -20,6 +20,7 @@
     <button data-tab="find">搜索</button>
     <button data-tab="review">审校</button>
     <button data-tab="tm">记忆库</button>
+    <button data-tab="grid">网格</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -227,6 +228,24 @@
       <div class="hint" id="qaSummary"></div>
       <table id="qaTable" hidden>
         <thead><tr><th>行</th><th>级别</th><th>类别</th><th>说明</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-grid" hidden>
+      <div class="toolbar">
+        <select id="gridFilter" class="mini">
+          <option value="all">全部条目</option>
+          <option value="empty">未翻译</option>
+          <option value="qa">有质检问题</option>
+          <option value="rev">有未处理修订</option>
+        </select>
+        <button class="act ghost" id="btnGridRefresh">刷新</button>
+        <span class="count" id="gridCount"></span>
+      </div>
+      <div class="hint" id="gridHint">直接在「译文」列编辑，失焦后写入工作表并记录修订。</div>
+      <table id="gridTable" hidden>
+        <thead><tr><th>行</th><th>原文</th><th>译文</th><th>QA</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>

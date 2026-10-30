@@ -251,3 +251,13 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .badge{font:600 10px/1 var(--font);padding:3px 7px;border-radius:999px;background:rgba(255,159,10,.16);color:#8a5300}
 .badge.ok{background:rgba(52,199,89,.16);color:#146c2e}
 #reviewTable tbody tr{cursor:pointer}
+
+#gridTable td{vertical-align:middle}
+#gridTable input.grid-cell{width:100%;padding:6px 8px;border:1px solid transparent;
+  background:transparent;border-radius:7px;font:12.5px/1.4 var(--font);color:var(--label)}
+#gridTable input.grid-cell:hover{border-color:var(--hair)}
+#gridTable input.grid-cell:focus{border-color:var(--accent);background:var(--card);
+  box-shadow:0 0 0 3px rgba(0,113,227,.16);outline:none}
+#gridTable tr.dirty input.grid-cell{background:rgba(255,159,10,.08)}
+.grid-qa{font:400 11px/1 var(--mono);color:var(--red)}
+.grid-qa.ok{color:var(--label-3)}
