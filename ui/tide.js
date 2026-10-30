@@ -349,6 +349,7 @@
     table.hidden = state.scanned.length === 0;
     state.scanned.forEach(function (row) {
       var tr = document.createElement('tr');
+      tr.dataset.row = String(row.row);
       tr.appendChild(textNode('td', String(row.row), 'num'));
       var tdSource = document.createElement('td');
       tdSource.appendChild(highlighted(row.source, row.matches));
@@ -1465,6 +1466,22 @@
     return true;
   }
 
+  function selectGridRow(rowNumber) {
+    var rows = document.querySelectorAll('#gridTable tbody tr');
+    for (var i = 0; i < rows.length; i += 1) {
+      rows[i].className = Number(rows[i].dataset.row) === rowNumber ? 'on' : '';
+    }
+  }
+
+  function updateGridRow(tr, row) {
+    var cells = tr.querySelectorAll('td');
+    var qaCell = cells[cells.length - 1];
+    if (!qaCell) return;
+    var issues = gridIssuesFor(row, state.matchTerms);
+    qaCell.textContent = issues ? String(issues) : '—';
+    qaCell.className = issues ? 'num grid-qa' : 'num grid-qa ok';
+  }
+
   function renderGrid() {
     var result = buildRows();
     if (result.error) { $('gridHint').textContent = '未连接表格。'; return; }
@@ -1489,6 +1506,7 @@
       : '没有符合条件的条目';
     shown.forEach(function (row) {
       var tr = document.createElement('tr');
+      tr.dataset.row = String(row.row);
       tr.appendChild(textNode('td', String(row.row), 'num'));
       var tdSource = document.createElement('td');
       tdSource.appendChild(textNode('div', row.source.slice(0, 60), 'zh'));
@@ -1500,15 +1518,18 @@
       input.addEventListener('change', function () {
         if (writeGridCell(row, input.value)) {
           tr.classList.add('dirty');
-          renderGrid();
+          // Update this row in place; rebuilding the grid would replace the
+          // input the user is still in.
+          updateGridRow(tr, row);
         }
       });
       tdTarget.appendChild(input);
       tr.appendChild(tdTarget);
       var issues = gridIssuesFor(row, state.matchTerms);
       var tdQA = textNode('td', issues ? String(issues) : '—', 'num');
-      tdQA.className = issues ? 'grid-qa' : 'grid-qa ok';
+      tdQA.className = issues ? 'num grid-qa' : 'num grid-qa ok';
       tr.appendChild(tdQA);
+      tr.addEventListener('mousedown', function () { selectGridRow(row.row); });
       body.appendChild(tr);
     });
   }
