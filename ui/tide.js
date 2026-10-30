@@ -14,6 +14,7 @@
     archive: 'tide.archive',
     snapshot: 'tide.snapshot',
     lastTab: 'tide.lastTab',
+    profiles: 'tide.profiles',
     repo: 'tide.syncRepo',
     branch: 'tide.syncBranch'
   };
@@ -35,6 +36,8 @@
     termsBlob: null,
     termsMeta: null,
     entries: [],
+    profiles: [],
+    activeProfile: 'default',
     findResults: [],
     tm: [],
     qaFindings: [],
@@ -1719,6 +1722,61 @@
     }
   }
 
+  // ---------- project profiles ----------
+  // Reserved entry: the selector exists and switching applies a table rule,
+  // but profile management (create/edit) is intentionally not wired yet.
+
+  function loadProfiles() {
+    var saved = readJSON(K.profiles, null);
+    if (saved && saved.length) state.profiles = saved;
+    else state.profiles = [{ id: 'default', name: '当前项目', note: '', columns: JSON.parse(JSON.stringify(state.settings)) }];
+    state.activeProfile = window.localStorage.getItem('tide.activeProfile') || state.profiles[0].id;
+    if (!state.profiles.some(function (p) { return p.id === state.activeProfile; })) {
+      state.activeProfile = state.profiles[0].id;
+    }
+  }
+
+  function persistProfiles() {
+    window.localStorage.setItem(K.profiles, JSON.stringify(state.profiles));
+    window.localStorage.setItem('tide.activeProfile', state.activeProfile);
+  }
+
+  function renderProjects() {
+    var select = $('projectSelect');
+    if (!select) return;
+    select.textContent = '';
+    state.profiles.forEach(function (profile) {
+      var option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = profile.name;
+      option.selected = profile.id === state.activeProfile;
+      select.appendChild(option);
+    });
+  }
+
+  function applyProfile(id) {
+    var profile = state.profiles.find(function (p) { return p.id === id; });
+    if (!profile) return;
+    state.activeProfile = id;
+    state.settings = Object.assign({}, state.settings, profile.columns || {});
+    $('colSource').value = state.settings.sourceCol;
+    $('colTarget').value = state.settings.targetCol;
+    $('colUid').value = state.settings.uidCol;
+    if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    writeJSON(K.settings, state.settings);
+    persistProfiles();
+    renderProjects();
+    loadEntries();
+    renderEntry();
+  }
+
+  function saveColumnsToProfile() {
+    var profile = state.profiles.find(function (p) { return p.id === state.activeProfile; });
+    if (!profile) return;
+    profile.columns = JSON.parse(JSON.stringify(state.settings));
+    persistProfiles();
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2398,6 +2456,7 @@
         oldCol: ($('colOld') && $('colOld').value.toUpperCase()) || 'E'
       };
       writeJSON(K.settings, state.settings);
+      saveColumnsToProfile();
       writeJSON(K.repo, $('syncRepo').value);
       writeJSON(K.branch, $('syncBranch').value);
       $('settingsStatus').textContent = '已保存到本机。';
@@ -2605,6 +2664,7 @@
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnRollback').addEventListener('click', rollbackEntry);
+    if ($('projectSelect')) $('projectSelect').addEventListener('change', function (event) { applyProfile(event.target.value); });
     $('btnDelivery').addEventListener('click', deliveryCheck);
     $('entryDraft').addEventListener('input', function () {
       var entry = currentEntry();
@@ -2632,6 +2692,16 @@
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
     if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    loadProfiles();
+    var profile = state.profiles.find(function (p) { return p.id === state.activeProfile; });
+    if (profile && profile.columns) {
+      state.settings = Object.assign({}, state.settings, profile.columns);
+      $('colSource').value = state.settings.sourceCol;
+      $('colTarget').value = state.settings.targetCol;
+      $('colUid').value = state.settings.uidCol;
+      if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    }
+    renderProjects();
     $('syncRepo').value = readJSON(K.repo, '') || '';
     $('syncBranch').value = readJSON(K.branch, 'main') || 'main';
     $('envHint').textContent = sheetApp() ? '已连接 WPS 表格。' : '当前不在 WPS 中，仅能查看设置与记录。';

@@ -374,6 +374,14 @@
 
     <section id="panel-settings" hidden>
       <div class="field">
+        <label>项目（表格规则）</label>
+        <div class="colinput">
+          <select id="projectSelect" class="mini"></select>
+          <button class="act ghost" id="btnManageProjects" disabled title="项目结构管理：入口预留，暂未开放">管理项目</button>
+        </div>
+        <div class="hint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
+      </div>
+      <div class="field">
         <label>导入术语表（JSON）</label>
         <input id="termFile" type="file" accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
       </div>
