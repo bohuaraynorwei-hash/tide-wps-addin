@@ -254,6 +254,51 @@
     return value === null || value === undefined ? '' : String(value);
   }
 
+  // Real export sheets often carry 2-3 header rows ("导出标记", "标记字段",
+  // "字段解释") before data. Treat every leading header-ish row as header.
+  var HEADER_RX = /^(source(\s*text)?(\s*\(old\))?|title|desc|weight|en(\s*\(old\))?|字段解释|标记字段|导出标记|中文|原文|备注|uid|ui)$/i;
+
+  function detectHeaderEnd(grid) {
+    var last = -1;
+    var limit = Math.min(grid.length, 12);
+    for (var r = 0; r < limit; r += 1) {
+      var line = grid[r] || [];
+      var blank = true;
+      var headerish = false;
+      for (var c = 0; c < line.length; c += 1) {
+        var text = String(line[c] == null ? '' : line[c]).trim();
+        if (!text) continue;
+        blank = false;
+        if (HEADER_RX.test(text)) headerish = true;
+      }
+      if (blank) { last = r; continue; }
+      if (headerish) { last = r; continue; }
+      break;
+    }
+    return last;
+  }
+
+  // Read the header row and report where "Source Text" and "EN" actually are,
+  // so a mismatched column mapping can be corrected instead of silently
+  // producing nonsense.
+  function detectColumns(grid, startCol) {
+    var limit = Math.min(grid.length, 12);
+    for (var r = 0; r < limit; r += 1) {
+      var line = grid[r] || [];
+      var srcIdx = -1;
+      var tgtIdx = -1;
+      for (var c = 0; c < line.length; c += 1) {
+        var text = String(line[c] == null ? '' : line[c]).trim();
+        if (srcIdx < 0 && /^source(\s*text)?(\s*\(old\))?$/i.test(text)) srcIdx = c;
+        if (tgtIdx < 0 && /^en$/i.test(text)) tgtIdx = c;
+      }
+      if (srcIdx > -1 && tgtIdx > -1 && tgtIdx > srcIdx) {
+        return { sourceCol: numberToCol(startCol + srcIdx), targetCol: numberToCol(startCol + tgtIdx) };
+      }
+    }
+    return null;
+  }
+
   function buildRows() {
     var sheet = currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
@@ -265,24 +310,25 @@
     var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
     var uidIdx = colToNumber(state.settings.uidCol) - startCol;
-    // The used range may start on a blank row; the header is the first row with
-    // a non-empty source cell, and data starts after it.
-    var headerAt = 0;
-    for (var h = 0; h < grid.length; h += 1) {
-      if (cellText(grid, h, srcIdx).trim()) { headerAt = h; break; }
-    }
+    var headerAt = detectHeaderEnd(grid);
     var rows = [];
     for (var r = headerAt + 1; r < grid.length; r += 1) {
       var source = cellText(grid, r, srcIdx);
       if (!source.trim()) continue;
       rows.push({
         row: startRow + r,
+        sheet: sheet.Name,
         uid: uidIdx >= 0 ? cellText(grid, r, uidIdx) : '',
         source: source,
         target: tgtIdx >= 0 ? cellText(grid, r, tgtIdx) : ''
       });
     }
-    return { rows: rows, sheetName: sheet.Name };
+    return {
+      rows: rows,
+      sheetName: sheet.Name,
+      headerEnd: headerAt,
+      detected: detectColumns(grid, startCol)
+    };
   }
 
   // ---------- encrypted archive ----------
@@ -1520,11 +1566,19 @@
       return key + ' ' + summary.byCategory[key];
     });
     $('qaCount').textContent = findings.length ? findings.length + ' 个问题' : '无问题';
-    $('qaSummary').textContent = findings.length
-      ? '「' + result.sheetName + '」' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
+    var detected = result.detected;
+    var mismatch = detected && (detected.sourceCol !== state.settings.sourceCol ||
+                                detected.targetCol !== state.settings.targetCol);
+    $('btnApplyDetected').hidden = !mismatch;
+    var warning = mismatch
+      ? '⚠ 表头显示源文 ' + detected.sourceCol + '、译文 ' + detected.targetCol +
+        '，当前设置 ' + state.settings.sourceCol + '/' + state.settings.targetCol + '。'
+      : '';
+    $('qaSummary').textContent = warning + (findings.length
+      ? '「' + result.sheetName + '」表头至第 ' + (result.headerEnd + 1) + ' 行，' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
         ' · 中 ' + summary.bySeverity.medium + ' · 低 ' + summary.bySeverity.low +
         '（' + parts.join('，') + '）'
-      : '「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。';
+      : '「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。');
     var table = $('qaTable');
     var body = table.tBodies[0];
     body.textContent = '';
@@ -2667,6 +2721,19 @@
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
     $('btnRunQA').addEventListener('click', runQA);
+    $('btnApplyDetected').addEventListener('click', function () {
+      var result = buildRows();
+      if (!result.detected) { $('qaSummary').textContent = '表头里没有可识别的 Source Text / EN 列。'; return; }
+      state.settings.sourceCol = result.detected.sourceCol;
+      state.settings.targetCol = result.detected.targetCol;
+      writeJSON(K.settings, state.settings);
+      saveColumnsToProfile();
+      $('colSource').value = state.settings.sourceCol;
+      $('colTarget').value = state.settings.targetCol;
+      loadEntries();
+      renderEntry();
+      runQA();
+    });
     $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
