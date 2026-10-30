@@ -169,7 +169,8 @@
   var TOKEN_PATTERNS = [
     /\{\{[^{}]*\}\}/g,
     /\{[A-Za-z0-9_.]+\}/g,
-    /%\d*\$?[-+#0 ]*(?:\d+|\*)?(?:\.\d+)?[sdif]/g,
+    // No space in the flag class: "% f" is prose, not a format specifier.
+    /%\d*\$?[-+#0]*(?:\d+|\*)?(?:\.\d+)?[sdif]/g,
     /<\/?[A-Za-z][^<>]{0,40}>/g
   ];
 

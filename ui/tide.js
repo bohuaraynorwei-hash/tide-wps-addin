@@ -37,6 +37,7 @@
     entries: [],
     findResults: [],
     tm: [],
+    qaFindings: [],
     project: null,
     projectPath: '',
     selectedSegment: '',
@@ -1359,6 +1360,67 @@
     $('tmStats').textContent = '已导出 ' + state.tm.length + ' 条记忆。';
   }
 
+  // ---------- QA ----------
+
+  function severityLabel(sev) {
+    return sev === 'high' ? '高' : (sev === 'medium' ? '中' : '低');
+  }
+
+  function runQA() {
+    var result = buildRows();
+    if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
+    var findings = window.TideQA.runQA(result.rows, state.matchTerms, {});
+    state.qaFindings = findings;
+    var summary = window.TideQA.summarize(findings);
+    var parts = Object.keys(summary.byCategory).sort().map(function (key) {
+      return key + ' ' + summary.byCategory[key];
+    });
+    $('qaCount').textContent = findings.length ? findings.length + ' 个问题' : '无问题';
+    $('qaSummary').textContent = findings.length
+      ? '「' + result.sheetName + '」' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
+        ' · 中 ' + summary.bySeverity.medium + ' · 低 ' + summary.bySeverity.low +
+        '（' + parts.join('，') + '）'
+      : '「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。';
+    var table = $('qaTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    table.hidden = findings.length === 0;
+    findings.slice(0, 300).forEach(function (finding) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', String(finding.row), 'num'));
+      var sev = textNode('td', severityLabel(finding.severity), 'num');
+      sev.style.color = finding.severity === 'high' ? 'var(--red)'
+        : (finding.severity === 'medium' ? 'var(--orange)' : 'var(--label-3)');
+      tr.appendChild(sev);
+      tr.appendChild(textNode('td', finding.category, 'num'));
+      tr.appendChild(textNode('td', finding.message, 'hint'));
+      tr.addEventListener('click', function () {
+        $('qaSummary').textContent = '第 ' + finding.row + ' 行 · 原文：' + finding.source.slice(0, 40) +
+          ' · 译文：' + (finding.target || '（空）').slice(0, 40);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function exportQA() {
+    var findings = state.qaFindings || [];
+    if (!findings.length) { $('qaSummary').textContent = '先运行一次质检。'; return; }
+    var header = ['row', 'severity', 'category', 'message', 'source', 'target'];
+    var lines = [header.join(',')];
+    findings.forEach(function (f) {
+      var cells = [f.row, f.severity, f.category, f.message, f.source, f.target].map(function (value) {
+        return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+      });
+      lines.push(cells.join(','));
+    });
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'tide-qa.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2192,6 +2254,8 @@
     $('btnFindAll').addEventListener('click', runFind);
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    $('btnRunQA').addEventListener('click', runQA);
+    $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];

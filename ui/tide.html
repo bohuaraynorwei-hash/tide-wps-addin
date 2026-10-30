@@ -217,6 +217,18 @@
           </div>
         </div>
       </div>
+      <hr class="rule">
+      <h3 class="sub">质检（QA）</h3>
+      <div class="toolbar">
+        <button class="act" id="btnRunQA">运行质检</button>
+        <button class="act ghost" id="btnExportQA">导出 CSV</button>
+        <span class="count" id="qaCount"></span>
+      </div>
+      <div class="hint" id="qaSummary"></div>
+      <table id="qaTable" hidden>
+        <thead><tr><th>行</th><th>级别</th><th>类别</th><th>说明</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <section id="panel-tm" hidden>
@@ -378,6 +390,7 @@
   <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/tm.js"></script>
+  <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
   <script src="tide.js"></script>
 </body>
