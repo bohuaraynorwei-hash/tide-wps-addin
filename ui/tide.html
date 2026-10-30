@@ -18,6 +18,7 @@
     <button data-tab="translate">翻译</button>
     <button data-tab="free">自由</button>
     <button data-tab="find">搜索</button>
+    <button data-tab="review">审校</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -185,6 +186,36 @@
         <thead><tr><th>表</th><th>单元格</th><th>替换前</th><th>替换后</th></tr></thead>
         <tbody></tbody>
       </table>
+    </section>
+
+    <section id="panel-review" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnReviewRefresh">刷新</button>
+        <span class="count" id="reviewCount"></span>
+      </div>
+      <table id="reviewTable" hidden>
+        <thead><tr><th>行</th><th>原文 / 译文</th><th>状态</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="reviewEmpty">还没有审校记录。在「翻译」页写入译文后，修订会自动记在这里。</div>
+
+      <div id="reviewDetail" hidden>
+        <hr class="rule">
+        <h3 class="sub" id="reviewDetailTitle">条目</h3>
+        <div class="field">
+          <label>修订</label>
+          <div id="revisionList"></div>
+        </div>
+        <div class="field">
+          <label>评论</label>
+          <div id="commentList"></div>
+          <textarea id="commentInput" rows="2" placeholder="针对这一条写评论…"></textarea>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="act ghost" id="btnAddComment">添加评论</button>
+            <span class="hint" id="reviewStatus"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="panel-terms" hidden>

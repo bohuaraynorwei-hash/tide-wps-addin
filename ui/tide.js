@@ -36,6 +36,9 @@
     termsMeta: null,
     entries: [],
     findResults: [],
+    project: null,
+    projectPath: '',
+    selectedSegment: '',
     batchPreview: [],
     lastBatch: [],
     sourceDirty: false,
@@ -983,6 +986,258 @@
     renderEntry();
   }
 
+  // ---------- review layer: revisions + comments ----------
+
+  function authorName() {
+    return window.localStorage.getItem('tide.author') || '本机';
+  }
+
+  function segKey(sheet, row) { return String(sheet) + '!' + row; }
+
+  function ensureProject() {
+    if (!state.project) state.project = { version: 1, segments: {} };
+    if (!state.project.segments) state.project.segments = {};
+    return state.project;
+  }
+
+  function segmentRecord(sheet, row, sourceText, targetText) {
+    var project = ensureProject();
+    var key = segKey(sheet, row);
+    var record = project.segments[key];
+    if (!record) {
+      record = project.segments[key] = { source: sourceText || '', target: targetText || '', revisions: [], comments: [], status: '' };
+    } else {
+      if (sourceText) record.source = sourceText;
+      if (targetText !== undefined && targetText !== null) record.target = targetText;
+    }
+    return record;
+  }
+
+  function saveProject() {
+    var project = ensureProject();
+    if (window.TideProject) { window.TideProject.save(project); return; }
+    // WPS pane has no file system access: keep the review layer in storage so
+    // the tab still works, and say so in the UI when exported.
+    try { window.localStorage.setItem('tide.review', JSON.stringify(project)); } catch (err) { /* quota */ }
+  }
+
+  function recordRevision(sheet, row, sourceText, before, after) {
+    if (String(before == null ? '' : before) === String(after == null ? '' : after)) return;
+    var record = segmentRecord(sheet, row, sourceText, after);
+    record.revisions.push({
+      id: 'r' + Date.now() + Math.floor(Math.random() * 1000),
+      ts: new Date().toISOString(),
+      author: authorName(),
+      before: before == null ? '' : String(before),
+      after: String(after),
+      state: 'pending'
+    });
+    record.target = String(after);
+    saveProject();
+  }
+
+  // Common prefix/suffix trimming: cheaper and clearer than a full diff for
+  // short UI strings, and it reads correctly for both Chinese and English.
+  function diffParts(before, after) {
+    var a = String(before), b = String(after);
+    var start = 0;
+    while (start < a.length && start < b.length && a[start] === b[start]) start += 1;
+    var endA = a.length, endB = b.length;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA -= 1; endB -= 1; }
+    return {
+      prefix: a.slice(0, start),
+      removed: a.slice(start, endA),
+      added: b.slice(start, endB),
+      suffix: a.slice(endA)
+    };
+  }
+
+  function diffNode(before, after) {
+    var wrap = document.createElement('span');
+    var parts = diffParts(before, after);
+    if (parts.prefix) wrap.appendChild(document.createTextNode(parts.prefix));
+    if (parts.removed) {
+      var del = document.createElement('del');
+      del.textContent = parts.removed;
+      wrap.appendChild(del);
+    }
+    if (parts.added) {
+      var ins = document.createElement('ins');
+      ins.textContent = parts.added;
+      wrap.appendChild(ins);
+    }
+    if (parts.suffix) wrap.appendChild(document.createTextNode(parts.suffix));
+    return wrap;
+  }
+
+  function pendingCount(record) {
+    return (record.revisions || []).filter(function (r) { return r.state === 'pending'; }).length;
+  }
+
+  function openComments(record) {
+    return (record.comments || []).filter(function (c) { return !c.resolved; }).length;
+  }
+
+  function renderReview() {
+    var project = ensureProject();
+    var keys = Object.keys(project.segments);
+    var table = $('reviewTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var rows = keys.filter(function (key) {
+      var record = project.segments[key];
+      return pendingCount(record) > 0 || (record.comments || []).length > 0;
+    });
+    $('reviewCount').textContent = rows.length ? rows.length + ' 条有修订或评论 / ' + keys.length + ' 条记录' : '';
+    table.hidden = rows.length === 0;
+    $('reviewEmpty').hidden = rows.length > 0;
+    rows.forEach(function (key) {
+      var record = project.segments[key];
+      var tr = document.createElement('tr');
+      var rowNumber = key.split('!')[1];
+      tr.appendChild(textNode('td', rowNumber, 'num'));
+      var summary = document.createElement('td');
+      summary.appendChild(textNode('div', record.source.slice(0, 30), 'zh'));
+      summary.appendChild(textNode('div', (record.target || '—').slice(0, 40), 'hint'));
+      tr.appendChild(summary);
+      var status = document.createElement('td');
+      if (pendingCount(record)) status.appendChild(textNode('span', pendingCount(record) + ' 处修订', 'badge'));
+      if (openComments(record)) status.appendChild(textNode('span', openComments(record) + ' 条评论', 'badge'));
+      tr.appendChild(status);
+      tr.appendChild(textNode('td', key.split('!')[0], 'num'));
+      tr.addEventListener('click', function () { state.selectedSegment = key; renderReviewDetail(); });
+      body.appendChild(tr);
+    });
+    if (state.selectedSegment && project.segments[state.selectedSegment]) renderReviewDetail();
+    else $('reviewDetail').hidden = true;
+  }
+
+  function renderReviewDetail() {
+    var project = ensureProject();
+    var key = state.selectedSegment;
+    var record = project.segments[key];
+    var panel = $('reviewDetail');
+    if (!record) { panel.hidden = true; return; }
+    panel.hidden = false;
+    $('reviewDetailTitle').textContent = key + ' · ' + (record.source || '').slice(0, 40);
+
+    var revisions = $('revisionList');
+    revisions.textContent = '';
+    var list = (record.revisions || []).slice().reverse();
+    if (!list.length) revisions.appendChild(textNode('div', '还没有修订。', 'hint'));
+    list.forEach(function (rev) {
+      var line = document.createElement('div');
+      line.className = 'rev' + (rev.state === 'accepted' ? ' accepted' : '');
+      line.appendChild(textNode('span', rev.author + ' · ' + rev.ts.slice(5, 16).replace('T', ' '), 'who'));
+      line.appendChild(diffNode(rev.before, rev.after));
+      if (rev.state === 'pending') {
+        var accept = document.createElement('button');
+        accept.className = 'act ghost';
+        accept.textContent = '接受';
+        accept.addEventListener('click', function () { resolveRevision(rev.id, 'accepted'); });
+        var reject = document.createElement('button');
+        reject.className = 'act ghost';
+        reject.textContent = '拒绝';
+        reject.addEventListener('click', function () { resolveRevision(rev.id, 'rejected'); });
+        line.appendChild(accept);
+        line.appendChild(reject);
+      } else {
+        line.appendChild(textNode('span', rev.state === 'accepted' ? '已接受' : '已拒绝', 'badge ' + (rev.state === 'accepted' ? 'ok' : '')));
+      }
+      revisions.appendChild(line);
+    });
+
+    var comments = $('commentList');
+    comments.textContent = '';
+    if (!(record.comments || []).length) comments.appendChild(textNode('div', '还没有评论。', 'hint'));
+    (record.comments || []).forEach(function (comment) {
+      var box = document.createElement('div');
+      box.className = 'comment' + (comment.resolved ? ' resolved' : '');
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.appendChild(textNode('span', comment.author + ' · ' + comment.ts.slice(5, 16).replace('T', ' ')));
+      box.appendChild(meta);
+      box.appendChild(textNode('div', comment.body));
+      if (!comment.resolved) {
+        var done = document.createElement('button');
+        done.className = 'act ghost';
+        done.textContent = '标记解决';
+        done.style.marginTop = '6px';
+        done.addEventListener('click', function () {
+          comment.resolved = true;
+          saveProject();
+          renderReviewDetail();
+          renderReview();
+        });
+        box.appendChild(done);
+      }
+      comments.appendChild(box);
+    });
+  }
+
+  function resolveRevision(id, next) {
+    var project = ensureProject();
+    var key = state.selectedSegment;
+    var record = project.segments[key];
+    if (!record) return;
+    var rev = (record.revisions || []).find(function (r) { return r.id === id; });
+    if (!rev) return;
+    rev.state = next;
+    if (next === 'rejected') {
+      var match = /^(.*)!(\d+)$/.exec(key);
+      if (match) {
+        var sheet = sheetByName(match[1]);
+        var row = Number(match[2]);
+        try { sheet.Range(state.settings.targetCol + row).Value2 = rev.before; } catch (err) { /* cell gone */ }
+      }
+      record.target = rev.before;
+    }
+    saveProject();
+    renderReviewDetail();
+    renderReview();
+  }
+
+  function addComment() {
+    var body = ($('commentInput').value || '').trim();
+    if (!body) { $('reviewStatus').textContent = '先写点内容。'; return; }
+    var project = ensureProject();
+    var record = project.segments[state.selectedSegment];
+    if (!record) return;
+    record.comments.push({
+      id: 'c' + Date.now(),
+      ts: new Date().toISOString(),
+      author: authorName(),
+      body: body,
+      resolved: false
+    });
+    $('commentInput').value = '';
+    saveProject();
+    renderReviewDetail();
+    renderReview();
+    $('reviewStatus').textContent = '已添加评论。';
+  }
+
+  function loadProject() {
+    if (!window.TideProject) {
+      try {
+        var raw = window.localStorage.getItem('tide.review');
+        state.project = raw ? JSON.parse(raw) : { version: 1, segments: {} };
+      } catch (err) {
+        state.project = { version: 1, segments: {} };
+      }
+      if (!state.project.segments) state.project.segments = {};
+      return Promise.resolve(state.project);
+    }
+    return window.TideProject.load().then(function (result) {
+      state.projectPath = result && result.path ? result.path : '';
+      state.project = (result && result.data) || { version: 1, segments: {} };
+      if (!state.project.segments) state.project.segments = {};
+      return state.project;
+    }).catch(function () {
+      state.project = { version: 1, segments: {} };
+    });
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -1217,6 +1472,7 @@
     entry.target = value;
     refreshMemory();
     recordWrite(entry, before, value);
+    recordRevision(entry.sheet, entry.row, entry.source, before, value);
     move(1);
     $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
   }
@@ -1591,7 +1847,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'find', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'review', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -1601,6 +1857,7 @@
     if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
     if (name === 'terms') { syncTermColumns(); renderTerms(); }
+    if (name === 'review') renderReview();
     if (name === 'sync') refreshHelper();
   }
 
@@ -1813,6 +2070,8 @@
     $('btnFindAll').addEventListener('click', runFind);
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
+    $('btnAddComment').addEventListener('click', addComment);
     var termSearch = $('termSearch');
     if (termSearch) {
       var termTimer = null;
@@ -1898,11 +2157,24 @@
     renderTermSource();
     loadBundled().then(function () { renderTermSource(); });
     renderHistory();
+    loadProject().then(function () {
+      if (state.lastTab === 'review') renderReview();
+    });
     watchRibbon();
     if (sheetApp()) window.setInterval(syncActiveSheet, 1200);
     checkForUpdate();
     window.setInterval(checkForUpdate, 120000);
   }
+
+  // Read-only inspection hook for the desktop smoke test.
+  Object.defineProperty(window, '__tide', {
+    value: {
+      get project() { return state.project; },
+      get selected() { return state.selectedSegment; },
+      get lastTab() { return state.lastTab; }
+    },
+    configurable: true
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
