@@ -59,6 +59,8 @@
 
   function checkRow(row, terms, options) {
     var opts = options || {};
+    var lang = (root.TideLangs ? root.TideLangs.get(opts.lang || 'en') : null) ||
+      { cjk: false, final: /[.!?]$/, wrong: /[。，、；：？！]/ };
     var findings = [];
     var source = String(row.source || '');
     var target = String(row.target || '');
@@ -97,7 +99,7 @@
         '术语未使用：' + misses.map(function (m) { return m.zh + ' → ' + m.en; }).join('；'));
     }
 
-    if (cjk(source) && !cjk(target)) {
+    if (cjk(source) && !lang.cjk) {
       var ratio = target.length / Math.max(source.length, 1);
       if (ratio > 2.4 || ratio < 0.2) {
         withFindings(findings, row, 'length', 'low',
@@ -105,11 +107,11 @@
       }
     }
 
-    if (/[。！？]$/.test(source.trim()) && !/[.!?]$/.test(target.trim())) {
+    if (lang.final && /[。！？!?]$/.test(source.trim()) && !lang.final.test(target.trim())) {
       withFindings(findings, row, 'punctuation', 'low', '原文是陈述/感叹/疑问句，译文缺少句末标点');
     }
-    if (/[。，、；：？！]/.test(target)) {
-      withFindings(findings, row, 'punctuation', 'medium', '译文里出现中文标点');
+    if (lang.wrong && lang.wrong.test(target)) {
+      withFindings(findings, row, 'punctuation', 'medium', '译文里出现不用于该语言的标点');
     }
 
     if (/^\s|\s$/.test(target) || /  +/.test(target)) {

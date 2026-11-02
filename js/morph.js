@@ -73,10 +73,14 @@
 
   /** Does `text` contain `phrase`, allowing inflected forms of its words? */
   function containsPhrase(text, phrase) {
+    var plain = String(text).toLowerCase();
+    var wanted = String(phrase).toLowerCase();
+    // Literal containment first: script-agnostic, and the only path that works
+    // for languages without word boundaries (Japanese, Korean, Russian, Thai).
+    if (wanted && plain.indexOf(wanted) > -1) return true;
     var haystack = tokens(text);
     var needle = tokens(phrase);
     if (!needle.length || haystack.length < needle.length) return false;
-    if (String(text).toLowerCase().indexOf(String(phrase).toLowerCase()) > -1) return true;
     for (var i = 0; i + needle.length <= haystack.length; i += 1) {
       var ok = true;
       for (var j = 0; j < needle.length; j += 1) {

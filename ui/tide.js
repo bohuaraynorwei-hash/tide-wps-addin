@@ -23,7 +23,7 @@
 
   var state = {
     terms: [],
-    settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A' },
+    settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A', targetLang: 'en' },
     perSheetCols: {},
     scanned: [],
     archive: { history: [], snapshot: {} },
@@ -351,6 +351,16 @@
     return null;
   }
 
+  function isTargetHeader(text) {
+    var code = state.settings.targetLang || 'en';
+    var names = window.TideLangs ? window.TideLangs.headersFor(code) : ['EN'];
+    var value = String(text || '').trim();
+    for (var i = 0; i < names.length; i += 1) {
+      if (value.toLowerCase() === names[i].toLowerCase()) return true;
+    }
+    return false;
+  }
+
   function buildRows(sheetOverride, silent) {
     var sheet = sheetOverride || currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
@@ -550,7 +560,7 @@
   // Substring first; when that finds nothing, fall back to similarity so a
   // partial or mistyped word still surfaces something.
   function filterTerms(query) {
-    var list = state.terms || [];
+    var list = currentTerms();
     var q = query.toLowerCase();
     if (!q) return { rows: list, fuzzy: false };
     var direct = list.filter(function (t) {
@@ -617,7 +627,8 @@
     if (!table) return;
     var body = table.tBodies[0];
     body.textContent = '';
-    var total = (state.terms || []).length;
+    var total = currentTerms().length;
+    var langName = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en').name : '';
     if (!total) {
       $('termCount').textContent = '术语表未导入';
       $('termEmpty').hidden = false;
@@ -634,9 +645,9 @@
       });
     });
     var rows = result.rows.slice(0, 300);
-    $('termCount').textContent = query
+    $('termCount').textContent = (query
       ? rows.length + ' / ' + total + ' 条' + (result.fuzzy ? ' · 近似匹配' : '')
-      : total + ' 条术语';
+      : total + ' 条术语') + (langName ? ' · ' + langName : '');
     table.hidden = rows.length === 0;
     $('termEmpty').hidden = rows.length > 0;
     $('termEmpty').textContent = query ? '没有匹配的术语，换个词试试。' : '术语表为空。';
@@ -709,12 +720,26 @@
 
   // Entries flagged needs_review carry notes or several variants in the English
   // column; they would produce false matches, so they stay visible but unused.
+  function currentTerms() {
+    var lang = state.settings.targetLang || 'en';
+    return (state.terms || []).filter(function (term) {
+      return (term.lang || 'en') === lang;
+    });
+  }
+
   function setTerms(list, meta) {
     state.terms = list || [];
     state.termsMeta = meta || null;
-    state.matchTerms = state.terms.filter(function (term) {
+    state.matchTerms = currentTerms().filter(function (term) {
       return term.status !== 'needs_review';
     });
+  }
+
+  function refreshTermLanguage() {
+    setTerms(state.terms, state.termsMeta);
+    renderTerms();
+    loadEntries();
+    renderEntry();
   }
 
   function localStamp(iso) {
@@ -1699,7 +1724,8 @@
 
   function tmExport() {
     if (!state.tm.length) { $('tmStats').textContent = '记忆库为空，无法导出。'; return; }
-    var xml = window.TideTM.buildTmx(state.tm, 'zh-CN', 'en-US');
+    var locale = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en') : { tmx: 'en-US' };
+    var xml = window.TideTM.buildTmx(state.tm, 'zh-CN', locale.tmx);
     var blob = new Blob([xml], { type: 'application/xml' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1718,7 +1744,7 @@
   function runQA() {
     var result = buildRows();
     if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
-    var findings = window.TideQA.runQA(result.rows, state.matchTerms, {});
+    var findings = window.TideQA.runQA(result.rows, state.matchTerms, { lang: state.settings.targetLang || 'en' });
     state.qaFindings = findings;
     var summary = window.TideQA.summarize(findings);
     var parts = Object.keys(summary.byCategory).sort().map(function (key) {
@@ -2024,6 +2050,17 @@
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
     if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    if ($('targetLang') && window.TideLangs) {
+      var select = $('targetLang');
+      select.textContent = '';
+      window.TideLangs.list.forEach(function (lang) {
+        var option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.name + (lang.native && lang.native !== lang.name ? ' · ' + lang.native : '');
+        option.selected = lang.code === (state.settings.targetLang || 'en');
+        select.appendChild(option);
+      });
+    }
     writeJSON(K.settings, state.settings);
     persistProfiles();
     renderProjects();
@@ -2959,7 +2996,8 @@
         sourceCol: $('colSource').value.toUpperCase() || 'C',
         targetCol: $('colTarget').value.toUpperCase() || 'F',
         uidCol: $('colUid').value.toUpperCase() || 'A',
-        oldCol: ($('colOld') && $('colOld').value.toUpperCase()) || 'E'
+        oldCol: ($('colOld') && $('colOld').value.toUpperCase()) || 'E',
+        targetLang: ($('targetLang') && $('targetLang').value) || state.settings.targetLang || 'en'
       };
       writeJSON(K.settings, state.settings);
       saveColumnsToProfile();
@@ -2974,9 +3012,14 @@
       var reader = new FileReader();
       reader.onload = function () {
         try {
-          var terms = isSheet
+          var parsed = isSheet
             ? parseWorkbook(reader.result)
             : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+          var langCode = state.settings.targetLang || 'en';
+          var terms = parsed.map(function (term) {
+            term.lang = term.lang || langCode;
+            return term;
+          });
           var meta = { source: file.name, count: terms.length, importedAt: new Date().toISOString() };
           setTerms(terms, meta);
           persistTerms(meta);
@@ -3171,6 +3214,15 @@
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnRollback').addEventListener('click', rollbackEntry);
+    if ($('targetLang')) {
+      $('targetLang').addEventListener('change', function () {
+        state.settings.targetLang = $('targetLang').value;
+        writeJSON(K.settings, state.settings);
+        saveColumnsToProfile();
+        refreshTermLanguage();
+        $('entryCheck').textContent = '目标语言已切换为 ' + window.TideLangs.get(state.settings.targetLang).name;
+      });
+    }
     if ($('projectSelect')) $('projectSelect').addEventListener('change', function (event) { applyProfile(event.target.value); });
     $('btnDelivery').addEventListener('click', deliveryCheck);
     $('entryDraft').addEventListener('input', function () {
@@ -3195,10 +3247,24 @@
     var saved = readJSON(K.settings, null);
     if (saved) state.settings = saved;
     if (!loadSavedTerms()) setTerms([]);
+    // The saved termbase may have been parsed before settings were restored, so
+    // re-filter it against the project's language now that the settings exist.
+    setTerms(state.terms, state.termsMeta);
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
     if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    if ($('targetLang') && window.TideLangs) {
+      var select = $('targetLang');
+      select.textContent = '';
+      window.TideLangs.list.forEach(function (lang) {
+        var option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.name + (lang.native && lang.native !== lang.name ? ' · ' + lang.native : '');
+        option.selected = lang.code === (state.settings.targetLang || 'en');
+        select.appendChild(option);
+      });
+    }
     loadProfiles();
     var profile = state.profiles.find(function (p) { return p.id === state.activeProfile; });
     if (profile && profile.columns) {
@@ -3207,6 +3273,17 @@
       $('colTarget').value = state.settings.targetCol;
       $('colUid').value = state.settings.uidCol;
       if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+    if ($('targetLang') && window.TideLangs) {
+      var select = $('targetLang');
+      select.textContent = '';
+      window.TideLangs.list.forEach(function (lang) {
+        var option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.name + (lang.native && lang.native !== lang.name ? ' · ' + lang.native : '');
+        option.selected = lang.code === (state.settings.targetLang || 'en');
+        select.appendChild(option);
+      });
+    }
     }
     renderProjects();
     $('syncRepo').value = readJSON(K.repo, '') || '';

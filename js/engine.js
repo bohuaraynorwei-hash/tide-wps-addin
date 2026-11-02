@@ -30,6 +30,7 @@
     if (!zh) return null;
     return {
       uid: entry.uid || entry.id || entry.key || '',
+      lang: entry.lang || 'en',
       zh: String(zh),
       en: String(en),
       status: entry.status || entry.state || '',

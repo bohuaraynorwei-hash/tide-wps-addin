@@ -407,6 +407,11 @@
 
     <section id="panel-settings" hidden>
       <div class="field">
+        <label>目标语言</label>
+        <select id="targetLang" class="mini"></select>
+        <div class="hint">源语固定为中文。切换目标语言会影响列识别、术语表筛选与质检标点规则。</div>
+      </div>
+      <div class="field">
         <label>项目（表格规则）</label>
         <div class="colinput">
           <select id="projectSelect" class="mini"></select>
@@ -471,6 +476,7 @@
 
   <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>
+  <script src="../js/langs.js"></script>
   <script src="../js/morph.js"></script>
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
