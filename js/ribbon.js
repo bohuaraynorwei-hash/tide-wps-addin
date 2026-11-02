@@ -3,6 +3,24 @@
 var TIDE_PANE_KEY = "tide_taskpane_id"
 var TIDE_TAB_KEY = "tide_open_tab"
 
+// Ribbon icons. WPS resolves these paths relative to the add-in root.
+function GetImage(control) {
+    var id = control && (control.Id || control.id)
+    switch (id) {
+        case "btnOpenPane": return "images/pane.svg"
+        case "btnScanSheet": return "images/scan.svg"
+        case "btnHistory": return "images/history.svg"
+        case "btnSync": return "images/sync.svg"
+        default: return "images/tab.svg"
+    }
+}
+
+// WPS may or may not honour an image on a custom tab; returning a valid path
+// is harmless either way, so the tab gets the brand mark where supported.
+function GetTabImage(control) {
+    return "images/tab.svg"
+}
+
 function OnAddinLoad(ribbonUI) {
     if (typeof (window.Application.ribbonUI) != "object") {
         window.Application.ribbonUI = ribbonUI
@@ -20,7 +38,7 @@ function tidePaneUrl() {
 // Open the task pane, optionally jumping to one tab.
 // Replaced by pack.sh on every release: a new stamp forces a fresh pane URL,
 // so updates load without restarting WPS.
-var TIDE_PANE_BUILD = "202611021350"
+var TIDE_PANE_BUILD = "202611021356"
 
 function TideOpenPane(tab) {
     if (tab) {
