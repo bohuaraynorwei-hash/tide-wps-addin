@@ -2379,71 +2379,23 @@
 
   // Last resort that never depends on clipboard permissions or key forwarding:
   // the text is put in a plain textarea the user can select / paste into.
-  function showManualClip(text, mode) {
-    var block = $('manualClip');
-    var area = $('manualClipText');
-    block.hidden = false;
-    if (mode === 'copy') {
-      area.readOnly = true;
-      area.value = text;
-      $('manualClipLabel').textContent = '手动复制：已选中，按 ⌘C / Ctrl+C';
-      area.focus();
-      area.select();
-      $('btnManualApply').hidden = true;
-    } else {
-      area.readOnly = false;
-      area.value = '';
-      $('manualClipLabel').textContent = '窗格收不到 ⌘V：请用「从表格选区读取」，或把文字拖进下面的框';
-      $('btnManualApply').hidden = false;
-      area.focus();
-    }
-  }
-
-  // WPS swallows ⌘V before the webview sees it, so the reliable paste path is
-  // through a cell: the user pastes there (WPS handles it) and we read the text.
-  function selectionText() {
-    var app = sheetApp();
-    if (!app || !app.Selection) return '';
-    try {
-      var value = app.Selection.Value2;
-      if (Array.isArray(value)) {
-        var first = Array.isArray(value[1]) ? value[1][1] : value[1];
-        return first == null ? '' : String(first);
-      }
-      return value == null ? '' : String(value);
-    } catch (err) {
-      return '';
-    }
-  }
-
-  // target: 'draft' (translation) or 'source' (原文)
-  function readSelection(target) {
-    var text = selectionText();
-    if (!text.trim()) { $('entryCheck').textContent = '选区是空的，先在表格里选中含文字的单元格。'; return; }
-    if (target === 'source') {
-      $('entrySource').value = text;
-      markSourceDirty();
-      $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符到原文。';
-      return;
-    }
-    $('entryDraft').value = text;
-    $('entryDraft').dispatchEvent(new Event('input'));
-    $('entryCheck').textContent = '已从选区读取 ' + text.length + ' 个字符到译文。';
-  }
-
-  // Drag-and-drop survives where key events do not.
-  function wireDrop(element, target) {
-    if (!element) return;
-    element.addEventListener('dragover', function (event) { event.preventDefault(); });
-    element.addEventListener('drop', function (event) {
+  // WPS blocks clipboard reads in the pane, but a drag from another app still
+  // delivers the text through dataTransfer.
+  function wireDrop(el, kind) {
+    if (!el) return;
+    el.addEventListener('dragover', function (event) {
       event.preventDefault();
-      var text = '';
-      try { text = event.dataTransfer.getData('text/plain') || ''; } catch (err) { text = ''; }
+      el.classList.add('dropping');
+    });
+    el.addEventListener('dragleave', function () { el.classList.remove('dropping'); });
+    el.addEventListener('drop', function (event) {
+      event.preventDefault();
+      el.classList.remove('dropping');
+      var text = event.dataTransfer ? event.dataTransfer.getData('text') : '';
       if (!text) return;
-      element.value = text;
-      element.dispatchEvent(new Event('input'));
-      if (target === 'source') markSourceDirty();
-      $('entryCheck').textContent = '已拖入 ' + text.length + ' 个字符。';
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      $('entryCheck').textContent = (kind === 'source' ? '已拖入原文 ' : '已拖入译文 ') + text.length + ' 个字符';
     });
   }
 
@@ -3102,24 +3054,18 @@
       if (!entry) return;
       copyText(entry.source).then(function (ok) {
         if (ok) { $('entryCheck').textContent = '已复制原文（' + entry.row + ' 行）'; }
-        else { $('entryCheck').textContent = '复制被拒绝，请用下方手动复制。'; showManualClip(entry.source, 'copy'); }
+        else { $('entryCheck').textContent = '复制被拒绝：请在表格里选中原文后按 ⌘C。'; }
       });
     });
     $('btnCopyDraft').addEventListener('click', function () {
       copyText($('entryDraft').value).then(function (ok) {
         if (ok) { $('entryCheck').textContent = '已复制草稿'; }
-        else { $('entryCheck').textContent = '复制被拒绝，请用下方手动复制。'; showManualClip($('entryDraft').value, 'copy'); }
+        else { $('entryCheck').textContent = '复制被拒绝：请手动选中文本后按 ⌘C。'; }
       });
     });
     $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
     $('btnReadCell').addEventListener('click', function () { readSelection('draft'); });
     $('btnReadCellSrc').addEventListener('click', function () { readSelection('source'); });
-    $('btnManualReadCell').addEventListener('click', function () {
-      var text = selectionText();
-      if (!text.trim()) { $('entryCheck').textContent = '选区是空的。'; return; }
-      $('manualClipText').value = text;
-      $('manualClipText').readOnly = false;
-    });
     wireDrop($('entryDraft'), 'draft');
     wireDrop($('entrySource'), 'source');
     // If the host ever does forward the key, handle it without relying on focus.
@@ -3130,15 +3076,7 @@
         $('clipHint').textContent = '⌘V 被 WPS 截获时的替代路径：表格里粘贴 → 选中单元格 → 点「读取选区」。';
       }
     });
-    $('btnManualApply').addEventListener('click', function () {
-      var text = $('manualClipText').value;
-      if (!text) return;
-      $('entryDraft').value = text;
-      $('entryDraft').dispatchEvent(new Event('input'));
-      $('manualClip').hidden = true;
-      $('entryCheck').textContent = '已从手动粘贴区应用 ' + text.length + ' 个字符。';
-    });
-    $('btnManualClose').addEventListener('click', function () { $('manualClip').hidden = true; });
+
     $('freeSource').addEventListener('input', function () {
       window.clearTimeout(freeTimer);
       freeTimer = window.setTimeout(renderFree, 250);
