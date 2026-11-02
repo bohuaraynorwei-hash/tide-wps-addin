@@ -383,3 +383,5 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .lang-menu button:hover{background:rgba(0,0,0,.05)}
 .lang-menu button.on{color:var(--accent);font-weight:600}
 .lang-menu button .tick{font:600 11px/1 var(--font);color:var(--accent)}
+
+.head-actions{display:flex;gap:6px;align-items:center}

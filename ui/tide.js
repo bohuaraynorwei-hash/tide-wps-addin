@@ -2436,6 +2436,50 @@
     });
   }
 
+  // execCommand('paste') is the last bridge that can work when the async
+  // clipboard API is blocked: CEF may still route it through the host.
+  function execPaste() {
+    var holder = document.createElement('div');
+    holder.contentEditable = 'true';
+    holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(holder);
+    holder.focus();
+    var ok = false;
+    try { ok = document.execCommand('paste'); } catch (err) { ok = false; }
+    var text = holder.textContent || '';
+    document.body.removeChild(holder);
+    return ok && text ? text : '';
+  }
+
+  // One click, three strategies, and a message that names the failing layer so
+  // the next report says exactly which one WPS blocks.
+  function pasteWithDiagnostics(target) {
+    var el = target || $('entryDraft');
+    if (!el) return;
+    var insert = function (text) {
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符（来源：' +
+        (window.__tidePasteVia || 'clipboard') + '）。';
+    };
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (text) {
+        if (text) { window.__tidePasteVia = 'clipboard API'; insert(text); return; }
+        var fallback = execPaste();
+        if (fallback) { window.__tidePasteVia = 'execCommand'; insert(fallback); return; }
+        $('entryCheck').textContent = '剪贴板为空，或 WPS 未授权读取。请用右键→粘贴。';
+      }).catch(function () {
+        var fallback = execPaste();
+        if (fallback) { window.__tidePasteVia = 'execCommand'; insert(fallback); return; }
+        $('entryCheck').textContent = '剪贴板读取被 WPS 拒绝（clipboard API 与 execCommand 均失败）。请用右键→粘贴，或「读取选区→译文」。';
+      });
+      return;
+    }
+    var text = execPaste();
+    if (text) { window.__tidePasteVia = 'execCommand'; insert(text); return; }
+    $('entryCheck').textContent = '此环境没有可用的剪贴板接口。请用右键→粘贴。';
+  }
+
   function pasteIntoActive() {
     var el = document.activeElement;
     var target = (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) ? el : $('entryDraft');
@@ -3193,11 +3237,14 @@
     // Cmd+V never reaches the webview (WPS owns it), but Ctrl+V is not a WPS
     // shortcut on macOS, so the page should receive it.
     window.addEventListener('keydown', function (event) {
-      if (!event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key !== 'v' && event.key !== 'V') return;
-      event.preventDefault();
-      event.stopPropagation();
-      pasteIntoActive();
+      var combo = (event.metaKey ? '⌘' : '') + (event.ctrlKey ? 'Ctrl+' : '') + (event.altKey ? '⌥' : '') + 'V';
+      if ((event.metaKey || event.ctrlKey || event.altKey) && (event.key === 'v' || event.key === 'V')) {
+        // Reaching this line at all proves WPS forwarded the key to the webview.
+        $('entryCheck').textContent = combo + ' 已到达面板，正在读取剪贴板…';
+        event.preventDefault();
+        event.stopPropagation();
+        pasteWithDiagnostics($('entryDraft'));
+      }
     }, true);
     wireMainScroll();
     $('tabs').addEventListener('wheel', function (event) {
@@ -3241,6 +3288,7 @@
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnRollback').addEventListener('click', rollbackEntry);
+    $('btnPasteInline').addEventListener('click', function () { pasteWithDiagnostics($('entryDraft')); });
     if ($('targetLang')) {
       $('targetLang').addEventListener('change', function () {
         state.settings.targetLang = $('targetLang').value;
