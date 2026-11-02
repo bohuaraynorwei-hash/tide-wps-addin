@@ -70,7 +70,7 @@
       </div>
       <div class="field">
         <div class="field-head">
-          <label>原文（只读，来自工作表）</label>
+          <label id="entrySourceLabel">原文（只读，来自工作表）</label>
           <button class="act ghost mini" id="btnLocateSource">定位原文</button>
         </div>
         <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
@@ -83,13 +83,13 @@
       </div>
       <div class="field">
         <div class="field-head">
-          <label>译文草稿</label>
+          <label id="entryDraftLabel">译文草稿</label>
           <button class="act ghost mini" id="btnLocate">定位译文</button>
         </div>
         <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
       </div>
       <div class="field">
-        <label>记忆匹配 <span class="count" id="memoryCount"></span></label>
+        <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
         <table id="memoryTable" hidden>
           <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
           <tbody></tbody>
@@ -407,12 +407,17 @@
 
     <section id="panel-settings" hidden>
       <div class="field">
-        <label>目标语言</label>
+        <label id="uiLangLabel">界面语言</label>
+        <select id="uiLang" class="mini"></select>
+        <div class="hint">影响标签页、面板标题与主要按钮；说明性提示仍为中文，后续逐条补齐。</div>
+      </div>
+      <div class="field">
+        <label id="targetLangLabel">目标语言</label>
         <select id="targetLang" class="mini"></select>
         <div class="hint">源语固定为中文。切换目标语言会影响列识别、术语表筛选与质检标点规则。</div>
       </div>
       <div class="field">
-        <label>项目（表格规则）</label>
+        <label id="projectLabel">项目（表格规则）</label>
         <div class="colinput">
           <select id="projectSelect" class="mini"></select>
           <button class="act ghost" id="btnManageProjects" disabled title="项目结构管理：入口预留，暂未开放">管理项目</button>
@@ -427,7 +432,7 @@
         <code>中文</code> 与目标语言列（如 <code>日语</code>、<code>Русский</code>）；无表头时按前两列。
         JSON 格式：<code>[{"zh":"刺鱼","en":"Hook"}]</code> 或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
       <div class="field">
-        <label>列设置（用于当前表）</label>
+        <label id="columnsLabel">列设置（用于当前表）</label>
         <div class="hint" style="margin-bottom:8px">
           填<b>列字母</b>，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如
           <code>C12</code>，字母 <code>C</code> 就是列。示例：A=UID，C=中文原文，F=目标语言译文。
@@ -481,6 +486,7 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
+  <script src="i18n.js"></script>
   <script src="tide.js"></script>
   <script src="onboarding.js"></script>
 </body>
