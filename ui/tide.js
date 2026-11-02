@@ -2436,6 +2436,24 @@
     });
   }
 
+  function pasteIntoActive() {
+    var el = document.activeElement;
+    var target = (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) ? el : $('entryDraft');
+    if (!target) return;
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      $('entryCheck').textContent = '读不到剪贴板：请用右键→粘贴，或「读取选区→译文」。';
+      return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      if (!text) return;
+      target.value = text;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符。';
+    }).catch(function () {
+      $('entryCheck').textContent = '剪贴板读取被拒绝：请用右键→粘贴，或「读取选区→译文」。';
+    });
+  }
+
   function pasteIntoDraft() {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
       $('entryCheck').textContent = '窗格读不到剪贴板：请用右键→粘贴，或「读取选区→译文」。';
@@ -3172,6 +3190,15 @@
       state.tmTimer = window.setTimeout(renderTM, 200);
     });
     wireTabScroll();
+    // Cmd+V never reaches the webview (WPS owns it), but Ctrl+V is not a WPS
+    // shortcut on macOS, so the page should receive it.
+    window.addEventListener('keydown', function (event) {
+      if (!event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key !== 'v' && event.key !== 'V') return;
+      event.preventDefault();
+      event.stopPropagation();
+      pasteIntoActive();
+    }, true);
     wireMainScroll();
     $('tabs').addEventListener('wheel', function (event) {
       if (event.deltaY && !event.deltaX) {
