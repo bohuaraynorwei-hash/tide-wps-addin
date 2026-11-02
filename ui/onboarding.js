@@ -73,11 +73,11 @@
 
     var head = el('div', 'tour-head');
     var avatar = el('div', 'tour-avatar');
-    avatar.innerHTML = '<svg viewBox="0 0 24 24">' +
-      '<rect x="5.5" y="4" width="13" height="2.8" rx="1.4" fill="#2f8be6"/>' +
-      '<rect x="6" y="13.5" width="3" height="5.5" rx="1.3" fill="#63b0ff"/>' +
-      '<rect x="10.5" y="9.5" width="3" height="9.5" rx="1.3" fill="#2f8be6"/>' +
-      '<rect x="15" y="12" width="3" height="7" rx="1.3" fill="#0a56c9"/></svg>';
+    avatar.innerHTML = '<svg viewBox="0 0 24 24"><defs><linearGradient id="av" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3366ff"/><stop offset=".52" stop-color="#7a5cff"/><stop offset="1" stop-color="#ff5c9e"/></linearGradient></defs>' +
+      '<rect x="5.5" y="4.2" width="13" height="2.8" rx="1.4" fill="url(#av)"/>' +
+      '<rect x="6" y="14" width="3" height="5.4" rx="1.4" fill="url(#av)"/>' +
+      '<rect x="10.5" y="10" width="3" height="9.4" rx="1.4" fill="url(#av)"/>' +
+      '<rect x="15" y="12.6" width="3" height="6.8" rx="1.4" fill="url(#av)"/></svg>';
     head.appendChild(avatar);
     head.appendChild(el('b', '', 'Tide 引导'));
     head.appendChild(el('span', 'tour-count', ''));
