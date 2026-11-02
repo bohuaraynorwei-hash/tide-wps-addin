@@ -2990,7 +2990,7 @@
       $('matchCount').textContent = state.scanned.length + ' 行命中' + (changed ? ' · 记录 ' + changed + ' 处改动' : '');
       renderHistory();
     }
-    $('docName').textContent = result.sheetName || '当前工作簿';
+    if ($('docName')) $('docName').textContent = result.sheetName || '当前工作簿';
   }
 
   function showTab(name) {
@@ -3337,7 +3337,7 @@
     $('syncRepo').value = readJSON(K.repo, '') || '';
     $('syncBranch').value = readJSON(K.branch, 'main') || 'main';
     $('envHint').textContent = sheetApp() ? '已连接 WPS 表格。' : '当前不在 WPS 中，仅能查看设置与记录。';
-    $('docName').textContent = sheetApp() && currentSheet() ? currentSheet().Name : '未连接 WPS';
+    if ($('docName')) $('docName').textContent = sheetApp() && currentSheet() ? currentSheet().Name : '未连接 WPS';
   }
 
   function watchRibbon() {
