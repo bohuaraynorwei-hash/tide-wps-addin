@@ -45,6 +45,69 @@
     return misses;
   }
 
+  var FULLWIDTH = /[，。！？；：、（）【】「」]/;
+  var LATIN_LETTER = 'A-Za-z\u00C0-\u024F\u0400-\u04FF';
+
+  // Tags, placeholders and printf specifiers are structure, not punctuation.
+  function maskDecorations(text) {
+    return String(text)
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\{\d+\}/g, ' ')
+      .replace(/%[sdif]/g, ' ');
+  }
+
+  /**
+   * Language-specific punctuation and spacing rules. Each finding names the
+   * rule, because these are mechanical checks a translator may still override.
+   */
+  function punctuationFormat(target, lang) {
+    var out = [];
+    var text = maskDecorations(target);
+    if (!text.trim()) return out;
+
+    var latinScript = !lang.cjk;
+    if (latinScript && FULLWIDTH.test(text)) {
+      out.push(['medium', '译文出现全角标点，该语言应使用半角标点']);
+    }
+
+    if (lang.asciiInCJK) {
+      if (/[\u3400-\u9fff][,.;:!?]/.test(text) || /[,.;:!?][\u3400-\u9fff]/.test(text)) {
+        out.push(['low', '中日文句中使用半角标点，应改用全角']);
+      }
+    }
+
+    if (lang.spaceAfter) {
+      // "word,punct" with a letter immediately after the mark.
+      var afterMark = new RegExp('[,;:!?](?=[' + LATIN_LETTER + '])');
+      if (afterMark.test(text)) {
+        out.push(['medium', '标点符号后缺少空格']);
+      }
+      // Sentence period glued to the next capital letter.
+      if (/[a-z\u00E0-\u00FF]\.(?=[A-Z\u00C0-\u00DD])/.test(text)) {
+        out.push(['low', '句号后缺少空格']);
+      }
+      // Space before a comma or period is never right in these languages.
+      if (/\s+[,.]/.test(text)) {
+        out.push(['low', '逗号或句号前多了空格']);
+      }
+    }
+
+    if (lang.spaceBefore) {
+      // French: ; : ! ? » take a space (or narrow no-break space) before them.
+      if (/[^\s\u00A0\u202F][;:!?»]/.test(text)) {
+        out.push(['medium', '法语标点前需要空格（; : ! ? »）']);
+      }
+      if (/«[^\s\u00A0\u202F]/.test(text)) {
+        out.push(['low', '法语的「«」后需要空格']);
+      }
+      if (/\s+[,.]/.test(text)) {
+        out.push(['low', '逗号或句号前不应有空格']);
+      }
+    }
+
+    return out;
+  }
+
   function withFindings(findings, row, category, severity, message) {
     findings.push({
       row: row.row,
@@ -110,6 +173,10 @@
     if (lang.final && /[。！？!?]$/.test(source.trim()) && !lang.final.test(target.trim())) {
       withFindings(findings, row, 'punctuation', 'low', '原文是陈述/感叹/疑问句，译文缺少句末标点');
     }
+    punctuationFormat(target, lang).forEach(function (item) {
+      withFindings(findings, row, 'punct-format', item[0], item[1]);
+    });
+
     if (lang.wrong && lang.wrong.test(target)) {
       withFindings(findings, row, 'punctuation', 'medium', '译文里出现不用于该语言的标点');
     }

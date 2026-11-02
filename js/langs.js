@@ -11,61 +11,61 @@
 
   var LANGS = [
     {
-      code: 'en', name: '英语', native: 'English', tmx: 'en-US', cjk: false,
+      code: 'en', name: '英语', native: 'English', tmx: 'en-US', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['EN', 'English', '英文', '英语'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'zh', name: '中文', native: '中文', tmx: 'zh-CN', cjk: true,
+      code: 'zh', name: '中文', native: '中文', tmx: 'zh-CN', spaceAfter: false, spaceBefore: false, asciiInCJK: true, cjk: true,
       headers: ['ZH', '中文', 'Chinese'],
       final: /[。！？!?]$/,
       wrong: null
     },
     {
-      code: 'ja', name: '日语', native: '日本語', tmx: 'ja-JP', cjk: true,
+      code: 'ja', name: '日语', native: '日本語', tmx: 'ja-JP', spaceAfter: false, spaceBefore: false, asciiInCJK: true, cjk: true,
       headers: ['JA', 'JP', '日本語', '日语', 'Japanese'],
       final: /[。！？!?]$/,
       wrong: null
     },
     {
-      code: 'ko', name: '韩语', native: '한국어', tmx: 'ko-KR', cjk: true,
+      code: 'ko', name: '韩语', native: '한국어', tmx: 'ko-KR', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: true,
       headers: ['KO', 'KR', '한국어', '韩语', 'Korean'],
       final: /[.!?。？！]$/,
       wrong: null
     },
     {
-      code: 'ru', name: '俄语', native: 'Русский', tmx: 'ru-RU', cjk: false,
+      code: 'ru', name: '俄语', native: 'Русский', tmx: 'ru-RU', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['RU', 'Русский', '俄语', 'Russian'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'vi', name: '越南语', native: 'Tiếng Việt', tmx: 'vi-VN', cjk: false,
+      code: 'vi', name: '越南语', native: 'Tiếng Việt', tmx: 'vi-VN', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['VI', 'Tiếng Việt', '越南语', 'Vietnamese'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'pt-BR', name: '巴西葡语', native: 'Português (Brasil)', tmx: 'pt-BR', cjk: false,
+      code: 'pt-BR', name: '巴西葡语', native: 'Português (Brasil)', tmx: 'pt-BR', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['PT', 'PT-BR', 'Português', '巴西葡语', '葡萄牙语'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'fr', name: '法语', native: 'Français', tmx: 'fr-FR', cjk: false,
+      code: 'fr', name: '法语', native: 'Français', tmx: 'fr-FR', spaceAfter: true, spaceBefore: true, asciiInCJK: false, cjk: false,
       headers: ['FR', 'Français', '法语', 'French'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'es', name: '西班牙语', native: 'Español', tmx: 'es-ES', cjk: false,
+      code: 'es', name: '西班牙语', native: 'Español', tmx: 'es-ES', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['ES', 'Español', '西班牙语', 'Spanish'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
     },
     {
-      code: 'th', name: '泰语', native: 'ไทย', tmx: 'th-TH', cjk: false,
+      code: 'th', name: '泰语', native: 'ไทย', tmx: 'th-TH', spaceAfter: false, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['TH', 'ไทย', '泰语', 'Thai'],
       final: /[.!?]$/,
       wrong: /[。，、；：？！]/
