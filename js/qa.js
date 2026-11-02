@@ -66,55 +66,62 @@
     if (!text.trim()) return out;
 
     var latinScript = !lang.cjk;
-    if (latinScript && FULLWIDTH.test(text)) {
-      out.push(['medium', '译文出现全角标点，该语言应使用半角标点']);
+    var full = text.match(FULLWIDTH);
+    if (latinScript && full) {
+      out.push(['medium', '译文出现全角标点，该语言应使用半角标点', [full[0]]]);
     }
 
     if (lang.asciiInCJK) {
+      var ascii = text.match(/[,.;:!?]/);
       if (/[\u3400-\u9fff][,.;:!?]/.test(text) || /[,.;:!?][\u3400-\u9fff]/.test(text)) {
-        out.push(['low', '中日文句中使用半角标点，应改用全角']);
+        out.push(['low', '中日文句中使用半角标点，应改用全角', ascii ? [ascii[0]] : []]);
       }
     }
 
     if (lang.spaceAfter) {
       // "word,punct" with a letter immediately after the mark.
       var afterMark = new RegExp('[,;:!?](?=[' + LATIN_LETTER + '])');
-      if (afterMark.test(text)) {
-        out.push(['medium', '标点符号后缺少空格']);
+      var glued = text.match(afterMark);
+      if (glued) {
+        out.push(['medium', '标点符号后缺少空格', [glued[0]]]);
       }
       // Sentence period glued to the next capital letter.
       if (/[a-z\u00E0-\u00FF]\.(?=[A-Z\u00C0-\u00DD])/.test(text)) {
-        out.push(['low', '句号后缺少空格']);
+        out.push(['low', '句号后缺少空格', ['.']]);
       }
       // Space before a comma or period is never right in these languages.
-      if (/\s+[,.]/.test(text)) {
-        out.push(['low', '逗号或句号前多了空格']);
+      var stray = text.match(/\s+([,.])/);
+      if (stray) {
+        out.push(['low', '逗号或句号前多了空格', [stray[1]]]);
       }
     }
 
     if (lang.spaceBefore) {
       // French: ; : ! ? » take a space (or narrow no-break space) before them.
-      if (/[^\s\u00A0\u202F][;:!?»]/.test(text)) {
-        out.push(['medium', '法语标点前需要空格（; : ! ? »）']);
+      var before = text.match(/[^\s\u00A0\u202F]([;:!?»])/);
+      if (before) {
+        out.push(['medium', '法语标点前需要空格（; : ! ? »）', [before[1]]]);
       }
       if (/«[^\s\u00A0\u202F]/.test(text)) {
-        out.push(['low', '法语的「«」后需要空格']);
+        out.push(['low', '法语的「«」后需要空格', ['«']]);
       }
-      if (/\s+[,.]/.test(text)) {
-        out.push(['low', '逗号或句号前不应有空格']);
+      var strayFr = text.match(/\s+([,.])/);
+      if (strayFr) {
+        out.push(['low', '逗号或句号前不应有空格', [strayFr[1]]]);
       }
     }
 
     return out;
   }
 
-  function withFindings(findings, row, category, severity, message) {
+  function withFindings(findings, row, category, severity, message, highlights) {
     findings.push({
       row: row.row,
       sheet: row.sheet || '',
       category: category,
       severity: severity,
       message: message,
+      highlight: highlights || [],
       source: row.source,
       target: row.target
     });
@@ -137,13 +144,34 @@
       withFindings(findings, row, 'untranslated', 'high', '译文与原文相同');
     }
 
-    if (root.TideEngine) {
-      var tokens = root.TideEngine.checkTokens(source, target);
-      if (!tokens.ok) {
-        var detail = [];
-        if (tokens.missing.length) detail.push('缺 ' + tokens.missing.join(' '));
-        if (tokens.extra.length) detail.push('多 ' + tokens.extra.join(' '));
-        withFindings(findings, row, 'placeholder', 'high', '占位符不一致：' + detail.join('，'));
+    // Placeholder QA is opt-in: it only runs when the punctuation panel's
+    // 「占位符」button is active.
+    if (opts.checkPlaceholders) {
+      if (root.TideEngine) {
+        var tokens = root.TideEngine.checkTokens(source, target);
+        if (!tokens.ok) {
+          var detail = [];
+          if (tokens.missing.length) detail.push('缺 ' + tokens.missing.join(' '));
+          if (tokens.extra.length) detail.push('多 ' + tokens.extra.join(' '));
+          withFindings(findings, row, 'placeholder', 'high',
+            '占位符不一致：' + detail.join('，'), tokens.missing.concat(tokens.extra));
+        }
+      }
+
+      var literalNewlines = function (text) { return (String(text).match(/\\n/g) || []).length; };
+      var sourceNl = literalNewlines(source);
+      var targetNl = literalNewlines(target);
+      if (sourceNl !== targetNl) {
+        withFindings(findings, row, 'placeholder', 'high',
+          '换行符 \\n 数量不一致：原文 ' + sourceNl + '，译文 ' + targetNl, ['\\n']);
+      }
+
+      var colorRe = /<\/?color[^>]*>/gi;
+      var sourceColor = (source.match(colorRe) || []).length;
+      var targetColor = (target.match(colorRe) || []).length;
+      if (sourceColor !== targetColor && (!root.TideEngine || tokens.ok)) {
+        withFindings(findings, row, 'placeholder', 'high',
+          '颜色代码数量不一致：原文 ' + sourceColor + '，译文 ' + targetColor, ['color']);
       }
     }
 
@@ -174,7 +202,7 @@
       withFindings(findings, row, 'punctuation', 'low', '原文是陈述/感叹/疑问句，译文缺少句末标点');
     }
     punctuationFormat(target, lang).forEach(function (item) {
-      withFindings(findings, row, 'punct-format', item[0], item[1]);
+      withFindings(findings, row, 'punct-format', item[0], item[1], item[2]);
     });
 
     if (lang.wrong && lang.wrong.test(target)) {

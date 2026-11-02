@@ -385,3 +385,7 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .lang-menu button .tick{font:600 11px/1 var(--font);color:var(--accent)}
 
 .head-actions{display:flex;gap:6px;align-items:center}
+
+#btnPlaceholderQA.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
+.qa-snippet{font:400 10.5px/1.5 var(--mono);color:var(--label-3);margin-top:2px}

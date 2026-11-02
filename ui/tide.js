@@ -42,6 +42,7 @@
     findResults: [],
     tm: [],
     qaFindings: [],
+    checkPlaceholders: false,
     gridRows: [],
     projectScan: [],
     project: null,
@@ -1745,7 +1746,10 @@
   function runQA() {
     var result = buildRows();
     if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
-    var findings = window.TideQA.runQA(result.rows, state.matchTerms, { lang: state.settings.targetLang || 'en' });
+    var findings = window.TideQA.runQA(result.rows, state.matchTerms, {
+      lang: state.settings.targetLang || 'en',
+      checkPlaceholders: state.checkPlaceholders
+    });
     state.qaFindings = findings;
     var summary = window.TideQA.summarize(findings);
     var parts = Object.keys(summary.byCategory).sort().map(function (key) {
@@ -1770,7 +1774,7 @@
         : (finding.severity === 'medium' ? 'var(--orange)' : 'var(--label-3)');
       tr.appendChild(sev);
       tr.appendChild(textNode('td', finding.category, 'num'));
-      tr.appendChild(textNode('td', finding.message, 'hint'));
+      tr.appendChild(renderQaMessage(finding));
       tr.classList.add('rowlink');
       tr.addEventListener('click', function () {
         var sheetName = finding.sheet || state.sheetName;
@@ -1780,6 +1784,43 @@
       });
       body.appendChild(tr);
     });
+  }
+
+  function escapeRegExp(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function markTokens(text, tokens) {
+    var node = document.createElement('span');
+    var list = (tokens || []).filter(Boolean);
+    if (!list.length) { node.textContent = text; return node; }
+    var re = new RegExp('(' + list.map(escapeRegExp).join('|') + ')');
+    String(text).split(re).forEach(function (part) {
+      if (!part) return;
+      if (list.indexOf(part) > -1) {
+        var mark = document.createElement('mark');
+        mark.className = 'qa-mark';
+        mark.textContent = part;
+        node.appendChild(mark);
+      } else {
+        node.appendChild(document.createTextNode(part));
+      }
+    });
+    return node;
+  }
+
+  function renderQaMessage(finding) {
+    var cell = document.createElement('td');
+    var text = document.createElement('div');
+    text.appendChild(markTokens(finding.message, finding.highlight));
+    cell.appendChild(text);
+    if (finding.target && finding.highlight && finding.highlight.length) {
+      var snippet = document.createElement('div');
+      snippet.className = 'qa-snippet';
+      snippet.appendChild(markTokens(String(finding.target).slice(0, 60), finding.highlight));
+      cell.appendChild(snippet);
+    }
+    return cell;
   }
 
   function exportQA() {
@@ -3220,6 +3261,16 @@
     });
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
+    $('btnPlaceholderQA').addEventListener('click', function () {
+      state.checkPlaceholders = !state.checkPlaceholders;
+      var button = $('btnPlaceholderQA');
+      button.classList.toggle('on', state.checkPlaceholders);
+      button.setAttribute('aria-pressed', String(state.checkPlaceholders));
+      $('qaSummary').textContent = state.checkPlaceholders
+        ? '占位符检查已开启，下次质检会包含颜色代码、换行符与 {n}/%s。'
+        : '占位符检查已关闭。';
+      if (state.qaFindings.length) runQA();
+    });
     $('btnRunQA').addEventListener('click', runQA);
     $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
