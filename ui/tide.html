@@ -66,7 +66,10 @@
         <span class="count" id="entryPos">0 / 0</span>
       </div>
       <div class="field">
-        <label>原文（只读，来自工作表）</label>
+        <div class="field-head">
+          <label>原文（只读，来自工作表）</label>
+          <button class="act ghost mini" id="btnLocateSource">定位原文</button>
+        </div>
         <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
                   placeholder="可直接输入或粘贴原文；默认只影响本窗口，写回需点按钮"></textarea>
       </div>
@@ -76,7 +79,10 @@
         <button class="act ghost" id="btnReadCellSrc">读取选区→原文</button>
       </div>
       <div class="field">
-        <label>译文草稿</label>
+        <div class="field-head">
+          <label>译文草稿</label>
+          <button class="act ghost mini" id="btnLocate">定位译文</button>
+        </div>
         <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
       </div>
       <div class="field">
@@ -89,8 +95,6 @@
       </div>
       <div class="toolbar">
         <button class="act" id="btnWriteNext">写入并下一条</button>
-        <button class="act ghost" id="btnLocateSource">定位原文</button>
-        <button class="act ghost" id="btnLocate">定位译文</button>
         <button class="act ghost" id="btnUndoWrite">撤销上次写入</button>
         <button class="act ghost" id="btnRollback">回退旧译文</button>
       </div>
