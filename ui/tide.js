@@ -2345,7 +2345,8 @@
     $('entrySource').classList.remove('dirty');
     state.sourceDirty = false;
     $('entryDraft').value = entry.target || '';
-    $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
+    $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value) +
+      ' · ⌥V 粘贴';
     renderMemory(entry, entry.source);
   }
 
@@ -2484,8 +2485,12 @@
 
   function wireClipboard() {
     window.addEventListener('keydown', function (event) {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       if (event.key !== 'v' && event.key !== 'V') return;
+      var cmd = event.metaKey || event.ctrlKey;
+      // WPS swallows Cmd/Ctrl+V at the host level, so the page never sees it.
+      // Option+V (Ctrl+Alt+V on Windows) is not bound by WPS and reaches us.
+      var alt = event.altKey && !cmd;
+      if (!cmd && !alt) return;
       event.preventDefault();
       event.stopPropagation();
       pasteIntoActive();
