@@ -32,17 +32,20 @@
   var STEPS = [{
     target: '.brand',
     place: 'bottom',
-    text: '欢迎使用 Tide。每个标签页都有一句自己的说明，跟着气泡走一遍就能认全。随时点右上角 ? 重看。'
+    i18n: 'tour.welcome',
+    zh: '欢迎使用 Tide。每个标签页都有一句自己的说明，跟着气泡走一遍就能认全。随时点右上角 ? 重看。'
   }].concat(TAB_TIPS.map(function (row) {
     return {
       before: row[0],
       target: 'button[data-tab="' + row[0] + '"]',
       place: 'bottom',
-      text: row[1] + '：' + row[2]
+      i18n: 'tour.' + row[0],
+      zh: row[1] + '：' + row[2]
     };
   })).concat([{
     close: true,
-    text: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
+    i18n: 'tour.end',
+    zh: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
   }]);
 
   var layer = null;
@@ -92,7 +95,7 @@
     prev.addEventListener('click', function () { go(index - 1); });
     foot.appendChild(prev);
 
-    var next = el('button', 'tour-btn primary', '下一步');
+    var next = el('button', 'tour-btn primary', 'Next');
     next.addEventListener('click', function () {
       if (index >= STEPS.length - 1) finish();
       else go(index + 1);
@@ -157,11 +160,12 @@
 
   function render() {
     var step = STEPS[index];
-    bubble.querySelector('.tour-text').textContent = step.text;
+    bubble.querySelector('.tour-text').textContent = step.zh;
     bubble.querySelector('.tour-count').textContent = step.close ? '' : (index + 1) + ' / ' + STEPS.length;
 
     var dots = bubble.querySelector('.tour-dots');
     dots.textContent = '';
+    if (STEPS.length > 9) dots.classList.add('dense');
     for (var i = 0; i < STEPS.length; i += 1) {
       var dot = el('i', i === index ? 'on' : '');
       dots.appendChild(dot);
@@ -169,7 +173,8 @@
 
     var buttons = bubble.querySelectorAll('.tour-btn');
     buttons[0].style.visibility = index === 0 ? 'hidden' : 'visible';
-    buttons[1].textContent = index === STEPS.length - 1 ? '完成' : '下一步';
+    // Short, language-neutral labels: they fit one line at any bubble width.
+    buttons[1].textContent = index === STEPS.length - 1 ? 'Done' : 'Next';
 
     place(step);
     requestAnimationFrame(function () { place(step); });

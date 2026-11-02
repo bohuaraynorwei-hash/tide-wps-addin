@@ -328,9 +328,13 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .tour-head b{font:600 11.5px/1 var(--font)}
 .tour-head span{margin-left:auto;font:400 10px/1 var(--mono);color:var(--label-3)}
 .tour-bubble p{margin:0 0 9px}
+.tour-btn{white-space:nowrap;flex:0 0 auto}
+.tour-foot .skip{white-space:nowrap;flex:0 0 auto}
+.tour-dots{flex:1 1 auto;justify-content:center;overflow:hidden}
+.tour-dots.dense{display:none}
 .tour-bubble .tail{position:absolute;width:12px;height:12px;background:var(--card);
   transform:rotate(45deg);box-shadow:-1px -1px 0 rgba(0,0,0,.06)}
-.tour-foot{display:flex;align-items:center;gap:6px}
+.tour-foot{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
 .tour-foot .skip{margin-right:auto;border:0;background:none;color:var(--label-3);
   font:400 11px/1 var(--font);cursor:pointer;padding:4px 0}
 .tour-foot .skip:hover{color:var(--label-2)}

@@ -40,7 +40,8 @@
       'label.project': 'Dự án (quy tắc bảng)', 'label.columns': 'Thiết lập cột',
       'label.sourceCol': 'Cột nguồn', 'label.targetCol': 'Cột bản dịch',
       'label.oldCol': 'Cột bản cũ', 'label.uidCol': 'Cột UID',
-      'label.uiLang': 'Ngôn ngữ giao diện'
+      'label.uiLang': 'Ngôn ngữ giao diện', 'tour.skip': 'Bỏ qua', 'tour.next': 'Tiếp', 'tour.done': 'Xong',
+      'tour.settings': 'Ngôn ngữ đích, ánh xạ cột, hồ sơ dự án và nhập thuật ngữ.'
     },
     ru: {
       'tab.matches': 'Совпадения', 'tab.translate': 'Перевод', 'tab.keys': 'Поиск Key',
@@ -65,7 +66,8 @@
       'label.project': 'Проект (правила таблицы)', 'label.columns': 'Колонки',
       'label.sourceCol': 'Колонка оригинала', 'label.targetCol': 'Колонка перевода',
       'label.oldCol': 'Колонка прошлого перевода', 'label.uidCol': 'Колонка UID',
-      'label.uiLang': 'Язык интерфейса'
+      'label.uiLang': 'Язык интерфейса', 'tour.skip': 'Пропустить', 'tour.next': 'Далее', 'tour.done': 'Готово',
+      'tour.settings': 'Целевой язык, колонки, профили проекта и импорт глоссария.'
     },
     'pt-BR': {
       'tab.matches': 'Ocorrências', 'tab.translate': 'Tradução', 'tab.keys': 'Buscar Key',
@@ -90,7 +92,8 @@
       'label.project': 'Projeto (regras)', 'label.columns': 'Colunas',
       'label.sourceCol': 'Coluna do original', 'label.targetCol': 'Coluna da tradução',
       'label.oldCol': 'Coluna da versão anterior', 'label.uidCol': 'Coluna UID',
-      'label.uiLang': 'Idioma da interface'
+      'label.uiLang': 'Idioma da interface', 'tour.skip': 'Pular', 'tour.next': 'Avançar', 'tour.done': 'Concluir',
+      'tour.settings': 'Idioma de destino, colunas, perfis de projeto e importação de glossário.'
     }
   };
 
