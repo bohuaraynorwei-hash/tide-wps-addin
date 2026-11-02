@@ -3249,7 +3249,13 @@
     watchRibbon();
     if (sheetApp()) window.setInterval(syncActiveSheet, 1200);
     checkForUpdate();
-    window.setInterval(checkForUpdate, 120000);
+    window.setInterval(checkForUpdate, 30000);
+    // A pane that was hidden while the app was in the background should check
+    // as soon as it becomes visible again, not up to two minutes later.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) checkForUpdate();
+    });
+    window.addEventListener('focus', checkForUpdate);
   }
 
   // Read-only inspection hook for the desktop smoke test.
