@@ -2444,6 +2444,64 @@
     });
   }
 
+  function activeEditable() {
+    var el = document.activeElement;
+    if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') && !el.disabled && !el.readOnly) {
+      return el;
+    }
+    return $('entryDraft') || null;
+  }
+
+  function insertAtCursor(el, text) {
+    if (!el) return false;
+    var start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+    var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+    el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    var caret = start + text.length;
+    try { el.setSelectionRange(caret, caret); } catch (err) { /* not all inputs support it */ }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }
+
+  // WPS grabs Cmd/Ctrl+V before the webview sees it in most builds. When the
+  // key does reach us, read the clipboard ourselves; when it does not, the
+  // paste event (menu paste) and the explicit button still cover the case.
+  function pasteIntoActive() {
+    var el = activeEditable();
+    if (!el) return;
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      showManualClip('', 'paste');
+      return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      if (!text) return;
+      insertAtCursor(el, text);
+      if (el === $('entryDraft')) $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符。';
+    }).catch(function () {
+      showManualClip('', 'paste');
+    });
+  }
+
+  function wireClipboard() {
+    window.addEventListener('keydown', function (event) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (event.key !== 'v' && event.key !== 'V') return;
+      event.preventDefault();
+      event.stopPropagation();
+      pasteIntoActive();
+    }, true);
+
+    document.addEventListener('paste', function (event) {
+      var data = event.clipboardData;
+      var text = data ? data.getData('text') : '';
+      if (!text) return;
+      var el = activeEditable();
+      if (!el) return;
+      event.preventDefault();
+      insertAtCursor(el, text);
+    }, true);
+  }
+
   function pasteIntoDraft() {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
       $('entryCheck').textContent = '此处不能直接读剪贴板，请用下方手动粘贴。';
@@ -3190,6 +3248,7 @@
       state.tmTimer = window.setTimeout(renderTM, 200);
     });
     wireTabScroll();
+    wireClipboard();
     wireMainScroll();
     $('tabs').addEventListener('wheel', function (event) {
       if (event.deltaY && !event.deltaX) {
