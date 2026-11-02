@@ -49,11 +49,13 @@
   var LATIN_LETTER = 'A-Za-z\u00C0-\u024F\u0400-\u04FF';
 
   // Tags, placeholders and printf specifiers are structure, not punctuation.
+  // Replace with a non-space sentinel: masking with spaces used to fabricate
+  // " ." sequences (tag + period), which then tripped the stray-space rule.
   function maskDecorations(text) {
     return String(text)
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\{\d+\}/g, ' ')
-      .replace(/%[sdif]/g, ' ');
+      .replace(/<[^>]*>/g, '\u0001')
+      .replace(/\{\d+\}/g, '\u0001')
+      .replace(/%[sdif]/g, '\u0001');
   }
 
   /**
