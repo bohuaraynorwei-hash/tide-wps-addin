@@ -304,3 +304,43 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .grid-qa.ok{color:var(--label-3)}
 
 #matchTable tbody tr.rowlink,#termTable tbody tr.rowlink,#tmTable tbody tr.rowlink,#qaTable tbody tr.rowlink{cursor:pointer}
+
+/* ---------- onboarding tour ---------- */
+.tour-open{
+  width:22px;height:22px;flex:0 0 auto;border-radius:50%;border:1px solid var(--hair);
+  background:var(--card);color:var(--label-2);font:600 12px/1 var(--font);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+.tour-open:hover{color:var(--accent);border-color:var(--accent)}
+.tour-layer{position:fixed;inset:0;z-index:80;pointer-events:none}
+.tour-ring{
+  position:absolute;border:2px solid var(--accent);border-radius:11px;
+  box-shadow:0 0 0 4px rgba(0,102,204,.14);pointer-events:none;
+  transition:all .18s ease;
+}
+.tour-bubble{
+  position:absolute;width:266px;background:var(--card);color:var(--label);
+  border-radius:16px;padding:12px 13px 10px;pointer-events:auto;
+  box-shadow:0 14px 34px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.07);
+  font:400 12.5px/1.55 var(--font);
+}
+.tour-head{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.tour-avatar{width:20px;height:20px;border-radius:6px;flex:0 0 auto;
+  background:linear-gradient(180deg,#2f8be6,#004c93);display:flex;align-items:center;justify-content:center}
+.tour-avatar svg{width:12px;height:12px}
+.tour-head b{font:600 11.5px/1 var(--font)}
+.tour-head span{margin-left:auto;font:400 10px/1 var(--mono);color:var(--label-3)}
+.tour-bubble p{margin:0 0 9px}
+.tour-bubble .tail{position:absolute;width:12px;height:12px;background:var(--card);
+  transform:rotate(45deg);box-shadow:-1px -1px 0 rgba(0,0,0,.06)}
+.tour-foot{display:flex;align-items:center;gap:6px}
+.tour-foot .skip{margin-right:auto;border:0;background:none;color:var(--label-3);
+  font:400 11px/1 var(--font);cursor:pointer;padding:4px 0}
+.tour-foot .skip:hover{color:var(--label-2)}
+.tour-btn{border:0;border-radius:8px;padding:6px 10px;font:500 11.5px/1 var(--font);cursor:pointer}
+.tour-btn.ghost{background:var(--readbox,#f0f0f3);color:var(--label)}
+.tour-btn.primary{background:var(--accent);color:#fff}
+.tour-btn.primary:hover{background:var(--accent-press,#0055ad)}
+.tour-dots{display:flex;gap:4px;margin-left:2px}
+.tour-dots i{width:5px;height:5px;border-radius:50%;background:var(--hair-strong,rgba(0,0,0,.2))}
+.tour-dots i.on{background:var(--accent)}
