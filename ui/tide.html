@@ -33,13 +33,13 @@
   <nav id="tabs">
     <button data-tab="matches" class="on">命中</button>
     <button data-tab="translate">翻译</button>
+    <button data-tab="keys">Key 定位</button>
     <button data-tab="free" hidden>自由</button>
     <button data-tab="find">搜索</button>
     <button data-tab="review">审校</button>
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">网格</button>
     <button data-tab="project">项目</button>
-    <button data-tab="keys">Key 定位</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -424,13 +424,13 @@
         <input id="termFile" type="file" accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
       </div>
       <div class="note">支持 <b>.xlsx</b>、<b>.xls</b> 与 JSON。Excel 会按表头识别
-        <code>中文</code> / <code>最终英文</code>（优先）或 <code>现有英文</code>；无表头时按前两列。
+        <code>中文</code> 与目标语言列（如 <code>日语</code>、<code>Русский</code>）；无表头时按前两列。
         JSON 格式：<code>[{"zh":"刺鱼","en":"Hook"}]</code> 或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
       <div class="field">
         <label>列设置（用于当前表）</label>
         <div class="hint" style="margin-bottom:8px">
           填<b>列字母</b>，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如
-          <code>C12</code>，字母 <code>C</code> 就是列。示例：A=UID，C=中文原文，F=英文译文。
+          <code>C12</code>，字母 <code>C</code> 就是列。示例：A=UID，C=中文原文，F=目标语言译文。
         </div>
         <div class="colrow">
           <div class="colfield">
@@ -439,12 +439,12 @@
             <div class="hint">术语匹配、定位、原文搜索都读这一列。</div>
           </div>
           <div class="colfield">
-            <label>译文列（英文）</label>
+            <label>译文列（目标语言）</label>
             <div class="colinput"><input id="colTarget" placeholder="F"><button class="act ghost" data-col="colTarget">用当前列</button></div>
-            <div class="hint">写入并下一条、定位译文写的是这一列。</div>
+            <div class="hint">写入并下一条、定位译文写的是这一列；语言由「目标语言」决定。</div>
           </div>
           <div class="colfield">
-            <label>旧译文列（EN old，存档）</label>
+            <label>旧译文列（上一版存档）</label>
             <div class="colinput"><input id="colOld" placeholder="E"><button class="act ghost" data-col="colOld">用当前列</button></div>
             <div class="hint">写入新译文前，旧值自动存到这里，可用于回退。</div>
           </div>

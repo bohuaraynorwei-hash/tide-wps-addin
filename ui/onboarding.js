@@ -10,48 +10,40 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '1';   // bump to re-show the tour after a big UI change
+  var VERSION = '2';   // bump to re-show the tour after a big UI change
 
-  var STEPS = [
-    {
-      target: '.brand',
-      place: 'bottom',
-      text: '欢迎使用 Tide。跟着气泡走一遍，30 秒摸清关键操作；随时可以点右上角的 ? 重看。'
-    },
-    {
-      before: 'matches',
-      target: '#btnScan',
-      place: 'bottom',
-      text: '第一步是「扫描当前表」：列出所有含术语的行，点任意一行会跳回原文单元格。'
-    },
-    {
-      before: 'translate',
-      target: 'button[data-tab="translate"]',
-      place: 'bottom',
-      text: '「翻译」页逐条处理。点「写入并下一条」时，旧译文会自动存进 EN (old)，可随时回退。'
-    },
-    {
-      target: '#entryDraft',
-      place: 'top',
-      text: '译文写在这里。表格里已有文字，用「读取选区→原文」拉进来，不用手动复制。'
-    },
-    {
-      before: 'review',
-      target: 'button[data-tab="review"]',
-      place: 'bottom',
-      text: '「审校」页运行质检：占位符、数字、术语、长度都会查一遍，点问题行直接跳到对应单元格。'
-    },
-    {
-      before: 'settings',
-      target: '#colSource',
-      place: 'top',
-      text: '列映射在设置里。表头写了 Source Text 与 EN 时，Tide 会自动识别，不需要手填。'
-    },
-    {
-      close: true,
-      text: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
-    }
+  // One step per visible tab: the guide follows the tab strip, so every
+  // function is introduced in the place it lives.
+  var TAB_TIPS = [
+    ['matches', '命中', '扫描当前表，列出所有含术语的行。点任意一行，会跳回它所在的原文单元格。'],
+    ['translate', '翻译', '逐条处理的主场。「写入并下一条」会把旧译文自动存进 EN (old)，之后可一键回退。'],
+    ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
+    ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
+    ['review', '审校', '修订的接受/拒绝、条目评论，以及质检与 CSV 导出都在这里。'],
+    ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率，并把当前表已有的译文合并进来。'],
+    ['grid', '网格', '表格式的逐条编辑，可按「未译 / 有 QA / 有修订」筛选，就地改译文。'],
+    ['project', '项目', '一眼看完整本工作簿：每张表的条目数、已译比例、复用率与问题数。'],
+    ['terms', '术语', '术语表检索与采用。只显示当前目标语言的术语，切换语言后自动换库。'],
+    ['history', '记录', '加密归档与历史，可导出留档；口令只存在本机。'],
+    ['sync', '同步', '术语表的拉取与推送，需要在本机运行同步 helper。'],
+    ['settings', '设置', '目标语言、列映射、项目档案与术语表导入，都集中在这一页。']
   ];
+
+  var STEPS = [{
+    target: '.brand',
+    place: 'bottom',
+    text: '欢迎使用 Tide。每个标签页都有一句自己的说明，跟着气泡走一遍就能认全。随时点右上角 ? 重看。'
+  }].concat(TAB_TIPS.map(function (row) {
+    return {
+      before: row[0],
+      target: 'button[data-tab="' + row[0] + '"]',
+      place: 'bottom',
+      text: row[1] + '：' + row[2]
+    };
+  })).concat([{
+    close: true,
+    text: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
+  }]);
 
   var layer = null;
   var bubble = null;
@@ -166,11 +158,11 @@
   function render() {
     var step = STEPS[index];
     bubble.querySelector('.tour-text').textContent = step.text;
-    bubble.querySelector('.tour-count').textContent = step.close ? '' : (index + 1) + ' / ' + (STEPS.length - 1);
+    bubble.querySelector('.tour-count').textContent = step.close ? '' : (index + 1) + ' / ' + STEPS.length;
 
     var dots = bubble.querySelector('.tour-dots');
     dots.textContent = '';
-    for (var i = 0; i < STEPS.length - 1; i += 1) {
+    for (var i = 0; i < STEPS.length; i += 1) {
       var dot = el('i', i === index ? 'on' : '');
       dots.appendChild(dot);
     }
@@ -188,7 +180,14 @@
     if (next < 0 || next >= STEPS.length) return;
     index = next;
     var step = STEPS[index];
-    if (step.before) showTab(step.before);
+    if (step.before) {
+      showTab(step.before);
+      // The strip scrolls; make sure the tab this step points at is visible.
+      var button = document.querySelector('button[data-tab="' + step.before + '"]');
+      if (button && button.scrollIntoView) {
+        try { button.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
+      }
+    }
     // Let the tab switch settle before measuring the new target.
     window.setTimeout(render, 60);
   }
