@@ -1174,6 +1174,7 @@
         if (after === before) continue;
         hits.push({
           sheet: sheet.Name, row: startRow + i, column: cols[c].kind,
+          writable: cols[c].kind === 'target',
           letter: cols[c].letter, before: before, after: after
         });
       }
@@ -1213,17 +1214,21 @@
     var body = table.tBodies[0];
     body.textContent = '';
     var hits = state.batchPreview || [];
-    $('repCount').textContent = hits.length ? hits.length + ' 处待替换' : '';
+    var writable = hits.filter(function (hit) { return hit.writable; }).length;
+    $('repCount').textContent = hits.length
+      ? writable + ' 处可替换' + (hits.length > writable ? ' · ' + (hits.length - writable) + ' 处原文跳过' : '')
+      : '';
     table.hidden = hits.length === 0;
     hits.slice(0, 200).forEach(function (hit) {
       var tr = document.createElement('tr');
       tr.appendChild(textNode('td', hit.sheet, 'num'));
       tr.appendChild(textNode('td', hit.letter + hit.row, 'num'));
       tr.appendChild(textNode('td', hit.before.slice(0, 34), 'hint'));
-      tr.appendChild(textNode('td', hit.after.slice(0, 34)));
+      tr.appendChild(textNode('td', hit.writable ? hit.after.slice(0, 34) : '（原文，不改）'));
+      if (!hit.writable) tr.style.opacity = '.55';
       body.appendChild(tr);
     });
-    $('btnRepApply').disabled = hits.length === 0;
+    $('btnRepApply').disabled = writable === 0;
   }
 
   function previewBatch() {
@@ -1236,16 +1241,21 @@
       state.batchPreview = hits;
       renderBatch();
       $('btnRepPreview').disabled = false;
+      var writable = hits.filter(function (hit) { return hit.writable; }).length;
+      var skipped = hits.length - writable;
       $('repStatus').textContent = hits.length
-        ? '预览完成：' + hits.length + ' 处。确认后点「执行替换」。'
+        ? '预览完成：可替换 ' + writable + ' 处' +
+          (skipped ? '，原文命中 ' + skipped + ' 处（只读，不改）' : '') + '。'
         : '没有匹配的单元格。';
     });
   }
 
   function applyBatch() {
-    var hits = state.batchPreview || [];
-    if (!hits.length) return;
-    if (!window.confirm('将修改 ' + hits.length + ' 个单元格，确定执行？')) return;
+    // Source text is read-only in this tool: matches there are shown in the
+    // preview but never written back.
+    var hits = (state.batchPreview || []).filter(function (hit) { return hit.writable; });
+    if (!hits.length) { $('repStatus').textContent = '没有可替换的译文命中。'; return; }
+    if (!window.confirm('将修改 ' + hits.length + ' 个译本单元格，确定执行？')) return;
     var sheetCache = {};
     var applied = [];
     var stamp = new Date().toISOString();
