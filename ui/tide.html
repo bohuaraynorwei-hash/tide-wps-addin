@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611021458">
+  <link rel="stylesheet" href="tide.css?b=202611021501">
 </head>
 <body>
   <header class="bar">
@@ -195,9 +195,7 @@
           <option value="book">整本工作簿</option>
           <option value="sheet">仅当前表</option>
         </select>
-        <select id="repColumn" class="mini">
-          <option value="both">原文 + 译文（只改译文）</option>
-          <option value="source">仅原文列（预览，不改）</option>
+        <select id="repColumn" class="mini" disabled title="替换只作用于译文列">
           <option value="target">仅译文列</option>
         </select>
         <label class="chk"><input type="checkbox" id="repCase"> 区分大小写</label>
@@ -210,7 +208,7 @@
       </div>
       <div class="hint" id="repStatus"></div>
       <table id="repTable" hidden>
-        <thead><tr><th>表</th><th>单元格</th><th>替换前</th><th>替换后</th></tr></thead>
+        <thead><tr><th>表</th><th>单元格</th><th>译文（当前）</th><th>译文（替换后）</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -494,8 +492,8 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611021458"></script>
-  <script src="tide.js?b=202611021458"></script>
-  <script src="onboarding.js?b=202611021458"></script>
+  <script src="i18n.js?b=202611021501"></script>
+  <script src="tide.js?b=202611021501"></script>
+  <script src="onboarding.js?b=202611021501"></script>
 </body>
 </html>
