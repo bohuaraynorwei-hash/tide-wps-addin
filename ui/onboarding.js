@@ -86,12 +86,12 @@
     bubble.appendChild(el('p', 'tour-text', ''));
 
     var foot = el('div', 'tour-foot');
-    var skip = el('button', 'skip', '跳过');
+    var skip = el('button', 'skip', 'Skip');
     skip.addEventListener('click', function () { finish(); });
     foot.appendChild(skip);
     foot.appendChild(el('div', 'tour-dots', ''));
 
-    var prev = el('button', 'tour-btn ghost', '上一步');
+    var prev = el('button', 'tour-btn ghost', 'Back');
     prev.addEventListener('click', function () { go(index - 1); });
     foot.appendChild(prev);
 

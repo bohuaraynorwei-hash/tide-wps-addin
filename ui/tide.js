@@ -3312,19 +3312,62 @@
   function bootUiLanguage() {
     if (!window.TideI18n) return;
     window.TideI18n.boot();
+
     var select = $('uiLang');
-    if (!select) return;
-    select.textContent = '';
-    window.TideI18n.langs.forEach(function (lang) {
-      var option = document.createElement('option');
-      option.value = lang.code;
-      option.textContent = lang.label;
-      option.selected = lang.code === window.TideI18n.lang;
-      select.appendChild(option);
+    if (select) {
+      select.textContent = '';
+      window.TideI18n.langs.forEach(function (lang) {
+        var option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.label;
+        option.selected = lang.code === window.TideI18n.lang;
+        select.appendChild(option);
+      });
+      select.addEventListener('change', function () {
+        window.TideI18n.setLang(select.value);
+        renderLangMenu();
+        $('settingsStatus').textContent = '界面语言：' + select.options[select.selectedIndex].textContent;
+      });
+    }
+
+    // Header globe: the same setting, available without opening 设置.
+    var button = $('btnLang');
+    var menu = $('langMenu');
+    if (!button || !menu) return;
+
+    function renderLangMenu() {
+      menu.textContent = '';
+      window.TideI18n.langs.forEach(function (lang) {
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.textContent = lang.label;
+        if (lang.code === window.TideI18n.lang) {
+          item.className = 'on';
+          var tick = document.createElement('span');
+          tick.className = 'tick';
+          tick.textContent = '✓';
+          item.appendChild(tick);
+        }
+        item.addEventListener('click', function () {
+          window.TideI18n.setLang(lang.code);
+          if ($('uiLang')) $('uiLang').value = lang.code;
+          menu.hidden = true;
+          renderLangMenu();
+        });
+        menu.appendChild(item);
+      });
+    }
+
+    renderLangMenu();
+    button.addEventListener('click', function (event) {
+      event.stopPropagation();
+      menu.hidden = !menu.hidden;
     });
-    select.addEventListener('change', function () {
-      window.TideI18n.setLang(select.value);
-      $('settingsStatus').textContent = '界面语言：' + select.options[select.selectedIndex].textContent;
+    document.addEventListener('click', function (event) {
+      if (!menu.hidden && !menu.contains(event.target) && event.target !== button) menu.hidden = true;
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') menu.hidden = true;
     });
   }
 

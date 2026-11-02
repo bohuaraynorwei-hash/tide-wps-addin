@@ -39,6 +39,7 @@ body{
 
 /* ---------- header ---------- */
 .bar{
+  position:relative;
   display:flex;align-items:center;gap:10px;
   padding:10px 14px;
   background:rgba(255,255,255,.82);
@@ -359,3 +360,25 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
 .field-head label{margin:0}
 .act.mini{padding:3px 8px;font:500 10.5px/1.2 var(--font);border-radius:7px}
+
+/* ---------- interface language ---------- */
+.lang-open{
+  width:22px;height:22px;flex:0 0 auto;border-radius:50%;border:1px solid var(--hair);
+  background:var(--card);color:var(--label-2);cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center;margin-left:auto;
+}
+.lang-open:hover{color:var(--accent);border-color:var(--accent)}
+.lang-open svg{width:14px;height:14px;display:block}
+.lang-menu{
+  position:absolute;top:42px;right:10px;z-index:90;min-width:170px;
+  background:var(--card);border-radius:12px;padding:6px;
+  box-shadow:0 14px 34px rgba(0,0,0,.20),0 0 0 1px rgba(0,0,0,.07);
+}
+.lang-menu button{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;padding:7px 9px;border:0;border-radius:8px;background:none;
+  font:400 12px/1.3 var(--font);color:var(--label);cursor:pointer;text-align:left;
+}
+.lang-menu button:hover{background:rgba(0,0,0,.05)}
+.lang-menu button.on{color:var(--accent);font-weight:600}
+.lang-menu button .tick{font:600 11px/1 var(--font);color:var(--accent)}
