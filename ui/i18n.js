@@ -143,8 +143,11 @@
     RULES.forEach(function (rule) {
       var el = document.querySelector(rule[0]);
       if (!el) return;
+      if (typeof el.dataset.i18nOrig === 'undefined') {
+        el.dataset.i18nOrig = el.textContent;
+      }
       var value = t(rule[1]);
-      if (value) el.textContent = value;
+      el.textContent = value || el.dataset.i18nOrig;
     });
   }
 
