@@ -3047,7 +3047,10 @@
         showTab('matches');
         scan();
       }
-    }, 1200);
+      // Follow the visible worksheet: without this the batch and its memory
+      // stay on the previous sheet until the user notices and refreshes.
+      if (typeof syncActiveSheet === 'function') syncActiveSheet();
+    }, 1500);
   }
 
   function boot() {
