@@ -78,7 +78,10 @@
 
     var head = el('div', 'tour-head');
     var avatar = el('div', 'tour-avatar');
-    avatar.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 8.5h10" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M12 9.6v6.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    avatar.innerHTML = '<svg viewBox="0 0 24 24">' +
+      '<rect x="4" y="12" width="3.4" height="6" rx="1.4" fill="#63b0ff"/>' +
+      '<rect x="10.3" y="9" width="3.4" height="9" rx="1.4" fill="#2f8be6"/>' +
+      '<rect x="16.6" y="5.6" width="3.4" height="12.4" rx="1.4" fill="#0a56c9"/></svg>';
     head.appendChild(avatar);
     head.appendChild(el('b', '', 'Tide 引导'));
     head.appendChild(el('span', 'tour-count', ''));
