@@ -344,3 +344,12 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 .tour-dots{display:flex;gap:4px;margin-left:2px}
 .tour-dots i{width:5px;height:5px;border-radius:50%;background:var(--hair-strong,rgba(0,0,0,.2))}
 .tour-dots i.on{background:var(--accent)}
+
+.check{display:flex;align-items:center;gap:6px;font:400 11.5px/1 var(--font);color:var(--label-2)}
+.check input{width:14px;height:14px;accent-color:var(--accent)}
+#keyTable tbody tr{cursor:pointer}
+#keyTable .keycell{font:500 11.5px/1.5 var(--mono)}
+#keyTable .copycell{font:400 10.5px/1.4 var(--mono);color:var(--label-3)}
+
+.match-badge{display:block;margin-top:3px;font:600 9.5px/1 var(--mono);color:var(--label-3)}
+.match-badge.exact{color:var(--accent)}

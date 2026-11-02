@@ -2166,6 +2166,162 @@
     updateMainScroll();
   }
 
+  // ---------- key lookup ----------
+
+  // Keys live in their own columns ("完整Key" / "完整Key（复制用）"), which are
+  // unrelated to the translation columns, so they are detected from the header.
+  function keyColumns(grid) {
+    var limit = Math.min(grid.length, 12);
+    for (var r = 0; r < limit; r += 1) {
+      var line = grid[r] || [];
+      var keyIdx = -1;
+      var copyIdx = -1;
+      for (var c = 0; c < line.length; c += 1) {
+        var text = String(line[c] == null ? '' : line[c]).trim();
+        if (!text) continue;
+        if (!/完整\s*key/i.test(text)) continue;
+        if (/复制/.test(text)) { if (copyIdx < 0) copyIdx = c; }
+        else if (keyIdx < 0) keyIdx = c;
+      }
+      if (keyIdx > -1 || copyIdx > -1) return { keyIdx: keyIdx, copyIdx: copyIdx, headerRow: r };
+    }
+    return null;
+  }
+
+  function collectKeyRows(sheet) {
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return null; }
+    if (!used) return null;
+    var grid = toGrid(used.Value2);
+    if (!grid.length) return null;
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var cols = keyColumns(grid);
+    if (!cols) return null;
+    var headerAt = Math.max(detectHeaderEnd(grid), cols.headerRow);
+    var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
+    var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
+    var rows = [];
+    for (var r = headerAt + 1; r < grid.length; r += 1) {
+      var key = cols.keyIdx > -1 ? cellText(grid, r, cols.keyIdx).trim() : '';
+      var copyKey = cols.copyIdx > -1 ? cellText(grid, r, cols.copyIdx).trim() : '';
+      if (!key && !copyKey) continue;
+      rows.push({
+        row: startRow + r,
+        sheet: sheet.Name,
+        key: key,
+        copyKey: copyKey,
+        source: cols.keyIdx > -1 ? (srcIdx >= 0 ? cellText(grid, r, srcIdx) : '') : '',
+        target: tgtIdx >= 0 ? cellText(grid, r, tgtIdx) : ''
+      });
+    }
+    return rows;
+  }
+
+  function keyScore(item, query) {
+    var q = query.toLowerCase();
+    var key = (item.key || '').toLowerCase();
+    var copy = (item.copyKey || '').toLowerCase();
+    if (key === q || copy === q) return 1;
+    if (key.indexOf(q) > -1 || copy.indexOf(q) > -1) return 0.9;
+    var best = Math.max(window.TideEngine.similarity(item.key || '', query),
+                        window.TideEngine.similarity(item.copyKey || '', query));
+    return best;
+  }
+
+  function runKeySearch() {
+    var query = String($('keyQuery').value || '').trim();
+    var table = $('keyTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    if (!query) {
+      table.hidden = true;
+      $('keyHint').textContent = '输入 Key 或片段后点「搜索」。';
+      $('keyCount').textContent = '';
+      return;
+    }
+    var app = sheetApp();
+    if (!app || !app.ActiveWorkbook) { $('keyHint').textContent = '未连接工作簿。'; return; }
+
+    var sheets = app.ActiveWorkbook.Worksheets;
+    var whole = $('keyWholeBook').checked;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    var targets = [];
+    if (whole) {
+      for (var i = 1; i <= count; i += 1) targets.push(sheets.Item(i));
+    } else {
+      targets.push(currentSheet());
+    }
+
+    var found = [];
+    var missing = [];
+    var exactOnly = $('keyExactOnly').checked;
+    targets.forEach(function (sheet) {
+      if (!sheet) return;
+      var rows = collectKeyRows(sheet);
+      if (!rows) { missing.push(sheet.Name); return; }
+      rows.forEach(function (item) {
+        var score = keyScore(item, query);
+        if (score >= 0.5 && (!exactOnly || score === 1)) {
+          found.push({ item: item, score: score, exact: score === 1 });
+        }
+      });
+    });
+
+    found.sort(function (a, b) { return (b.exact - a.exact) || (b.score - a.score); });
+    var shown = found.slice(0, 200);
+    var exactCount = found.filter(function (hit) { return hit.exact; }).length;
+    table.hidden = shown.length === 0;
+    $('keyCount').textContent = found.length
+      ? '精确 ' + exactCount + ' · 近似 ' + (found.length - exactCount)
+      : '无匹配';
+    $('keyHint').textContent = missing.length
+      ? '这些表没有「完整Key」列，已跳过：' + missing.join('、')
+      : '点任意结果跳到对应词条。';
+
+    shown.forEach(function (hit) {
+      var item = hit.item;
+      var tr = document.createElement('tr');
+      var posCell = textNode('td', item.sheet + '!' + item.row, 'num');
+      var badge = document.createElement('span');
+      badge.className = 'match-badge' + (hit.exact ? ' exact' : '');
+      badge.textContent = hit.exact ? '精确' : Math.round(hit.score * 100) + '%';
+      posCell.appendChild(badge);
+      tr.appendChild(posCell);
+      var keyCell = document.createElement('td');
+      var keyLine = document.createElement('div');
+      keyLine.className = 'keycell';
+      keyLine.textContent = item.key || '—';
+      keyCell.appendChild(keyLine);
+      if (item.copyKey && item.copyKey !== item.key) {
+        var copyLine = document.createElement('div');
+        copyLine.className = 'copycell';
+        copyLine.textContent = '复制用：' + item.copyKey;
+        keyCell.appendChild(copyLine);
+      }
+      tr.appendChild(keyCell);
+      var textCell = document.createElement('td');
+      var src = document.createElement('div');
+      src.textContent = (item.source || '').slice(0, 40) || '—';
+      textCell.appendChild(src);
+      var tgt = document.createElement('div');
+      tgt.className = 'hint';
+      tgt.textContent = (item.target || '').slice(0, 40) || '（未译）';
+      textCell.appendChild(tgt);
+      tr.appendChild(textCell);
+      tr.addEventListener('click', function () {
+        var sheet = sheetByName(item.sheet);
+        var address = (item.source && state.settings.sourceCol ? state.settings.sourceCol : state.settings.sourceCol) + item.row;
+        var ok = revealCell(sheet, address);
+        $('keyHint').textContent = ok
+          ? '已定位 ' + item.sheet + '!' + address
+          : '定位失败：' + item.sheet + '!' + address;
+      });
+      body.appendChild(tr);
+    });
+  }
+
   function renderPosition() {
     var sheetLabel = state.sheetName ? ' · ' + state.sheetName : '';
     var base = state.entries.length
@@ -2777,7 +2933,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'grid', 'project', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'free', 'find', 'review', 'tm', 'grid', 'project', 'keys', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -2797,6 +2953,7 @@
     if (name === 'tm') renderTM();
     if (name === 'grid') renderGrid();
     if (name === 'project') renderProject();
+    if (name === 'keys') { $('keyQuery').focus(); }
     if (name === 'sync') refreshHelper();
   }
 
@@ -3012,6 +3169,10 @@
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
     $('btnProjectScan').addEventListener('click', analyzeWorkbook);
+    $('btnKeySearch').addEventListener('click', runKeySearch);
+    $('keyQuery').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') runKeySearch();
+    });
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
     $('btnRunQA').addEventListener('click', runQA);

@@ -37,6 +37,7 @@
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">网格</button>
     <button data-tab="project">项目</button>
+    <button data-tab="keys">Key 定位</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -302,6 +303,24 @@
         <tbody></tbody>
       </table>
       <div class="hint" id="tmEmpty">导入 TMX，或把当前工作表的已有译文合并进来。</div>
+    </section>
+
+    <section id="panel-keys" hidden>
+      <div class="toolbar">
+        <button class="act" id="btnKeySearch">搜索</button>
+        <label class="check"><input type="checkbox" id="keyWholeBook"> 整本工作簿</label>
+        <label class="check"><input type="checkbox" id="keyExactOnly"> 仅精确</label>
+        <span class="count" id="keyCount"></span>
+      </div>
+      <div class="field">
+        <label>Key（支持片段与近似）</label>
+        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12">
+      </div>
+      <div class="hint" id="keyHint">按表头「完整Key」与「完整Key（复制用）」定位；点结果跳到对应词条。</div>
+      <table id="keyTable" hidden>
+        <thead><tr><th>位置</th><th>Key</th><th>源文 / 译文</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <section id="panel-terms" hidden>
