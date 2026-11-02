@@ -351,8 +351,8 @@
     return null;
   }
 
-  function buildRows() {
-    var sheet = currentSheet();
+  function buildRows(sheetOverride, silent) {
+    var sheet = sheetOverride || currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
     var used = sheet.UsedRange;
     if (!used) return { rows: [], sheetName: sheet.Name };
@@ -368,14 +368,16 @@
     // group. Sheets without those labels keep the manual mapping.
     var groups = detectColumnGroups(grid, startCol);
     if (groups && groups.length) {
-      state.settings.sourceCol = groups[0].sourceCol;
-      state.settings.targetCol = groups[0].targetCol;
-      state.settings.oldCol = groups[0].oldCol;
-      state.perSheetCols[sheet.Name] = groups[0];
-      if ($('colSource')) $('colSource').value = groups[0].sourceCol;
-      if ($('colTarget')) $('colTarget').value = groups[0].targetCol;
-      if ($('colOld')) $('colOld').value = groups[0].oldCol;
-      writeJSON(K.settings, state.settings);
+      if (!silent) {
+        state.settings.sourceCol = groups[0].sourceCol;
+        state.settings.targetCol = groups[0].targetCol;
+        state.settings.oldCol = groups[0].oldCol;
+        state.perSheetCols[sheet.Name] = groups[0];
+        if ($('colSource')) $('colSource').value = groups[0].sourceCol;
+        if ($('colTarget')) $('colTarget').value = groups[0].targetCol;
+        if ($('colOld')) $('colOld').value = groups[0].oldCol;
+        writeJSON(K.settings, state.settings);
+      }
     } else {
       groups = [{ sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol, oldCol: state.settings.oldCol }];
     }
@@ -833,6 +835,7 @@
     state.entries.forEach(function (entry) { entry.sheet = result.sheetName; });
     state.cursor = firstEmpty;
     refreshMemory();
+    ensureWorkbookMemory();
     return state.entries;
   }
 
@@ -901,8 +904,79 @@
     saveArchive();
   }
 
+  // The batch view is per sheet, but a translator works across the workbook:
+  // index every worksheet once, then keep it fresh on writes.
   function refreshMemory() {
     state.memory = window.TideEngine.buildMemory(state.entries);
+  }
+
+  function workbookKey() {
+    var book = sheetApp() && sheetApp().ActiveWorkbook;
+    return book && book.Name ? String(book.Name) : 'default';
+  }
+
+  function ensureWorkbookMemory(done) {
+    var app = sheetApp();
+    if (!app || !app.ActiveWorkbook) { if (done) done(); return; }
+    var key = workbookKey();
+    if (state.workbookKey === key && state.workbookMemory) {
+      state.memory = state.workbookMemory;
+      if (done) done();
+      return;
+    }
+    // A build is already running for this workbook; do not start a second one.
+    if (state.workbookKey === key && state.workbookBuilding) return;
+    var sheets = app.ActiveWorkbook.Worksheets;
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    if (!count) { if (done) done(); return; }
+
+    var memory = [];
+    var index = 1;
+    state.workbookKey = key;
+    state.workbookBuilding = true;
+    $('memoryCount').textContent = '正在索引整本工作簿…';
+
+    function step() {
+      if (index > count) {
+        state.workbookMemory = window.TideEngine.buildMemory(memory);
+        state.workbookBuilding = false;
+        state.memory = state.workbookMemory;
+        renderMemory(currentEntry(), currentSourceText());
+        if (done) done();
+        return;
+      }
+      try {
+        var sheet = sheets.Item(index);
+        var result = buildRows(sheet, true);
+        (result.rows || []).forEach(function (row) {
+          if (String(row.source || '').trim() && String(row.target || '').trim()) {
+            memory.push({
+              source: row.source, target: row.target, row: row.row,
+              sheet: result.sheetName, uid: row.uid || ''
+            });
+          }
+        });
+      } catch (err) { /* a single unreadable sheet must not stop the index */ }
+      $('memoryCount').textContent = '正在索引整本工作簿 ' + index + ' / ' + count + ' …';
+      index += 1;
+      window.setTimeout(step, 0);
+    }
+    step();
+  }
+
+  function rememberPair(sheetName, row, source, target) {
+    if (!state.workbookMemory) return;
+    var text = String(source || '').trim();
+    if (!text) return;
+    var found = null;
+    for (var i = 0; i < state.workbookMemory.length; i += 1) {
+      var item = state.workbookMemory[i];
+      if (item.sheet === sheetName && item.row === row && item.source === text) { found = item; break; }
+    }
+    if (found) found.target = target;
+    else state.workbookMemory.push({ source: text, target: target, row: row, sheet: sheetName, uid: '' });
+    state.memory = state.workbookMemory;
   }
 
   function applyMemory(target) {
@@ -926,7 +1000,7 @@
     var result = window.TideEngine.findMemory(sourceText || entry.source, state.memory, 0.5, 5);
     var rows = result.exact.map(function (item) { return { item: item, exact: true, score: 1 }; })
       .concat(result.fuzzy.map(function (item) { return { item: item, exact: false, score: item.score }; }));
-    count.textContent = rows.length ? rows.length + ' 条匹配 / ' + state.memory.length + ' 条记忆' : '';
+    count.textContent = rows.length ? rows.length + ' 条匹配 / ' + state.memory.length + ' 条整簿记忆' : '';
     table.hidden = rows.length === 0;
     $('memoryEmpty').hidden = rows.length > 0;
     $('memoryEmpty').textContent = '当前条目没有匹配。';
@@ -1727,6 +1801,7 @@
       return false;
     }
     row.target = value;
+    rememberPair(row.sheet, row.row, row.source, value);
     recordRevision(row.sheet, row.row, row.source, before, value, row.targetCol);
     recordWrite({ sheet: row.sheet, row: row.row, source: row.source }, before, value);
     return true;
@@ -2326,6 +2401,7 @@
     entry.target = value;
     refreshMemory();
     recordWrite(entry, before, value);
+    rememberPair(entry.sheet, entry.row, entry.source, value);
     recordRevision(entry.sheet, entry.row, entry.source, before, value, entry.targetCol);
     move(1);
     $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
@@ -2978,9 +3054,12 @@
     });
     $('btnRefreshEntries').addEventListener('click', function () {
       state.sheetMismatch = '';
+      state.workbookMemory = null;
+      state.workbookKey = '';
+      state.workbookBuilding = false;
       loadEntries();
       renderEntry();
-      $('entryCheck').textContent = '已刷新到 ' + activeSheetName();
+      $('entryCheck').textContent = '已刷新到 ' + activeSheetName() + '，正在重建整簿记忆…';
     });
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
