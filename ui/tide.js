@@ -42,7 +42,7 @@
     findResults: [],
     tm: [],
     qaFindings: [],
-    checkPlaceholders: false,
+    qaMode: '全部检查',
     gridRows: [],
     projectScan: [],
     project: null,
@@ -1743,13 +1743,22 @@
     return sev === 'high' ? '高' : (sev === 'medium' ? '中' : '低');
   }
 
-  function runQA() {
+  function runQA(mode) {
     var result = buildRows();
     if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
-    var findings = window.TideQA.runQA(result.rows, state.matchTerms, {
-      lang: state.settings.targetLang || 'en',
-      checkPlaceholders: state.checkPlaceholders
-    });
+    var lang = state.settings.targetLang || 'en';
+    var options = { lang: lang };
+    var label = '全部检查';
+    if (mode === 'punct') {
+      options.only = ['punctuation', 'punct-format'];
+      label = '标点符号';
+    } else if (mode === 'placeholder') {
+      options.checkPlaceholders = true;
+      options.only = ['placeholder'];
+      label = '占位符';
+    }
+    state.qaMode = label;
+    var findings = window.TideQA.runQA(result.rows, state.matchTerms, options);
     state.qaFindings = findings;
     var summary = window.TideQA.summarize(findings);
     var parts = Object.keys(summary.byCategory).sort().map(function (key) {
@@ -1757,11 +1766,11 @@
     });
     $('qaCount').textContent = findings.length ? findings.length + ' 个问题' : '无问题';
     $('qaSummary').textContent = (findings.length
-      ? '「' + result.sheetName + '」源文 ' + state.settings.sourceCol + ' / 译文 ' + state.settings.targetCol +
+      ? '「' + label + '」「' + result.sheetName + '」源文 ' + state.settings.sourceCol + ' / 译文 ' + state.settings.targetCol +
         '，表头至第 ' + (result.headerEnd + 1) + ' 行，' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
         ' · 中 ' + summary.bySeverity.medium + ' · 低 ' + summary.bySeverity.low +
         '（' + parts.join('，') + '）'
-      : '「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。');
+      : '「' + label + '」「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。');
     var table = $('qaTable');
     var body = table.tBodies[0];
     body.textContent = '';
@@ -3261,17 +3270,9 @@
     });
     $('btnGridRefresh').addEventListener('click', renderGrid);
     $('gridFilter').addEventListener('change', renderGrid);
-    $('btnPlaceholderQA').addEventListener('click', function () {
-      state.checkPlaceholders = !state.checkPlaceholders;
-      var button = $('btnPlaceholderQA');
-      button.classList.toggle('on', state.checkPlaceholders);
-      button.setAttribute('aria-pressed', String(state.checkPlaceholders));
-      $('qaSummary').textContent = state.checkPlaceholders
-        ? '占位符检查已开启，下次质检会包含颜色代码、换行符与 {n}/%s。'
-        : '占位符检查已关闭。';
-      if (state.qaFindings.length) runQA();
-    });
-    $('btnRunQA').addEventListener('click', runQA);
+    $('btnRunQA').addEventListener('click', function () { runQA('all'); });
+    $('btnPunctQA').addEventListener('click', function () { runQA('punct'); });
+    $('btnPlaceholderQA').addEventListener('click', function () { runQA('placeholder'); });
     $('btnExportQA').addEventListener('click', exportQA);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {

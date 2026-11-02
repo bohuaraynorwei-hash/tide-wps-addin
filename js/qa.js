@@ -225,10 +225,18 @@
   }
 
   function runQA(rows, terms, options) {
+    var opts = options || {};
     var findings = [];
     (rows || []).forEach(function (row) {
-      findings = findings.concat(checkRow(row, terms, options));
+      findings = findings.concat(checkRow(row, terms, opts));
     });
+    // Dedicated buttons request one family only; filtering here keeps the
+    // individual checks unchanged.
+    if (opts.only && opts.only.length) {
+      findings = findings.filter(function (finding) {
+        return opts.only.indexOf(finding.category) > -1;
+      });
+    }
     findings.sort(function (a, b) {
       return (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || (a.row - b.row);
     });
