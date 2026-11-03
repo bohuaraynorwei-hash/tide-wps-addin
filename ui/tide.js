@@ -2519,6 +2519,14 @@
   // the next report says exactly which one WPS blocks.
   function pasteWithDiagnostics(target) {
     var el = target || $('entryDraft');
+    // Strategy 0: same-origin clipboard bridge (works inside CEF, where the
+    // clipboard API is denied). Falls through to the browser APIs elsewhere.
+    var bridge = function () {
+      return fetch('/__clipboard', { cache: 'no-store' }).then(function (res) {
+        if (!res.ok) throw new Error('bridge ' + res.status);
+        return res.text();
+      });
+    };
     paneLog('paste:start', {
       target: el ? el.id : null,
       hasClipboard: !!(navigator.clipboard),
@@ -2534,6 +2542,21 @@
       $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符（来源：' +
         (window.__tidePasteVia || 'clipboard') + '）。';
     };
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      bridge().then(function (text) {
+        paneLog('paste:bridge', { length: text ? text.length : 0 });
+        if (text) { window.__tidePasteVia = '本机通道'; insert(text); return; }
+        throw new Error('empty');
+      }).catch(function (err) {
+        paneLog('paste:bridge-failed', { message: String(err && err.message).slice(0, 80) });
+        pasteViaBrowser(el, insert);
+      });
+      return;
+    }
+    pasteViaBrowser(el, insert);
+  }
+
+  function pasteViaBrowser(el, insert) {
     if (navigator.clipboard && navigator.clipboard.readText) {
       navigator.clipboard.readText().then(function (text) {
         paneLog('paste:readText', { ok: true, length: text ? text.length : 0 });
