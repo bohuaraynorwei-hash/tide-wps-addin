@@ -89,14 +89,17 @@
 
     if (lang.spaceAfter) {
       // "word,punct" with a letter immediately after the mark.
-      var afterMark = new RegExp('[,;:!?](?=[' + LATIN_LETTER + '])');
+      var LETTER_ANY = LATIN_LETTER + '\\uAC00-\\uD7A3';
+      var afterMark = new RegExp('[,;:!?](?=[' + LETTER_ANY + '])');
       var glued = text.match(afterMark);
       if (glued) {
         out.push(['medium', '标点符号后缺少空格', [glued[0]]]);
       }
       // Sentence punctuation glued to the next capital, including quoted or
       // ellipsis endings; abbreviations such as "e.g." are masked out first.
-      var noAbbrev = text.replace(/\b(?:[A-Za-z]\.){2,}/g, '\u0001');
+      var noAbbrev = text
+        .replace(/\b(?:[A-Za-z]\.){2,}/g, '\u0001')
+        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|St|vs|etc|approx|Fig|No|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\./g, '\u0001');
       var gluedSentence = noAbbrev.match(/[^0-9][.!?\u2026]["\u201D\u00BB]?(?=[A-Z\u00C0-\u00DD])/);
       if (gluedSentence) {
         var mark = gluedSentence[0].match(/[.!?\u2026]/);
@@ -114,6 +117,10 @@
       var before = text.match(/[^\s\u00A0\u202F]([;:!?»])/);
       if (before) {
         out.push(['medium', '法语标点前需要空格（; : ! ? »）', [before[1]]]);
+      } else if (/([ \t])[;:!?»]/.test(text)) {
+        // A plain space is not a no-break space: the mark can start a line.
+        var plain = text.match(/([ \t])([;:!?»])/);
+        out.push(['low', '法语标点前建议使用不换行空格（NBSP）', plain ? [plain[2]] : []]);
       }
       if (/«[^\s\u00A0\u202F]/.test(text)) {
         out.push(['low', '法语的「«」后需要空格', ['«']]);
@@ -175,16 +182,26 @@
       var realNewlines = function (text) { return (String(text).match(/\n/g) || []).length; };
       var sourceNl = literalNewlines(source);
       var targetNl = literalNewlines(target);
-      if (sourceNl !== targetNl) {
-        withFindings(findings, row, 'placeholder', 'high',
-          '换行符 \\n 数量不一致：原文 ' + sourceNl + '，译文 ' + targetNl, ['\\n']);
-      }
-
       var sourceReal = realNewlines(source);
       var targetReal = realNewlines(target);
-      if (sourceReal !== targetReal) {
-        withFindings(findings, row, 'placeholder', 'high',
-          '实际换行数量不一致：原文 ' + sourceReal + '，译文 ' + targetReal, []);
+
+      // One root cause should produce one finding: if the two sides encode line
+      // breaks differently, report that instead of two count mismatches.
+      var reprMismatch = (sourceNl > 0 && targetReal > 0 && targetNl === 0)
+        || (sourceReal > 0 && targetNl > 0 && targetReal === 0);
+
+      if (reprMismatch) {
+        withFindings(findings, row, 'placeholder', 'medium',
+          '换行符表示不一致：原文与译文一处用 \\n、一处用实际换行', []);
+      } else {
+        if (sourceNl !== targetNl) {
+          withFindings(findings, row, 'placeholder', 'high',
+            '换行符 \\n 数量不一致：原文 ' + sourceNl + '，译文 ' + targetNl, ['\\n']);
+        }
+        if (sourceReal !== targetReal) {
+          withFindings(findings, row, 'placeholder', 'high',
+            '实际换行数量不一致：原文 ' + sourceReal + '，译文 ' + targetReal, []);
+        }
       }
 
       var colorRe = /<\/?color[^>]*>/gi;
