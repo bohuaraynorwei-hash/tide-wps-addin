@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611021751">
+  <link rel="stylesheet" href="tide.css?b=202611030949">
 </head>
 <body>
   <header class="bar">
@@ -90,11 +90,16 @@
         <div class="field-head">
           <label id="entryDraftLabel">译文草稿</label>
           <span class="head-actions">
-            <button class="act ghost mini" id="btnPasteInline">粘贴</button>
             <button class="act ghost mini" id="btnLocate">定位译文</button>
           </span>
         </div>
-        <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
+        <div class="draft-row">
+          <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
+          <div class="draft-actions">
+            <button class="act" id="btnDraftPaste" title="粘贴剪贴板内容（等同 Ctrl+V）">粘贴</button>
+            <button class="act ghost" id="btnDraftClear" title="清空译文草稿">清空</button>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
@@ -112,7 +117,6 @@
       <div class="toolbar">
         <button class="act ghost" id="btnCopySource">复制原文</button>
         <button class="act ghost" id="btnCopyDraft">复制草稿</button>
-        <button class="act ghost" id="btnPasteDraft">粘贴到草稿</button>
         <button class="act ghost" id="btnReadCell">读取选区→译文</button>
       </div>
       <div class="hint" id="clipHint" style="margin:-4px 0 10px">
@@ -494,8 +498,8 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611021751"></script>
-  <script src="tide.js?b=202611021751"></script>
-  <script src="onboarding.js?b=202611021751"></script>
+  <script src="i18n.js?b=202611030949"></script>
+  <script src="tide.js?b=202611030949"></script>
+  <script src="onboarding.js?b=202611030949"></script>
 </body>
 </html>

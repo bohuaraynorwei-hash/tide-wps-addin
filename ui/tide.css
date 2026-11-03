@@ -389,3 +389,10 @@ ins{background:rgba(52,199,89,.16);text-decoration:none;color:#146c2e;border-rad
 #btnPlaceholderQA.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .qa-snippet{font:400 10.5px/1.5 var(--mono);color:var(--label-3);margin-top:2px}
+
+/* Draft: the two actions sit vertically beside the textarea, because the
+   host swallows Cmd+V and users need a pointer path to paste. */
+.draft-row{display:flex;gap:8px;align-items:stretch}
+.draft-row textarea{flex:1 1 auto;min-width:0}
+.draft-actions{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;width:52px}
+.draft-actions .act{padding:0;flex:1 1 auto;min-height:0;font-size:12px;border-radius:8px;white-space:nowrap}

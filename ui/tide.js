@@ -2549,19 +2549,7 @@
     });
   }
 
-  function pasteIntoDraft() {
-    if (!navigator.clipboard || !navigator.clipboard.readText) {
-      $('entryCheck').textContent = '窗格读不到剪贴板：请用右键→粘贴，或「读取选区→译文」。';
-      return;
-    }
-    navigator.clipboard.readText().then(function (text) {
-      $('entryDraft').value = text;
-      $('entryDraft').dispatchEvent(new Event('input'));
-      $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符。';
-    }).catch(function () {
-      $('entryCheck').textContent = '窗格读不到剪贴板：请用右键→粘贴，或「读取选区→译文」。';
-    });
-  }
+
 
   function describeEntry(entry, draft) {
     var head = '第 ' + entry.row + ' 行 · ' + entryAddress(entry.row);
@@ -3219,7 +3207,6 @@
         else { $('entryCheck').textContent = '复制被拒绝：请手动选中文本后按 ⌘C。'; }
       });
     });
-    $('btnPasteDraft').addEventListener('click', pasteIntoDraft);
     $('btnReadCell').addEventListener('click', function () { readSelection('draft'); });
     $('btnReadCellSrc').addEventListener('click', function () { readSelection('source'); });
     wireDrop($('entryDraft'), 'draft');
@@ -3341,7 +3328,15 @@
     $('btnLocate').addEventListener('click', locateTarget);
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnRollback').addEventListener('click', rollbackEntry);
-    $('btnPasteInline').addEventListener('click', function () { pasteWithDiagnostics($('entryDraft')); });
+    $('btnDraftPaste').addEventListener('click', function () { pasteWithDiagnostics($('entryDraft')); });
+    $('btnDraftClear').addEventListener('click', function () {
+      var draft = $('entryDraft');
+      if (!draft.value) return;
+      draft.value = '';
+      draft.dispatchEvent(new Event('input', { bubbles: true }));
+      draft.focus();
+      $('entryCheck').textContent = '已清空译文草稿。';
+    });
     if ($('targetLang')) {
       $('targetLang').addEventListener('change', function () {
         state.settings.targetLang = $('targetLang').value;
