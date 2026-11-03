@@ -2489,6 +2489,20 @@
 
   // Diagnostics go to the local channel server so a real WPS session can be
   // inspected without a devtools window.
+  function showToast(text) {
+    var toast = $('tideToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'tideToast';
+      toast.className = 'tide-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add('on');
+    window.clearTimeout(showToast.timer);
+    showToast.timer = window.setTimeout(function () { toast.classList.remove('on'); }, 1800);
+  }
+
   function paneLog(event, data) {
     try {
       if (!window.fetch) return;
@@ -2545,9 +2559,10 @@
     var insert = function (text) {
       el.value = text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
-      paneLog('paste:inserted', { length: text.length, via: window.__tidePasteVia || 'clipboard' });
-      $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符（来源：' +
-        (window.__tidePasteVia || 'clipboard') + '）。';
+      paneLog('paste:inserted', { length: text.length, via: window.__tidePasteVia || 'clipboard', target: el.id || el.tagName });
+      var note = '已粘贴 ' + text.length + ' 个字符（来源：' + (window.__tidePasteVia || 'clipboard') + '）。';
+      if (el.id === 'entryDraft') $('entryCheck').textContent = note;
+      else showToast(note);
     };
     if (location.protocol === 'http:' || location.protocol === 'https:') {
       bridge().then(function (text) {
@@ -3331,13 +3346,24 @@
     // Cmd+V never reaches the webview (WPS owns it), but Ctrl+V is not a WPS
     // shortcut on macOS, so the page should receive it.
     window.addEventListener('keydown', function (event) {
+      var el = document.activeElement;
+      var editable = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
       var combo = (event.metaKey ? '⌘' : '') + (event.ctrlKey ? 'Ctrl+' : '') + (event.altKey ? '⌥' : '') + 'V';
       if ((event.metaKey || event.ctrlKey || event.altKey) && (event.key === 'v' || event.key === 'V')) {
-        // Reaching this line at all proves WPS forwarded the key to the webview.
-        $('entryCheck').textContent = combo + ' 已到达面板，正在读取剪贴板…';
+        // Reaching this line proves WPS forwarded the key. Focus can be any
+        // search field, so paste into whatever is focused (draft by default).
         event.preventDefault();
         event.stopPropagation();
-        pasteWithDiagnostics($('entryDraft'));
+        if (editable) pasteWithDiagnostics(el);
+        else pasteWithDiagnostics($('entryDraft'));
+        return;
+      }
+      if (event.key === 'Escape' && editable && el.value) {
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        showToast('已清空');
+        event.preventDefault();
       }
     }, true);
     wireMainScroll();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611031030">
+  <link rel="stylesheet" href="tide.css?b=202611031110">
 </head>
 <body>
   <header class="bar">
@@ -169,7 +169,7 @@
     <section id="panel-find" hidden>
       <div class="field">
         <label>全表模糊搜索（包含即命中）</label>
-        <input id="findInput" type="search" placeholder="输入片段，如：宝箱">
+        <input id="findInput" type="search" placeholder="输入片段，如：宝箱" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <div class="toolbar">
         <button class="act" id="btnFindAll">搜索整本工作簿</button>
@@ -305,7 +305,7 @@
       <div class="hint" id="tmStats"></div>
       <div class="field">
         <label>检索（源文或译文）</label>
-        <input id="tmQuery" type="search" placeholder="输入片段，查看记忆库里的旧译">
+        <input id="tmQuery" type="search" placeholder="输入片段，查看记忆库里的旧译" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <table id="tmTable" hidden>
         <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
@@ -323,7 +323,7 @@
       </div>
       <div class="field">
         <label>Key（支持片段与近似）</label>
-        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12">
+        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <div class="hint" id="keyHint">按表头「完整Key」与「完整Key（复制用）」定位；点结果跳到对应词条。</div>
       <table id="keyTable" hidden>
@@ -353,7 +353,7 @@
       </div>
       <div class="field">
         <label>搜索术语（中文或英文，支持片段与近似）</label>
-        <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod">
+        <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <div class="toolbar">
         <button class="act ghost" id="btnRefreshTerms">刷新</button>
@@ -498,8 +498,8 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611031030"></script>
-  <script src="tide.js?b=202611031030"></script>
-  <script src="onboarding.js?b=202611031030"></script>
+  <script src="i18n.js?b=202611031110"></script>
+  <script src="tide.js?b=202611031110"></script>
+  <script src="onboarding.js?b=202611031110"></script>
 </body>
 </html>

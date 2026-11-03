@@ -396,3 +396,9 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .draft-row textarea{flex:1 1 auto;min-width:0}
 .draft-actions{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;width:52px}
 .draft-actions .act{padding:0;flex:1 1 auto;min-height:0;font-size:12px;border-radius:8px;white-space:nowrap}
+
+/* keyboard feedback for fields without a status line */
+.tide-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,8px);z-index:120;
+  background:rgba(20,22,26,.92);color:#fff;font:400 11.5px/1.4 var(--font);padding:7px 12px;border-radius:9px;
+  opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;max-width:80%;text-align:center}
+.tide-toast.on{opacity:1;transform:translate(-50%,0)}
