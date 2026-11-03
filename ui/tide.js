@@ -2506,7 +2506,7 @@
       var actions = document.createElement('div');
       actions.className = 'field-buttons';
       actions.innerHTML =
-        '<button type="button" class="act ghost mini" data-paste-for="' + id + '" title="粘贴剪贴板内容">粘贴</button>' +
+        '<button type="button" class="act mini" data-paste-for="' + id + '" title="粘贴剪贴板内容">粘贴</button>' +
         '<button type="button" class="act ghost mini" data-clear-for="' + id + '" title="清空">清空</button>';
       row.appendChild(actions);
     });
