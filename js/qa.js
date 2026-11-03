@@ -45,7 +45,9 @@
     return misses;
   }
 
-  var FULLWIDTH = /[，。！？；：、（）【】「」]/;
+  // Full-width block plus CJK punctuation: any of these in a Latin/Cyrillic/
+  // Korean/Thai target means the translator left the source marks in place.
+  var FULLWIDTH = /[\u3000-\u303F\uFF01-\uFF60]/;
   var LATIN_LETTER = 'A-Za-z\u00C0-\u024F\u0400-\u04FF';
 
   // Tags, placeholders and printf specifiers are structure, not punctuation.
@@ -53,6 +55,9 @@
   // " ." sequences (tag + period), which then tripped the stray-space rule.
   function maskDecorations(text) {
     return String(text)
+      .replace(/\b(?:https?:\/\/|www\.)\S+/gi, '\u0001')   // URLs contain ':' and '.'
+      .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '\u0001')
+      .replace(/\b[\w-]+\.(?:txt|json|md|js|css|html|png|jpg|jpeg|pdf|xlsx|csv|xml)\b/gi, '\u0001')
       .replace(/<[^>]*>/g, '\u0001')
       .replace(/\{\d+\}/g, '\u0001')
       .replace(/%[sdif]/g, '\u0001');
@@ -67,10 +72,12 @@
     var text = maskDecorations(target);
     if (!text.trim()) return out;
 
-    var latinScript = !lang.cjk;
+    // Chinese and Japanese are the only targets that legitimately use full-width
+    // punctuation; Korean and Thai use ASCII marks even though they are CJK-adjacent.
+    var usesFullwidth = lang.code === 'zh' || lang.code === 'ja';
     var full = text.match(FULLWIDTH);
-    if (latinScript && full) {
-      out.push(['medium', '译文出现全角标点，该语言应使用半角标点', [full[0]]]);
+    if (!usesFullwidth && full) {
+      out.push(['medium', '译文出现全角字符，该语言应使用半角标点', [full[0]]]);
     }
 
     if (lang.asciiInCJK) {
@@ -87,9 +94,13 @@
       if (glued) {
         out.push(['medium', '标点符号后缺少空格', [glued[0]]]);
       }
-      // Sentence period glued to the next capital letter.
-      if (/[a-z\u00E0-\u00FF]\.(?=[A-Z\u00C0-\u00DD])/.test(text)) {
-        out.push(['low', '句号后缺少空格', ['.']]);
+      // Sentence punctuation glued to the next capital, including quoted or
+      // ellipsis endings; abbreviations such as "e.g." are masked out first.
+      var noAbbrev = text.replace(/\b(?:[A-Za-z]\.){2,}/g, '\u0001');
+      var gluedSentence = noAbbrev.match(/[^0-9][.!?\u2026]["\u201D\u00BB]?(?=[A-Z\u00C0-\u00DD])/);
+      if (gluedSentence) {
+        var mark = gluedSentence[0].match(/[.!?\u2026]/);
+        out.push(['low', '句号后缺少空格', mark ? [mark[0]] : ['.']]);
       }
       // Space before a comma or period is never right in these languages.
       var stray = text.match(/\s+([,.])/);
@@ -161,11 +172,19 @@
       }
 
       var literalNewlines = function (text) { return (String(text).match(/\\n/g) || []).length; };
+      var realNewlines = function (text) { return (String(text).match(/\n/g) || []).length; };
       var sourceNl = literalNewlines(source);
       var targetNl = literalNewlines(target);
       if (sourceNl !== targetNl) {
         withFindings(findings, row, 'placeholder', 'high',
           '换行符 \\n 数量不一致：原文 ' + sourceNl + '，译文 ' + targetNl, ['\\n']);
+      }
+
+      var sourceReal = realNewlines(source);
+      var targetReal = realNewlines(target);
+      if (sourceReal !== targetReal) {
+        withFindings(findings, row, 'placeholder', 'high',
+          '实际换行数量不一致：原文 ' + sourceReal + '，译文 ' + targetReal, []);
       }
 
       var colorRe = /<\/?color[^>]*>/gi;
