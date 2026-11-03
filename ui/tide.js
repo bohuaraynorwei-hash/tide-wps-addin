@@ -2487,6 +2487,19 @@
     });
   }
 
+  // Diagnostics go to the local channel server so a real WPS session can be
+  // inspected without a devtools window.
+  function paneLog(event, data) {
+    try {
+      if (!window.fetch) return;
+      fetch('/__log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ts: new Date().toISOString(), event: event, data: data || {} })
+      }).catch(function () { /* ignore */ });
+    } catch (err) { /* ignore */ }
+  }
+
   // execCommand('paste') is the last bridge that can work when the async
   // clipboard API is blocked: CEF may still route it through the host.
   function execPaste() {
@@ -2506,21 +2519,32 @@
   // the next report says exactly which one WPS blocks.
   function pasteWithDiagnostics(target) {
     var el = target || $('entryDraft');
+    paneLog('paste:start', {
+      target: el ? el.id : null,
+      hasClipboard: !!(navigator.clipboard),
+      hasReadText: !!(navigator.clipboard && navigator.clipboard.readText),
+      hasFocus: document.hasFocus(),
+      active: document.activeElement ? document.activeElement.id || document.activeElement.tagName : null
+    });
     if (!el) return;
     var insert = function (text) {
       el.value = text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
+      paneLog('paste:inserted', { length: text.length, via: window.__tidePasteVia || 'clipboard' });
       $('entryCheck').textContent = '已粘贴 ' + text.length + ' 个字符（来源：' +
         (window.__tidePasteVia || 'clipboard') + '）。';
     };
     if (navigator.clipboard && navigator.clipboard.readText) {
       navigator.clipboard.readText().then(function (text) {
+        paneLog('paste:readText', { ok: true, length: text ? text.length : 0 });
         if (text) { window.__tidePasteVia = 'clipboard API'; insert(text); return; }
         var fallback = execPaste();
         if (fallback) { window.__tidePasteVia = 'execCommand'; insert(fallback); return; }
         $('entryCheck').textContent = '剪贴板为空，或 WPS 未授权读取。请用右键→粘贴。';
-      }).catch(function () {
+      }).catch(function (err) {
+        paneLog('paste:readText', { ok: false, name: err && err.name, message: String(err && err.message).slice(0, 120) });
         var fallback = execPaste();
+        paneLog('paste:execCommand', { length: fallback ? fallback.length : 0 });
         if (fallback) { window.__tidePasteVia = 'execCommand'; insert(fallback); return; }
         $('entryCheck').textContent = '剪贴板读取被 WPS 拒绝（clipboard API 与 execCommand 均失败）。请用右键→粘贴，或「读取选区→译文」。';
       });
