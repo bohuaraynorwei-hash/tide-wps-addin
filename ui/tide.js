@@ -2524,7 +2524,14 @@
     var bridge = function () {
       return fetch('/__clipboard', { cache: 'no-store' }).then(function (res) {
         if (!res.ok) throw new Error('bridge ' + res.status);
-        return res.text();
+        return res.json();
+      }).then(function (data) {
+        if (!data || !data.text) return '';
+        // base64 of UTF-8 bytes: decoding here avoids CEF's locale-based guess
+        var raw = atob(data.text);
+        var bytes = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+        return new TextDecoder('utf-8').decode(bytes);
       });
     };
     paneLog('paste:start', {
