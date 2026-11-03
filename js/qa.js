@@ -67,6 +67,25 @@
    * Language-specific punctuation and spacing rules. Each finding names the
    * rule, because these are mechanical checks a translator may still override.
    */
+  // Shape-based abbreviation detection: no fixed word list. A period belongs to
+  // an abbreviation when the token before it is an initial (J.), carries inner
+  // dots (U.S.A, e.g), is a short capitalised form (Mr, Dr, No, St, Jan) or a
+  // short lowercase form (vs, etc). Everything else is treated as a sentence end.
+  function looksLikeAbbreviation(token) {
+    if (!token) return false;
+    if (/^[A-Z]$/.test(token)) return true;
+    if (token.indexOf('.') > -1) return true;
+    if (/^[A-Z][A-Za-z0-9]{0,2}$/.test(token)) return true;
+    if (/^[a-z]{1,3}$/.test(token)) return true;
+    return false;
+  }
+
+  function maskAbbreviations(text) {
+    return text.replace(/\b([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z]+)*)\./g, function (whole, token) {
+      return looksLikeAbbreviation(token) ? '\u0001' : whole;
+    });
+  }
+
   function punctuationFormat(target, lang) {
     var out = [];
     var text = maskDecorations(target);
@@ -97,9 +116,9 @@
       }
       // Sentence punctuation glued to the next capital, including quoted or
       // ellipsis endings; abbreviations such as "e.g." are masked out first.
-      var noAbbrev = text
-        .replace(/\b(?:[A-Za-z]\.){2,}/g, '\u0001')
-        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|St|vs|etc|approx|Fig|No|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\./g, '\u0001');
+      // A leading ellipsis is punctuation, not a sentence end: "…Next" at the
+      // start of a string is legitimate, while "Wait...And" is still checked.
+      var noAbbrev = maskAbbreviations(text.replace(/(^|\s)(?:\.{3,}|\u2026)/g, '$1\u0001'));
       var gluedSentence = noAbbrev.match(/[^0-9][.!?\u2026]["\u201D\u00BB]?(?=[A-Z\u00C0-\u00DD])/);
       if (gluedSentence) {
         var mark = gluedSentence[0].match(/[.!?\u2026]/);
