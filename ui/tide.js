@@ -2489,6 +2489,29 @@
 
   // Diagnostics go to the local channel server so a real WPS session can be
   // inspected without a devtools window.
+  // Every free-text field gets the same pointer affordances as the draft:
+  // the host swallows the clipboard shortcuts, so paste must be clickable.
+  function decorateFields(ids) {
+    ids.forEach(function (id) {
+      var input = $(id);
+      if (!input || input.dataset.tideActions) return;
+      input.dataset.tideActions = '1';
+      if (input.style && input.style.width) input.style.width = 'auto';
+
+      var row = document.createElement('div');
+      row.className = 'field-row' + (input.tagName === 'TEXTAREA' ? ' tall' : '');
+      input.parentNode.insertBefore(row, input);
+      row.appendChild(input);
+
+      var actions = document.createElement('div');
+      actions.className = 'field-buttons';
+      actions.innerHTML =
+        '<button type="button" class="act ghost mini" data-paste-for="' + id + '" title="粘贴剪贴板内容">粘贴</button>' +
+        '<button type="button" class="act ghost mini" data-clear-for="' + id + '" title="清空">清空</button>';
+      row.appendChild(actions);
+    });
+  }
+
   function showToast(text) {
     var toast = $('tideToast');
     if (!toast) {
@@ -3375,6 +3398,26 @@
     }, { passive: false });
     $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
     $('btnAddComment').addEventListener('click', addComment);
+    decorateFields(['freeSource', 'freeDraft', 'findInput', 'repFind', 'repWith', 'commentInput',
+      'tmQuery', 'keyQuery', 'termSearch']);
+    document.addEventListener('click', function (event) {
+      var pasteBtn = event.target.closest ? event.target.closest('[data-paste-for]') : null;
+      if (pasteBtn) {
+        pasteWithDiagnostics($(pasteBtn.dataset.pasteFor));
+        return;
+      }
+      var clearBtn = event.target.closest ? event.target.closest('[data-clear-for]') : null;
+      if (clearBtn) {
+        var field = $(clearBtn.dataset.clearFor);
+        if (!field || !field.value) return;
+        field.value = '';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+        showToast('已清空');
+        field.focus();
+      }
+    });
+
     var termSearch = $('termSearch');
     if (termSearch) {
       var termTimer = null;
