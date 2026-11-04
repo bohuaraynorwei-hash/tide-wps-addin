@@ -3528,7 +3528,7 @@
 
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
-    for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
+    for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
     ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
