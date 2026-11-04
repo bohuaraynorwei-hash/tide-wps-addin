@@ -32,6 +32,7 @@
     passphrase: null,
     unlocked: false,
     lastTab: 'matches',
+    prevTab: '',
     helper: { ok: false, token: false },
     bundledTerms: [],
     matchTerms: [],
@@ -3385,6 +3386,7 @@
     ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
+    if (state.lastTab && state.lastTab !== name) state.prevTab = state.lastTab;
     state.lastTab = name;
     writeJSON(K.lastTab, name);
     updateTabScroll();
@@ -3448,7 +3450,13 @@
 
   function bind() {
     $('tabs').addEventListener('click', function (event) {
-      if (event.target && event.target.dataset && event.target.dataset.tab) showTab(event.target.dataset.tab);
+      var tab = event.target && event.target.closest ? event.target.closest('button[data-tab]') : null;
+      if (tab) showTab(tab.dataset.tab);
+    });
+    $('btnBack').addEventListener('click', function () {
+      var target = state.prevTab;
+      if (target && target !== state.lastTab) showTab(target);
+      else showTab('matches');
     });
     $('btnScan').addEventListener('click', scan);
     $('btnSave').addEventListener('click', function () {

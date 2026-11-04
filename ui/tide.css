@@ -435,3 +435,13 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .nas-authcard .field{margin-bottom:9px}
 
 .nas-status{display:block;margin:8px 0 10px;line-height:1.4}
+
+.backbtn{display:inline-flex;align-items:center;gap:3px;height:26px;padding:0 8px;margin-left:2px;
+  border:1px solid var(--hair-strong);border-radius:7px;background:var(--card);color:var(--label-2);
+  font:600 11px/1 var(--font);cursor:pointer;white-space:nowrap}
+.backbtn svg{width:13px;height:13px;display:block}
+.backbtn:hover{color:var(--accent);border-color:var(--accent);background:rgba(0,102,204,.04)}
+.tab-nas{display:inline-flex;align-items:center}
+.tab-nas-ic{width:13px;height:13px;margin-right:4px;display:block;flex:0 0 auto}
+.nas-title{display:flex;align-items:center;gap:6px}
+.nas-mark{width:19px;height:19px;display:block;flex:0 0 auto}

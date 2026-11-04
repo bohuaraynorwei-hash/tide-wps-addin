@@ -23,6 +23,9 @@
         <rect x="15.4" y="12.5" width="2.7" height="6.3" rx="1.2" fill="url(#tideMark)"/>
       </svg>
     </span>
+    <button class="backbtn" id="btnBack" title="返回上一标签页" aria-label="返回上一标签页">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg><span>返回</span>
+    </button>
     <button class="lang-open" id="btnLang" title="界面语言" aria-label="界面语言" aria-haspopup="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
         <circle cx="12" cy="12" r="8.4"/>
@@ -45,7 +48,14 @@
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">网格</button>
     <button data-tab="project">项目</button>
-    <button data-tab="nas">NAS</button>
+    <button data-tab="nas" class="tab-nas">
+      <svg class="tab-nas-ic" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#2563eb"/>
+        <rect x="5.2" y="6" width="13.6" height="3.7" rx="1.85" fill="#fff"/>
+        <rect x="5.2" y="11" width="13.6" height="3.7" rx="1.85" fill="#fff" opacity=".72"/>
+        <path d="M5 19c2.4-1.8 4.8-1.8 7.2 0s4.8 1.8 7.2 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>NAS
+    </button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -421,10 +431,17 @@
     <section id="panel-nas" hidden>
       <div class="nas-head">
         <div>
-          <div class="nas-title">NAS 数据</div>
+          <div class="nas-title">
+            <svg class="nas-mark" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#2563eb"/>
+              <rect x="5.2" y="6" width="13.6" height="3.7" rx="1.85" fill="#fff"/>
+              <rect x="5.2" y="11" width="13.6" height="3.7" rx="1.85" fill="#fff" opacity=".72"/>
+              <path d="M5 19c2.4-1.8 4.8-1.8 7.2 0s4.8 1.8 7.2 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>NAS 数据
+          </div>
           <div class="nas-sub">项目 · 术语 · 翻译记忆</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611041700</span>
+        <span class="nas-build" id="nasBuild">构建 202611041800</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <button class="act nas-console" id="btnNasConsole">
