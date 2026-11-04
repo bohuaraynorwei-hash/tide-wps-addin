@@ -418,3 +418,7 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nas-logout{margin-top:8px}
 #nasLoginBox[hidden],#nasSession[hidden]{display:none !important}
+
+.nas-cert-row{margin-top:-2px;align-items:flex-start}
+.nas-cert-row .hint{font-size:10.5px;line-height:1.4;color:var(--label3);max-width:220px}
+.nas-cert-row.warn .hint{color:#a05a00}

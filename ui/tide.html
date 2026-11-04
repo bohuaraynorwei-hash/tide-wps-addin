@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?v=20261104">
+  <link rel="stylesheet" href="tide.css?v=202611041200">
 </head>
 <body>
   <header class="bar">
@@ -437,6 +437,10 @@
           <button class="act" id="btnNasLogin">登录并连接</button>
           <span class="count" id="nasStatus"></span>
         </div>
+        <div class="toolbar nas-cert-row">
+          <button class="act ghost" id="btnNasCert">安装 NAS 证书</button>
+          <span class="hint" id="nasCertHint">首次登录或提示“证书不被信任”时使用</span>
+        </div>
       </div>
       <div id="nasSession" hidden>
         <div class="field">
@@ -545,8 +549,8 @@
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
   <script src="i18n.js"></script>
-  <script src="nas-config.js?v=20261104"></script>
-  <script src="tide.js?v=20261104"></script>
+  <script src="nas-config.js?v=202611041200"></script>
+  <script src="tide.js?v=202611041200"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>
