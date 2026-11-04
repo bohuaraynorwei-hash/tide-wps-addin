@@ -3148,6 +3148,10 @@
     state.nas.loaded = false;
     state.nas.projects = [];
     state.nas.items = [];
+    if (state.nas.jumpAbort) {
+      try { state.nas.jumpAbort.abort(); } catch (err) { /* ignore */ }
+      state.nas.jumpAbort = null;
+    }
     try { localStorage.removeItem(K.nasAuth); } catch (err) { /* ignore */ }
     renderNasAuthUI();
   }
@@ -3424,8 +3428,10 @@
         continue;
       }
       try {
+        var controller = new AbortController();
+        state.nas.jumpAbort = controller;
         var response = await fetch(nasURL('/api/jump/stream'), {
-          headers: nasHeaders(), cache: 'no-store'
+          headers: nasHeaders(), cache: 'no-store', signal: controller.signal
         });
         if (!response.ok || !response.body || !response.body.getReader) throw new Error('stream unavailable');
         failures = 0;
@@ -3454,6 +3460,7 @@
         }
       } catch (err) {
         failures += 1;
+        state.nas.jumpAbort = null;
         await new Promise(function (resolve) { window.setTimeout(resolve, failures > 2 ? 4000 : 1200); });
         if (failures > 2) await pollJump();
       }
