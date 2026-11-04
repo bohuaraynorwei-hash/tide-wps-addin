@@ -32,6 +32,7 @@
     passphrase: null,
     unlocked: false,
     lastTab: 'matches',
+    prevTab: '',
     helper: { ok: false, token: false },
     bundledTerms: [],
     matchTerms: [],
@@ -46,7 +47,8 @@
     qaFindings: [],
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
-      langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false },
+      langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
+      termsCache: {}, jumpStarted: false, jumpBusy: false },
     gridRows: [],
     projectScan: [],
     project: null,
@@ -3146,6 +3148,10 @@
     state.nas.loaded = false;
     state.nas.projects = [];
     state.nas.items = [];
+    if (state.nas.jumpAbort) {
+      try { state.nas.jumpAbort.abort(); } catch (err) { /* ignore */ }
+      state.nas.jumpAbort = null;
+    }
     try { localStorage.removeItem(K.nasAuth); } catch (err) { /* ignore */ }
     renderNasAuthUI();
   }
@@ -3155,6 +3161,7 @@
     if ($('nasLoginBox')) $('nasLoginBox').hidden = logged;
     if ($('nasSession')) $('nasSession').hidden = !logged;
     if ($('nasWho')) $('nasWho').textContent = logged ? (state.nas.user || '') : '';
+    if ($('nasTermsCard')) $('nasTermsCard').hidden = !logged;
   }
 
   async function nasFetch(path) {
@@ -3179,6 +3186,47 @@
     });
   }
 
+  async function loadNasTerms(pid, source) {
+    var card = $('nasTermsCard'), list = $('nasTermList'), count = $('nasTermCount');
+    if (!card || !list) return;
+    if (!state.nas.token || !pid) { card.hidden = true; return; }
+    var terms = state.nas.termsCache[pid];
+    if (!terms) {
+      try {
+        var data = await nasFetch('/api/terms?project_id=' + encodeURIComponent(pid));
+        terms = data.terms || [];
+        state.nas.termsCache[pid] = terms;
+      } catch (err) { card.hidden = true; return; }
+    }
+    card.hidden = false;
+    var hay = String(source || '').toLowerCase();
+    var hits = hay ? terms.filter(function (t) {
+      return t.source && hay.indexOf(String(t.source).toLowerCase()) >= 0;
+    }) : terms.slice(0, 8);
+    list.textContent = '';
+    if (count) count.textContent = hay ? (hits.length + ' / ' + terms.length) : (terms.length + ' 条');
+    if (!terms.length) {
+      var empty = document.createElement('div'); empty.className = 'nas-term-empty';
+      empty.textContent = '这个项目还没有术语。'; list.appendChild(empty); return;
+    }
+    if (!hits.length) {
+      var miss = document.createElement('div'); miss.className = 'nas-term-empty';
+      miss.textContent = '当前片段未命中术语表；项目共 ' + terms.length + ' 条。'; list.appendChild(miss); return;
+    }
+    hits.slice(0, 12).forEach(function (t) {
+      var row = document.createElement('div'); row.className = 'nas-term-row';
+      var src = document.createElement('span'); src.className = 'nas-term-src'; src.textContent = t.source || '';
+      var arrow = document.createElement('span'); arrow.className = 'nas-term-arrow'; arrow.textContent = '→';
+      var tgt = document.createElement('span'); tgt.className = 'nas-term-tgt'; tgt.textContent = t.target || '';
+      var badge = document.createElement('span'); badge.className = 'nas-term-badge' + (t.reviewed ? ' ok' : '');
+      badge.textContent = t.reviewed ? '已审' : '待审';
+      row.append(src, arrow, tgt, badge);
+      row.title = t.source + ' → ' + t.target + (t.note ? '\n' + t.note : '');
+      row.addEventListener('click', function () { nasLocate(t.source, t.target); });
+      list.appendChild(row);
+    });
+  }
+
   function nasConsoleURL() {
     try {
       return new URL(state.nas.base).origin + "/";
@@ -3187,10 +3235,8 @@
     }
   }
 
-  function openNasConsole() {
-    var url = nasConsoleURL();
-    var hint = $('nasConsoleHint');
-    if (hint) hint.textContent = '正在打开：' + url;
+  function openExternalURL(url, hint, label) {
+    if (hint) hint.textContent = label || ('正在打开：' + url);
     try {
       if (typeof wps !== 'undefined' && wps && wps.OAAssist && typeof wps.OAAssist.ShellExecute === 'function') {
         wps.OAAssist.ShellExecute(url);
@@ -3203,6 +3249,22 @@
     } catch (err) {
       if (hint) hint.textContent = '请手动打开：' + url;
     }
+  }
+
+  async function openNasConsole() {
+    var hint = $('nasConsoleHint');
+    if (state.nas.token) {
+      if (hint) hint.textContent = '正在验证登录…';
+      try {
+        var response = await fetch(nasURL('/api/wps/sso'), { method: 'POST', headers: nasHeaders() });
+        var data = await response.json().catch(function () { return {}; });
+        if (response.ok && data.path) {
+          openExternalURL(new URL(data.path, state.nas.base).href, hint, '已登录，正在打开 NAS 操作台…');
+          return;
+        }
+      } catch (err) { /* fall back to normal console */ }
+    }
+    openExternalURL(nasConsoleURL(), hint);
   }
 
   function renderNasServer() {
@@ -3288,6 +3350,7 @@
       state.nas.total = data.filtered_total || 0;
       nasFillSelect($('nasLang'), state.nas.langs, state.nas.lang);
       renderNasRows();
+      loadNasTerms(state.nas.pid, '');
     } catch (err) {
       $('nasStatus').textContent = '读取失败：' + err.message;
     }
@@ -3317,10 +3380,14 @@
     table.hidden = items.length === 0;
     items.forEach(function (item) {
       var tr = document.createElement('tr');
+      tr.title = '点击定位到 WPS 表格';
       var c0 = document.createElement('td'); c0.textContent = item.source; tr.appendChild(c0);
       var c1 = document.createElement('td'); c1.textContent = item.target || ''; tr.appendChild(c1);
       var c2 = document.createElement('td'); c2.textContent = item.status; tr.appendChild(c2);
-      tr.addEventListener('click', function () { nasLocate(item.source); });
+      tr.addEventListener('click', function () {
+        nasLocate(item.source, item.target);
+        loadNasTerms(state.nas.pid, item.source);
+      });
       body.appendChild(tr);
     });
     var start = state.nas.offset + 1;
@@ -3330,7 +3397,7 @@
     $('btnNasNext').disabled = state.nas.offset + 50 >= state.nas.total;
   }
 
-  function nasLocate(text) {
+  function nasLocate(text, target) {
     var app = sheetApp();
     if (!app) { $('nasHint').textContent = '未连接 WPS 工作簿。'; return; }
     var book = app.ActiveWorkbook;
@@ -3338,7 +3405,9 @@
     if (!sheets) { $('nasHint').textContent = '没有打开的工作簿。'; return; }
     var count = 0;
     try { count = sheets.Count; } catch (err) { count = 0; }
-    var needle = String(text || '');
+    var needle = String(text || '').trim();
+    var wanted = String(target || '').trim();
+    var fallback = null;
     for (var i = 1; i <= count; i += 1) {
       var sheet = null;
       try { sheet = sheets.Item(i); } catch (err) { continue; }
@@ -3350,16 +3419,114 @@
       var startCol = Number(used.Column) || 1;
       for (var r = 0; r < grid.length; r += 1) {
         for (var c = 0; c < grid[r].length; c += 1) {
-          if (String(cellText(grid, r, c)) === needle) {
-            var address = sheet.Cells(startRow + r, startCol + c).Address;
+          if (String(cellText(grid, r, c)).trim() !== needle) continue;
+          var address = sheet.Cells(startRow + r, startCol + c).Address;
+          var targetHit = false;
+          if (wanted) {
+            for (var tc = 0; tc < grid[r].length; tc += 1) {
+              if (String(cellText(grid, r, tc)).trim() === wanted) { targetHit = true; break; }
+            }
+          }
+          if (!wanted || targetHit) {
             var ok = revealCell(sheet, address);
-            $('nasHint').textContent = ok ? ('已定位 ' + sheet.Name + '!' + address) : ('定位失败：' + sheet.Name + '!' + address);
+            $('nasHint').textContent = ok
+              ? ('已精确定位 ' + sheet.Name + '!' + address)
+              : ('定位失败：' + sheet.Name + '!' + address);
             return;
           }
+          if (!fallback) fallback = { sheet: sheet, address: address };
         }
       }
     }
+    if (fallback) {
+      var fallbackOk = revealCell(fallback.sheet, fallback.address);
+      $('nasHint').textContent = fallbackOk
+        ? ('已按原文定位 ' + fallback.sheet.Name + '!' + fallback.address + '（译文未匹配）')
+        : ('定位失败：' + fallback.sheet.Name + '!' + fallback.address);
+      return;
+    }
     $('nasHint').textContent = '当前工作簿未找到该原文。';
+  }
+
+  function startJumpWatch() {
+    if (state.nas.jumpStarted) return;
+    state.nas.jumpStarted = true;
+    jumpStreamLoop();
+  }
+
+  async function jumpStreamLoop() {
+    var failures = 0;
+    while (true) {
+      if (!state.nas.token) {
+        await new Promise(function (resolve) { window.setTimeout(resolve, 1000); });
+        continue;
+      }
+      try {
+        var controller = new AbortController();
+        state.nas.jumpAbort = controller;
+        var response = await fetch(nasURL('/api/jump/stream'), {
+          headers: nasHeaders(), cache: 'no-store', signal: controller.signal
+        });
+        if (!response.ok || !response.body || !response.body.getReader) throw new Error('stream unavailable');
+        failures = 0;
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var blocks = buffer.split('\n\n');
+          buffer = blocks.pop() || '';
+          for (var i = 0; i < blocks.length; i += 1) {
+            var line = blocks[i].split('\n').find(function (x) { return x.indexOf('data:') === 0; });
+            if (!line) continue;
+            try {
+              var data = JSON.parse(line.slice(5).trim());
+              var jumps = data.jumps || [];
+              if (jumps.length && !state.nas.jumpBusy) {
+                state.nas.jumpBusy = true;
+                await applyJump(jumps[jumps.length - 1]);
+                state.nas.jumpBusy = false;
+              }
+            } catch (err) { /* malformed event */ }
+          }
+        }
+      } catch (err) {
+        failures += 1;
+        state.nas.jumpAbort = null;
+        await new Promise(function (resolve) { window.setTimeout(resolve, failures > 2 ? 4000 : 1200); });
+        if (failures > 2) await pollJump();
+      }
+    }
+  }
+
+  async function pollJump() {
+    if (!state.nas.token || state.nas.jumpBusy) return;
+    try {
+      var data = await nasFetch('/api/jump/pending');
+      var jumps = data.jumps || [];
+      if (jumps.length) {
+        state.nas.jumpBusy = true;
+        await applyJump(jumps[jumps.length - 1]);
+      }
+    } catch (err) { /* offline or logged out */ }
+    finally { state.nas.jumpBusy = false; }
+  }
+
+  async function applyJump(j) {
+    showTab('nas');
+    state.nas.pid = j.project_id;
+    state.nas.lang = j.lang || '';
+    state.nas.q = j.source || '';
+    if (!state.nas.loaded) await nasConnect();
+    if ($('nasProject')) $('nasProject').value = String(j.project_id);
+    if ($('nasLang')) $('nasLang').value = j.lang || '';
+    await nasLoadPage(0);
+    showTab('nas');
+    nasLocate(j.source);
+    loadNasTerms(j.project_id, j.source);
+    $('nasStatus').textContent = '来自 OA：' + j.project_name + ' · ' + (j.job_name || '任务');
   }
 
   function renderNas() {
@@ -3381,10 +3548,11 @@
 
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
-    for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
+    for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
     ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
+    if (state.lastTab && state.lastTab !== name) state.prevTab = state.lastTab;
     state.lastTab = name;
     writeJSON(K.lastTab, name);
     updateTabScroll();
@@ -3448,7 +3616,13 @@
 
   function bind() {
     $('tabs').addEventListener('click', function (event) {
-      if (event.target && event.target.dataset && event.target.dataset.tab) showTab(event.target.dataset.tab);
+      var tab = event.target && event.target.closest ? event.target.closest('button[data-tab]') : null;
+      if (tab) showTab(tab.dataset.tab);
+    });
+    $('btnBack').addEventListener('click', function () {
+      var target = state.prevTab;
+      if (target && target !== state.lastTab) showTab(target);
+      else showTab('matches');
     });
     $('btnScan').addEventListener('click', scan);
     $('btnSave').addEventListener('click', function () {
@@ -3914,6 +4088,7 @@
     bootUiLanguage();
     bind();
     loadSettings();
+    startJumpWatch();
     var app = sheetApp();
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');

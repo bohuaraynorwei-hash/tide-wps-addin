@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '2';   // bump to re-show the tour after a big UI change
+  var VERSION = '3';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -29,24 +29,55 @@
     ['settings', '设置', '目标语言、列映射、项目档案与术语表导入，都集中在这一页。']
   ];
 
+  // Feature steps are attached to the tab that owns them, so the tour still
+  // follows the navigation instead of dumping every new button at the end.
+  var FEATURE_STEPS = {
+    translate: [{
+      before: 'translate',
+      target: '#btnDraftPaste',
+      place: 'left',
+      zh: '草稿右侧的「粘贴 / 清空」不依赖快捷键：WPS 会吞掉 ⌘V，点按钮照样能粘。搜索框也有同样的两个按钮。'
+    }],
+    find: [{
+      before: 'find',
+      target: '#btnRepPreview',
+      place: 'top',
+      zh: '下面的「批量替换」只改译文列：预览里不会出现原文，执行后源文一个字都不会动。'
+    }],
+    review: [{
+      before: 'review',
+      target: '#btnPunctQA',
+      place: 'top',
+      zh: '质检分三个按钮：全部、标点符号、占位符。占位符（{0}、颜色代码、换行符）只有点「占位符」时才检查。'
+    }]
+  };
+
   var STEPS = [{
     target: '.brand',
     place: 'bottom',
-    i18n: 'tour.welcome',
     zh: '欢迎使用 Tide。每个标签页都有一句自己的说明，跟着气泡走一遍就能认全。随时点右上角 ? 重看。'
-  }].concat(TAB_TIPS.map(function (row) {
-    return {
+  }];
+
+  TAB_TIPS.forEach(function (row) {
+    STEPS.push({
       before: row[0],
       target: 'button[data-tab="' + row[0] + '"]',
       place: 'bottom',
-      i18n: 'tour.' + row[0],
       zh: row[1] + '：' + row[2]
-    };
-  })).concat([{
+    });
+    (FEATURE_STEPS[row[0]] || []).forEach(function (step) { STEPS.push(step); });
+  });
+
+  STEPS.push({
+    before: 'settings',
+    target: '#btnLang',
+    place: 'bottom',
+    zh: '标题栏的地球按钮切换界面语言：中文 / Tiếng Việt / Русский / Português (Brasil)。目标语言仍在「设置」里选。'
+  });
+  STEPS.push({
     close: true,
-    i18n: 'tour.end',
     zh: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
-  }]);
+  });
 
   var layer = null;
   var bubble = null;
