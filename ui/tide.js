@@ -3180,6 +3180,32 @@
     });
   }
 
+  function nasConsoleURL() {
+    try {
+      return new URL(state.nas.base).origin + "/";
+    } catch (err) {
+      return "https://192.168.23.232:8443/";
+    }
+  }
+
+  function openNasConsole() {
+    var url = nasConsoleURL();
+    var hint = $('nasConsoleHint');
+    if (hint) hint.textContent = '正在打开：' + url;
+    try {
+      if (typeof wps !== 'undefined' && wps && wps.OAAssist && typeof wps.OAAssist.ShellExecute === 'function') {
+        wps.OAAssist.ShellExecute(url);
+        return;
+      }
+    } catch (err) { /* fall through */ }
+    try {
+      var win = window.open(url, '_blank');
+      if (!win && hint) hint.textContent = '浏览器被拦截，请手动打开：' + url;
+    } catch (err) {
+      if (hint) hint.textContent = '请手动打开：' + url;
+    }
+  }
+
   async function nasLogin() {
     state.nas.base = ($('nasUrl').value || '').trim().replace(/\/+$/, '') || state.nas.base;
     var user = ($('nasUser').value || '').trim();
@@ -3724,6 +3750,7 @@
       });
     });
     $('btnNasLogin').addEventListener('click', nasLogin);
+    $('btnNasConsole').addEventListener('click', openNasConsole);
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
