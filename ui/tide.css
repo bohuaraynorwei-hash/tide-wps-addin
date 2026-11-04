@@ -445,3 +445,15 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .tab-nas-ic{width:13px;height:13px;margin-right:4px;display:block;flex:0 0 auto}
 .nas-title{display:flex;align-items:center;gap:6px}
 .nas-mark{width:19px;height:19px;display:block;flex:0 0 auto}
+
+.nas-term-count{font:400 10px/1.3 var(--mono);color:var(--label3);margin-left:4px}
+.nas-terms{display:flex;flex-direction:column;gap:1px;max-height:190px;overflow:auto}
+.nas-term-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--hair);cursor:pointer;font-size:11px}
+.nas-term-row:last-child{border-bottom:0}
+.nas-term-row:hover .nas-term-src{color:var(--accent)}
+.nas-term-src{font-weight:600;color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+.nas-term-arrow{color:var(--label3)}
+.nas-term-tgt{flex:1;min-width:0;color:var(--label2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nas-term-badge{font:500 9px/1 var(--font);padding:3px 5px;border-radius:5px;background:rgba(0,0,0,.05);color:var(--label3);white-space:nowrap}
+.nas-term-badge.ok{background:rgba(52,199,89,.13);color:#146c2e}
+.nas-term-empty{font-size:10.5px;line-height:1.45;color:var(--label3);padding:2px 0 4px}

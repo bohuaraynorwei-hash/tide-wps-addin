@@ -47,7 +47,8 @@
     qaFindings: [],
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
-      langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false },
+      langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
+      termsCache: {}, jumpTimer: 0, jumpBusy: false },
     gridRows: [],
     projectScan: [],
     project: null,
@@ -3156,6 +3157,7 @@
     if ($('nasLoginBox')) $('nasLoginBox').hidden = logged;
     if ($('nasSession')) $('nasSession').hidden = !logged;
     if ($('nasWho')) $('nasWho').textContent = logged ? (state.nas.user || '') : '';
+    if ($('nasTermsCard')) $('nasTermsCard').hidden = !logged;
   }
 
   async function nasFetch(path) {
@@ -3177,6 +3179,47 @@
       option.textContent = labelFn ? labelFn(value) : value;
       option.selected = value === current;
       select.appendChild(option);
+    });
+  }
+
+  async function loadNasTerms(pid, source) {
+    var card = $('nasTermsCard'), list = $('nasTermList'), count = $('nasTermCount');
+    if (!card || !list) return;
+    if (!state.nas.token || !pid) { card.hidden = true; return; }
+    var terms = state.nas.termsCache[pid];
+    if (!terms) {
+      try {
+        var data = await nasFetch('/api/terms?project_id=' + encodeURIComponent(pid));
+        terms = data.terms || [];
+        state.nas.termsCache[pid] = terms;
+      } catch (err) { card.hidden = true; return; }
+    }
+    card.hidden = false;
+    var hay = String(source || '').toLowerCase();
+    var hits = hay ? terms.filter(function (t) {
+      return t.source && hay.indexOf(String(t.source).toLowerCase()) >= 0;
+    }) : terms.slice(0, 8);
+    list.textContent = '';
+    if (count) count.textContent = hay ? (hits.length + ' / ' + terms.length) : (terms.length + ' 条');
+    if (!terms.length) {
+      var empty = document.createElement('div'); empty.className = 'nas-term-empty';
+      empty.textContent = '这个项目还没有术语。'; list.appendChild(empty); return;
+    }
+    if (!hits.length) {
+      var miss = document.createElement('div'); miss.className = 'nas-term-empty';
+      miss.textContent = '当前片段未命中术语表；项目共 ' + terms.length + ' 条。'; list.appendChild(miss); return;
+    }
+    hits.slice(0, 12).forEach(function (t) {
+      var row = document.createElement('div'); row.className = 'nas-term-row';
+      var src = document.createElement('span'); src.className = 'nas-term-src'; src.textContent = t.source || '';
+      var arrow = document.createElement('span'); arrow.className = 'nas-term-arrow'; arrow.textContent = '→';
+      var tgt = document.createElement('span'); tgt.className = 'nas-term-tgt'; tgt.textContent = t.target || '';
+      var badge = document.createElement('span'); badge.className = 'nas-term-badge' + (t.reviewed ? ' ok' : '');
+      badge.textContent = t.reviewed ? '已审' : '待审';
+      row.append(src, arrow, tgt, badge);
+      row.title = t.source + ' → ' + t.target + (t.note ? '\n' + t.note : '');
+      row.addEventListener('click', function () { nasLocate(t.source); });
+      list.appendChild(row);
     });
   }
 
@@ -3289,6 +3332,7 @@
       state.nas.total = data.filtered_total || 0;
       nasFillSelect($('nasLang'), state.nas.langs, state.nas.lang);
       renderNasRows();
+      loadNasTerms(state.nas.pid, '');
     } catch (err) {
       $('nasStatus').textContent = '读取失败：' + err.message;
     }
@@ -3321,7 +3365,10 @@
       var c0 = document.createElement('td'); c0.textContent = item.source; tr.appendChild(c0);
       var c1 = document.createElement('td'); c1.textContent = item.target || ''; tr.appendChild(c1);
       var c2 = document.createElement('td'); c2.textContent = item.status; tr.appendChild(c2);
-      tr.addEventListener('click', function () { nasLocate(item.source); });
+      tr.addEventListener('click', function () {
+        nasLocate(item.source);
+        loadNasTerms(state.nas.pid, item.source);
+      });
       body.appendChild(tr);
     });
     var start = state.nas.offset + 1;
@@ -3361,6 +3408,40 @@
       }
     }
     $('nasHint').textContent = '当前工作簿未找到该原文。';
+  }
+
+  function startJumpWatch() {
+    if (state.nas.jumpTimer) return;
+    state.nas.jumpTimer = window.setInterval(pollJump, 4000);
+    pollJump();
+  }
+
+  async function pollJump() {
+    if (!state.nas.token || state.nas.jumpBusy) return;
+    try {
+      var data = await nasFetch('/api/jump/pending');
+      var jumps = data.jumps || [];
+      if (jumps.length) {
+        state.nas.jumpBusy = true;
+        await applyJump(jumps[jumps.length - 1]);
+      }
+    } catch (err) { /* offline or logged out */ }
+    finally { state.nas.jumpBusy = false; }
+  }
+
+  async function applyJump(j) {
+    showTab('nas');
+    state.nas.pid = j.project_id;
+    state.nas.lang = j.lang || '';
+    state.nas.q = j.source || '';
+    if (!state.nas.loaded) await nasConnect();
+    if ($('nasProject')) $('nasProject').value = String(j.project_id);
+    if ($('nasLang')) $('nasLang').value = j.lang || '';
+    await nasLoadPage(0);
+    showTab('nas');
+    nasLocate(j.source);
+    loadNasTerms(j.project_id, j.source);
+    $('nasStatus').textContent = '来自 OA：' + j.project_name + ' · ' + (j.job_name || '任务');
   }
 
   function renderNas() {
@@ -3922,6 +4003,7 @@
     bootUiLanguage();
     bind();
     loadSettings();
+    startJumpWatch();
     var app = sheetApp();
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
