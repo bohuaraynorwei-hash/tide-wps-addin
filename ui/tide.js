@@ -3235,10 +3235,8 @@
     }
   }
 
-  function openNasConsole() {
-    var url = nasConsoleURL();
-    var hint = $('nasConsoleHint');
-    if (hint) hint.textContent = '正在打开：' + url;
+  function openExternalURL(url, hint, label) {
+    if (hint) hint.textContent = label || ('正在打开：' + url);
     try {
       if (typeof wps !== 'undefined' && wps && wps.OAAssist && typeof wps.OAAssist.ShellExecute === 'function') {
         wps.OAAssist.ShellExecute(url);
@@ -3251,6 +3249,22 @@
     } catch (err) {
       if (hint) hint.textContent = '请手动打开：' + url;
     }
+  }
+
+  async function openNasConsole() {
+    var hint = $('nasConsoleHint');
+    if (state.nas.token) {
+      if (hint) hint.textContent = '正在验证登录…';
+      try {
+        var response = await fetch(nasURL('/api/wps/sso'), { method: 'POST', headers: nasHeaders() });
+        var data = await response.json().catch(function () { return {}; });
+        if (response.ok && data.path) {
+          openExternalURL(new URL(data.path, state.nas.base).href, hint, '已登录，正在打开 NAS 操作台…');
+          return;
+        }
+      } catch (err) { /* fall back to normal console */ }
+    }
+    openExternalURL(nasConsoleURL(), hint);
   }
 
   function renderNasServer() {
