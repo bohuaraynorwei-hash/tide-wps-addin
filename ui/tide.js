@@ -3155,7 +3155,6 @@
     if ($('nasLoginBox')) $('nasLoginBox').hidden = logged;
     if ($('nasSession')) $('nasSession').hidden = !logged;
     if ($('nasWho')) $('nasWho').textContent = logged ? (state.nas.user || '') : '';
-    if ($('nasSavedAddr')) $('nasSavedAddr').hidden = logged;
   }
 
   async function nasFetch(path) {
@@ -3206,8 +3205,14 @@
     }
   }
 
+  function renderNasServer() {
+    var el = $('nasServerLabel');
+    if (!el) return;
+    try { el.textContent = new URL(state.nas.base).host; }
+    catch (err) { el.textContent = state.nas.base; }
+  }
+
   async function nasLogin() {
-    state.nas.base = ($('nasUrl').value || '').trim().replace(/\/+$/, '') || state.nas.base;
     var user = ($('nasUser').value || '').trim();
     var pass = $('nasPass').value || '';
     if (!user || !pass) { $('nasStatus').textContent = '请输入账号和密码。'; return; }
@@ -3246,7 +3251,6 @@
   }
 
   async function nasConnect() {
-    state.nas.base = ($('nasUrl').value || '').trim().replace(/\/+$/, '') || state.nas.base;
     if (!state.nas.token) { $('nasStatus').textContent = '请先登录。'; return; }
     $('nasStatus').textContent = '连接中…';
     try {
@@ -3359,9 +3363,8 @@
   }
 
   function renderNas() {
-    if ($('nasUrl')) $('nasUrl').value = state.nas.base;
+    renderNasServer();
     renderNasAuthUI();
-    if ($('nasSavedAddr')) $('nasSavedAddr').textContent = state.nas.base ? ('已保存的 NAS 地址：' + state.nas.base) : '';
     if (!state.nas.loaded && !state.nas.token) {
       $('nasStatus').textContent = '使用 NAS 账号登录后加载项目。';
       return;
@@ -3773,8 +3776,7 @@
     if (origin && location.pathname.indexOf('/wps/') === 0) state.nas.base = origin;
     state.nas.token = '';
     if (window.NAS_CONFIG && window.NAS_CONFIG.base) state.nas.base = window.NAS_CONFIG.base;
-    if ($('nasUrl')) $('nasUrl').value = state.nas.base;
-    if ($('nasSavedAddr')) $('nasSavedAddr').textContent = state.nas.base ? ('已保存的 NAS 地址：' + state.nas.base) : '';
+    renderNasServer();
     if ($('nasPass')) $('nasPass').value = '';
     var savedAuth = readNasAuth();
     if (savedAuth) {
