@@ -3742,7 +3742,8 @@
   function loadSettings() {
     var saved = readJSON(K.settings, null);
     var origin = (location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '';
-    if (origin) state.nas.base = origin;
+    // NAS-hosted pane lives under /wps/; GitHub-hosted panes must keep the LAN address.
+    if (origin && location.pathname.indexOf('/wps/') === 0) state.nas.base = origin;
     state.nas.token = '';
     if (window.NAS_CONFIG && window.NAS_CONFIG.base) state.nas.base = window.NAS_CONFIG.base;
     if ($('nasUrl')) $('nasUrl').value = state.nas.base;
