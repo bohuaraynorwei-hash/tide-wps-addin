@@ -48,7 +48,7 @@
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
-      termsCache: {}, jumpTimer: 0, jumpBusy: false },
+      termsCache: {}, jumpStarted: false, jumpBusy: false },
     gridRows: [],
     projectScan: [],
     project: null,
@@ -3411,9 +3411,53 @@
   }
 
   function startJumpWatch() {
-    if (state.nas.jumpTimer) return;
-    state.nas.jumpTimer = window.setInterval(pollJump, 4000);
-    pollJump();
+    if (state.nas.jumpStarted) return;
+    state.nas.jumpStarted = true;
+    jumpStreamLoop();
+  }
+
+  async function jumpStreamLoop() {
+    var failures = 0;
+    while (true) {
+      if (!state.nas.token) {
+        await new Promise(function (resolve) { window.setTimeout(resolve, 1000); });
+        continue;
+      }
+      try {
+        var response = await fetch(nasURL('/api/jump/stream'), {
+          headers: nasHeaders(), cache: 'no-store'
+        });
+        if (!response.ok || !response.body || !response.body.getReader) throw new Error('stream unavailable');
+        failures = 0;
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var blocks = buffer.split('\n\n');
+          buffer = blocks.pop() || '';
+          for (var i = 0; i < blocks.length; i += 1) {
+            var line = blocks[i].split('\n').find(function (x) { return x.indexOf('data:') === 0; });
+            if (!line) continue;
+            try {
+              var data = JSON.parse(line.slice(5).trim());
+              var jumps = data.jumps || [];
+              if (jumps.length && !state.nas.jumpBusy) {
+                state.nas.jumpBusy = true;
+                await applyJump(jumps[jumps.length - 1]);
+                state.nas.jumpBusy = false;
+              }
+            } catch (err) { /* malformed event */ }
+          }
+        }
+      } catch (err) {
+        failures += 1;
+        await new Promise(function (resolve) { window.setTimeout(resolve, failures > 2 ? 4000 : 1200); });
+        if (failures > 2) await pollJump();
+      }
+    }
   }
 
   async function pollJump() {
