@@ -3180,30 +3180,6 @@
     });
   }
 
-  function nasCertURL() {
-    try {
-      var host = new URL(state.nas.base).hostname;
-      return 'http://' + host + ':8080/trust';
-    } catch (err) {
-      return 'http://192.168.23.232:8080/trust';
-    }
-  }
-
-  function openNasCert() {
-    var url = nasCertURL();
-    var hint = $('nasCertHint');
-    if (hint) hint.textContent = url;
-    try {
-      if (typeof wps !== 'undefined' && wps && wps.OAAssist && typeof wps.OAAssist.ShellExecute === 'function') {
-        wps.OAAssist.ShellExecute(url);
-        return;
-      }
-    } catch (err) { /* fall through to window.open */ }
-    var win = null;
-    try { win = window.open(url, '_blank'); } catch (err) { win = null; }
-    if (!win && hint) hint.textContent = '请手动打开：' + url;
-  }
-
   async function nasLogin() {
     state.nas.base = ($('nasUrl').value || '').trim().replace(/\/+$/, '') || state.nas.base;
     var user = ($('nasUser').value || '').trim();
@@ -3228,9 +3204,6 @@
     } catch (err) {
       clearNasAuth();
       $('nasStatus').textContent = '登录失败：' + err.message;
-      var row = document.querySelector('.nas-cert-row');
-      if (row) row.classList.add('warn');
-      if ($('nasCertHint')) $('nasCertHint').textContent = '若提示证书错误，请点左侧“安装 NAS 证书”。';
     }
   }
 
@@ -3751,7 +3724,6 @@
       });
     });
     $('btnNasLogin').addEventListener('click', nasLogin);
-    $('btnNasCert').addEventListener('click', openNasCert);
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
