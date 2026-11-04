@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611031120">
+  <link rel="stylesheet" href="tide.css?v=202611041500">
 </head>
 <body>
   <header class="bar">
@@ -45,6 +45,7 @@
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">网格</button>
     <button data-tab="project">项目</button>
+    <button data-tab="nas">NAS</button>
     <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
@@ -417,6 +418,57 @@
       <div class="status" id="syncStatus"></div>
     </section>
 
+    <section id="panel-nas" hidden>
+      <div class="nas-head">
+        <div>
+          <div class="nas-title">NAS 数据</div>
+          <div class="nas-sub">项目 · 术语 · 翻译记忆</div>
+        </div>
+        <span class="nas-build" id="nasBuild">构建 202611041600</span>
+      </div>
+      <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
+      <button class="act nas-console" id="btnNasConsole">
+        <span>打开 NAS 操作台</span><span class="nas-console-arrow" aria-hidden="true">→</span>
+      </button>
+      <div class="hint" id="nasConsoleHint">在系统浏览器中打开管理平台</div>
+      <div id="nasLoginBox" class="nas-authcard">
+        <div class="nas-section-title">登录 NAS</div>
+        <div class="field">
+          <label>NAS 账号</label>
+          <input id="nasUser" placeholder="账号">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input id="nasPass" type="password" placeholder="密码">
+        </div>
+        <button class="act nas-login" id="btnNasLogin">登录并连接</button>
+        <div class="count" id="nasStatus"></div>
+      </div>
+      <div id="nasSession" class="nas-authcard" hidden>
+        <div class="field">
+          <label>已登录账号</label>
+          <div class="nas-account" id="nasWho">—</div>
+        </div>
+        <button class="act ghost nas-logout" id="btnNasLogout">退出登录</button>
+        <div class="hint" id="nasSessionHint">登录状态已保存在本设备，下次打开无需再次输入密码。</div>
+      </div>
+      <div class="colrow">
+        <div class="colfield"><label>项目</label><select id="nasProject" class="mini"></select></div>
+        <div class="colfield"><label>语言</label><select id="nasLang" class="mini"></select></div>
+      </div>
+      <div class="field"><input id="nasQuery" type="search" placeholder="搜索原文或译文"></div>
+      <table id="nasTable" hidden>
+        <thead><tr><th>原文</th><th>译文</th><th>状态</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="toolbar">
+        <button class="act ghost" id="btnNasPrev">上一页</button>
+        <span class="count" id="nasPage"></span>
+        <button class="act ghost" id="btnNasNext">下一页</button>
+      </div>
+      <div class="hint" id="nasHint">点击任意行，在 WPS 表格中定位该原文。</div>
+    </section>
+
     <section id="panel-settings" hidden>
       <div class="field">
         <label id="uiLangLabel">界面语言</label>
@@ -498,8 +550,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611031120"></script>
-  <script src="tide.js?b=202611031120"></script>
-  <script src="onboarding.js?b=202611031120"></script>
+  <script src="i18n.js?b=202611041410"></script>
+  <script src="nas-config.js?v=202611041500"></script>
+  <script src="tide.js?v=202611041500"></script>
+  <script src="onboarding.js?b=202611041410"></script>
 </body>
 </html>

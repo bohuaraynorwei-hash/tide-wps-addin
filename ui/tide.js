@@ -16,7 +16,9 @@
     lastTab: 'tide.lastTab',
     profiles: 'tide.profiles',
     repo: 'tide.syncRepo',
-    branch: 'tide.syncBranch'
+    branch: 'tide.syncBranch',
+    nas: 'tide.nas',
+    nasAuth: 'tide.nas.auth'
   };
   var HISTORY_LIMIT = 3000;
   var HELPER = 'http://127.0.0.1:8765';
@@ -43,6 +45,8 @@
     tm: [],
     qaFindings: [],
     qaMode: '全部检查',
+    nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
+      langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false },
     gridRows: [],
     projectScan: [],
     project: null,
@@ -3113,10 +3117,272 @@
     if ($('docName')) $('docName').textContent = result.sheetName || '当前工作簿';
   }
 
+  function nasHeaders() {
+    return { 'Authorization': 'Bearer ' + state.nas.token };
+  }
+
+  function nasURL(path) {
+    return state.nas.base.replace(/\/+$/, '') + path;
+  }
+
+  function readNasAuth() {
+    try {
+      var raw = localStorage.getItem(K.nasAuth);
+      if (!raw) return null;
+      var auth = JSON.parse(raw);
+      return auth && auth.token ? auth : null;
+    } catch (err) { return null; }
+  }
+
+  function saveNasAuth() {
+    try {
+      localStorage.setItem(K.nasAuth, JSON.stringify({ token: state.nas.token, username: state.nas.user }));
+    } catch (err) { /* storage may be unavailable */ }
+  }
+
+  function clearNasAuth() {
+    state.nas.token = '';
+    state.nas.user = '';
+    state.nas.loaded = false;
+    state.nas.projects = [];
+    state.nas.items = [];
+    try { localStorage.removeItem(K.nasAuth); } catch (err) { /* ignore */ }
+    renderNasAuthUI();
+  }
+
+  function renderNasAuthUI() {
+    var logged = !!state.nas.token;
+    if ($('nasLoginBox')) $('nasLoginBox').hidden = logged;
+    if ($('nasSession')) $('nasSession').hidden = !logged;
+    if ($('nasWho')) $('nasWho').textContent = logged ? (state.nas.user || '') : '';
+  }
+
+  async function nasFetch(path) {
+    var response = await fetch(nasURL(path), { headers: nasHeaders() });
+    var data = await response.json().catch(function () { return {}; });
+    if (response.status === 401) {
+      clearNasAuth();
+      throw new Error('登录已失效，请重新登录');
+    }
+    if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+    return data;
+  }
+
+  function nasFillSelect(select, values, current, labelFn) {
+    select.textContent = '';
+    values.forEach(function (value) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = labelFn ? labelFn(value) : value;
+      option.selected = value === current;
+      select.appendChild(option);
+    });
+  }
+
+  function nasConsoleURL() {
+    try {
+      return new URL(state.nas.base).origin + "/";
+    } catch (err) {
+      return "https://192.168.23.232:8443/";
+    }
+  }
+
+  function openNasConsole() {
+    var url = nasConsoleURL();
+    var hint = $('nasConsoleHint');
+    if (hint) hint.textContent = '正在打开：' + url;
+    try {
+      if (typeof wps !== 'undefined' && wps && wps.OAAssist && typeof wps.OAAssist.ShellExecute === 'function') {
+        wps.OAAssist.ShellExecute(url);
+        return;
+      }
+    } catch (err) { /* fall through */ }
+    try {
+      var win = window.open(url, '_blank');
+      if (!win && hint) hint.textContent = '浏览器被拦截，请手动打开：' + url;
+    } catch (err) {
+      if (hint) hint.textContent = '请手动打开：' + url;
+    }
+  }
+
+  function renderNasServer() {
+    var el = $('nasServerLabel');
+    if (!el) return;
+    try { el.textContent = new URL(state.nas.base).host; }
+    catch (err) { el.textContent = state.nas.base; }
+  }
+
+  async function nasLogin() {
+    var user = ($('nasUser').value || '').trim();
+    var pass = $('nasPass').value || '';
+    if (!user || !pass) { $('nasStatus').textContent = '请输入账号和密码。'; return; }
+    $('nasStatus').textContent = '登录中…';
+    try {
+      var response = await fetch(state.nas.base + '/api/wps/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+      state.nas.token = data.token || '';
+      state.nas.user = data.username || user;
+      saveNasAuth();
+      renderNasAuthUI();
+      $('nasPass').value = '';
+      $('nasStatus').textContent = '已登录 ' + state.nas.user;
+      await nasConnect();
+    } catch (err) {
+      clearNasAuth();
+      $('nasStatus').textContent = '登录失败：' + err.message;
+    }
+  }
+
+  function nasLogout() {
+    clearNasAuth();
+    state.nas.pid = null;
+    if ($('nasUser')) $('nasUser').value = '';
+    if ($('nasPass')) $('nasPass').value = '';
+    if ($('nasProject')) $('nasProject').textContent = '';
+    if ($('nasLang')) $('nasLang').textContent = '';
+    if ($('nasTable')) $('nasTable').hidden = true;
+    if ($('nasPage')) $('nasPage').textContent = '';
+    $('nasStatus').textContent = '已退出登录。';
+  }
+
+  async function nasConnect() {
+    if (!state.nas.token) { $('nasStatus').textContent = '请先登录。'; return; }
+    $('nasStatus').textContent = '连接中…';
+    try {
+      var data = await nasFetch('/api/projects');
+      state.nas.projects = data.projects || [];
+      nasFillSelect($('nasProject'), state.nas.projects.map(function (p) { return String(p.id); }),
+        state.nas.pid ? String(state.nas.pid) : null,
+        function (id) { var p = state.nas.projects.find(function (x) { return String(x.id) === id; }); return p ? p.name : id; });
+      if (!state.nas.projects.length) {
+        $('nasStatus').textContent = '已连接，但没有项目。';
+        return;
+      }
+      state.nas.loaded = true;
+      $('nasStatus').textContent = '已连接 · ' + state.nas.projects.length + ' 个项目';
+      var first = state.nas.projects[0];
+      $('nasProject').value = String(first.id);
+      await nasLoadProject(first.id);
+    } catch (err) {
+      state.nas.loaded = false;
+      $('nasStatus').textContent = '连接失败：' + err.message;
+    }
+  }
+
+  async function nasLoadProject(pid, lang) {
+    state.nas.pid = Number(pid);
+    state.nas.offset = 0;
+    state.nas.q = $('nasQuery') ? $('nasQuery').value.trim() : '';
+    var query = '?id=' + encodeURIComponent(pid) + '&limit=50&offset=0';
+    if (lang) query += '&lang=' + encodeURIComponent(lang);
+    try {
+      var data = await nasFetch('/api/projects/detail' + query);
+      state.nas.langs = data.langs || [];
+      state.nas.lang = data.lang;
+      state.nas.items = data.segments || [];
+      state.nas.total = data.filtered_total || 0;
+      nasFillSelect($('nasLang'), state.nas.langs, state.nas.lang);
+      renderNasRows();
+    } catch (err) {
+      $('nasStatus').textContent = '读取失败：' + err.message;
+    }
+  }
+
+  async function nasLoadPage(offset) {
+    if (!state.nas.pid) return;
+    var query = '?id=' + encodeURIComponent(state.nas.pid) + '&limit=50&offset=' + offset;
+    if (state.nas.lang) query += '&lang=' + encodeURIComponent(state.nas.lang);
+    if (state.nas.q) query += '&q=' + encodeURIComponent(state.nas.q);
+    try {
+      var data = await nasFetch('/api/projects/detail' + query);
+      state.nas.items = data.segments || [];
+      state.nas.total = data.filtered_total || 0;
+      state.nas.offset = offset;
+      renderNasRows();
+    } catch (err) {
+      $('nasStatus').textContent = '读取失败：' + err.message;
+    }
+  }
+
+  function renderNasRows() {
+    var table = $('nasTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var items = state.nas.items || [];
+    table.hidden = items.length === 0;
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      var c0 = document.createElement('td'); c0.textContent = item.source; tr.appendChild(c0);
+      var c1 = document.createElement('td'); c1.textContent = item.target || ''; tr.appendChild(c1);
+      var c2 = document.createElement('td'); c2.textContent = item.status; tr.appendChild(c2);
+      tr.addEventListener('click', function () { nasLocate(item.source); });
+      body.appendChild(tr);
+    });
+    var start = state.nas.offset + 1;
+    var end = state.nas.offset + items.length;
+    $('nasPage').textContent = items.length ? (start + '–' + end + ' / ' + state.nas.total) : ('共 ' + state.nas.total + ' 条');
+    $('btnNasPrev').disabled = state.nas.offset <= 0;
+    $('btnNasNext').disabled = state.nas.offset + 50 >= state.nas.total;
+  }
+
+  function nasLocate(text) {
+    var app = sheetApp();
+    if (!app) { $('nasHint').textContent = '未连接 WPS 工作簿。'; return; }
+    var book = app.ActiveWorkbook;
+    var sheets = book && book.Worksheets;
+    if (!sheets) { $('nasHint').textContent = '没有打开的工作簿。'; return; }
+    var count = 0;
+    try { count = sheets.Count; } catch (err) { count = 0; }
+    var needle = String(text || '');
+    for (var i = 1; i <= count; i += 1) {
+      var sheet = null;
+      try { sheet = sheets.Item(i); } catch (err) { continue; }
+      var used = null;
+      try { used = sheet.UsedRange; } catch (err2) { continue; }
+      if (!used) continue;
+      var grid = toGrid(used.Value2);
+      var startRow = Number(used.Row) || 1;
+      var startCol = Number(used.Column) || 1;
+      for (var r = 0; r < grid.length; r += 1) {
+        for (var c = 0; c < grid[r].length; c += 1) {
+          if (String(cellText(grid, r, c)) === needle) {
+            var address = sheet.Cells(startRow + r, startCol + c).Address;
+            var ok = revealCell(sheet, address);
+            $('nasHint').textContent = ok ? ('已定位 ' + sheet.Name + '!' + address) : ('定位失败：' + sheet.Name + '!' + address);
+            return;
+          }
+        }
+      }
+    }
+    $('nasHint').textContent = '当前工作簿未找到该原文。';
+  }
+
+  function renderNas() {
+    renderNasServer();
+    renderNasAuthUI();
+    if (!state.nas.loaded && !state.nas.token) {
+      $('nasStatus').textContent = '使用 NAS 账号登录后加载项目。';
+      return;
+    }
+    if (!state.nas.loaded && state.nas.token) { nasConnect(); return; }
+    if (state.nas.projects.length) {
+      nasFillSelect($('nasProject'), state.nas.projects.map(function (p) { return String(p.id); }),
+        state.nas.pid ? String(state.nas.pid) : null,
+        function (id) { var p = state.nas.projects.find(function (x) { return String(x.id) === id; }); return p ? p.name : id; });
+      nasFillSelect($('nasLang'), state.nas.langs, state.nas.lang);
+    }
+    renderNasRows();
+  }
+
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].className = buttons[i].dataset.tab === name ? 'on' : '';
-    ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     state.lastTab = name;
@@ -3138,6 +3404,7 @@
     if (name === 'project') renderProject();
     if (name === 'keys') { $('keyQuery').focus(); }
     if (name === 'sync') refreshHelper();
+    if (name === 'nas') renderNas();
   }
 
   function refreshHelper() {
@@ -3485,12 +3752,38 @@
         $('settingsStatus').textContent = '口令错误，或加密包已损坏。';
       });
     });
+    $('btnNasLogin').addEventListener('click', nasLogin);
+    $('btnNasConsole').addEventListener('click', openNasConsole);
+    $('btnNasLogout').addEventListener('click', nasLogout);
+    $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
+    $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
+    $('nasLang').addEventListener('change', function () { nasLoadProject(state.nas.pid, $('nasLang').value); });
+    $('nasQuery').addEventListener('input', function () {
+      state.nas.q = $('nasQuery').value.trim();
+      clearTimeout(state.nas.timer);
+      state.nas.timer = setTimeout(function () { nasLoadPage(0); }, 300);
+    });
+    $('btnNasPrev').addEventListener('click', function () { if (state.nas.offset > 0) nasLoadPage(Math.max(0, state.nas.offset - 50)); });
+    $('btnNasNext').addEventListener('click', function () { nasLoadPage(state.nas.offset + 50); });
     $('btnPush').addEventListener('click', pushTerms);
     $('btnPull').addEventListener('click', refreshHelper);
   }
 
   function loadSettings() {
     var saved = readJSON(K.settings, null);
+    var origin = (location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '';
+    // NAS-hosted pane lives under /wps/; GitHub-hosted panes must keep the LAN address.
+    if (origin && location.pathname.indexOf('/wps/') === 0) state.nas.base = origin;
+    state.nas.token = '';
+    if (window.NAS_CONFIG && window.NAS_CONFIG.base) state.nas.base = window.NAS_CONFIG.base;
+    renderNasServer();
+    if ($('nasPass')) $('nasPass').value = '';
+    var savedAuth = readNasAuth();
+    if (savedAuth) {
+      state.nas.token = savedAuth.token;
+      state.nas.user = savedAuth.username || '';
+    }
+    renderNasAuthUI();
     if (saved) state.settings = saved;
     if (!loadSavedTerms()) setTerms([]);
     // The saved termbase may have been parsed before settings were restored, so
