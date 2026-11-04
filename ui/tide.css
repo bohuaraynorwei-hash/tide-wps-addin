@@ -461,3 +461,7 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 
 #nasTable tbody tr{cursor:pointer}
 #nasTable tbody tr:hover td{background:rgba(0,102,204,.055)}
+
+#gridTable tbody tr{cursor:pointer}
+#gridTable tbody tr:hover td{background:rgba(0,102,204,.045)}
+#gridTable tbody tr input.grid-cell{cursor:text}

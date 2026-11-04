@@ -1893,6 +1893,17 @@
     return true;
   }
 
+  function locateGridRow(row) {
+    var sheet = sheetByName(row.sheet);
+    if (!sheet) { $('gridHint').textContent = '未连接表格。'; return; }
+    var address = (row.targetCol || state.settings.targetCol) + row.row;
+    var ok = revealCell(sheet, address);
+    selectGridRow(row.row);
+    $('gridHint').textContent = ok
+      ? ('已定位 ' + row.sheet + '!' + address + '（译文单元格）')
+      : ('定位失败：' + row.sheet + '!' + address);
+  }
+
   function selectGridRow(rowNumber) {
     var rows = document.querySelectorAll('#gridTable tbody tr');
     for (var i = 0; i < rows.length; i += 1) {
@@ -1961,7 +1972,12 @@
       var tdQA = textNode('td', issues ? String(issues) : '—', 'num');
       tdQA.className = issues ? 'num grid-qa' : 'num grid-qa ok';
       tr.appendChild(tdQA);
+      tr.title = '点击定位到表格中的译文单元格';
       tr.addEventListener('mousedown', function () { selectGridRow(row.row); });
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.tagName === 'INPUT') return;
+        locateGridRow(row);
+      });
       body.appendChild(tr);
     });
   }
