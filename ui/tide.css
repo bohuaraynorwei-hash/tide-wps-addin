@@ -458,3 +458,6 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .nas-term-badge{font:500 9px/1 var(--font);padding:3px 5px;border-radius:5px;background:rgba(0,0,0,.05);color:var(--label3);white-space:nowrap}
 .nas-term-badge.ok{background:rgba(52,199,89,.13);color:#146c2e}
 .nas-term-empty{font-size:10.5px;line-height:1.45;color:var(--label3);padding:2px 0 4px}
+
+#nasTable tbody tr{cursor:pointer}
+#nasTable tbody tr:hover td{background:rgba(0,102,204,.055)}

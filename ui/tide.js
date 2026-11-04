@@ -3222,7 +3222,7 @@
       badge.textContent = t.reviewed ? '已审' : '待审';
       row.append(src, arrow, tgt, badge);
       row.title = t.source + ' → ' + t.target + (t.note ? '\n' + t.note : '');
-      row.addEventListener('click', function () { nasLocate(t.source); });
+      row.addEventListener('click', function () { nasLocate(t.source, t.target); });
       list.appendChild(row);
     });
   }
@@ -3380,11 +3380,12 @@
     table.hidden = items.length === 0;
     items.forEach(function (item) {
       var tr = document.createElement('tr');
+      tr.title = '点击定位到 WPS 表格';
       var c0 = document.createElement('td'); c0.textContent = item.source; tr.appendChild(c0);
       var c1 = document.createElement('td'); c1.textContent = item.target || ''; tr.appendChild(c1);
       var c2 = document.createElement('td'); c2.textContent = item.status; tr.appendChild(c2);
       tr.addEventListener('click', function () {
-        nasLocate(item.source);
+        nasLocate(item.source, item.target);
         loadNasTerms(state.nas.pid, item.source);
       });
       body.appendChild(tr);
@@ -3396,7 +3397,7 @@
     $('btnNasNext').disabled = state.nas.offset + 50 >= state.nas.total;
   }
 
-  function nasLocate(text) {
+  function nasLocate(text, target) {
     var app = sheetApp();
     if (!app) { $('nasHint').textContent = '未连接 WPS 工作簿。'; return; }
     var book = app.ActiveWorkbook;
@@ -3404,7 +3405,9 @@
     if (!sheets) { $('nasHint').textContent = '没有打开的工作簿。'; return; }
     var count = 0;
     try { count = sheets.Count; } catch (err) { count = 0; }
-    var needle = String(text || '');
+    var needle = String(text || '').trim();
+    var wanted = String(target || '').trim();
+    var fallback = null;
     for (var i = 1; i <= count; i += 1) {
       var sheet = null;
       try { sheet = sheets.Item(i); } catch (err) { continue; }
@@ -3416,14 +3419,31 @@
       var startCol = Number(used.Column) || 1;
       for (var r = 0; r < grid.length; r += 1) {
         for (var c = 0; c < grid[r].length; c += 1) {
-          if (String(cellText(grid, r, c)) === needle) {
-            var address = sheet.Cells(startRow + r, startCol + c).Address;
+          if (String(cellText(grid, r, c)).trim() !== needle) continue;
+          var address = sheet.Cells(startRow + r, startCol + c).Address;
+          var targetHit = false;
+          if (wanted) {
+            for (var tc = 0; tc < grid[r].length; tc += 1) {
+              if (String(cellText(grid, r, tc)).trim() === wanted) { targetHit = true; break; }
+            }
+          }
+          if (!wanted || targetHit) {
             var ok = revealCell(sheet, address);
-            $('nasHint').textContent = ok ? ('已定位 ' + sheet.Name + '!' + address) : ('定位失败：' + sheet.Name + '!' + address);
+            $('nasHint').textContent = ok
+              ? ('已精确定位 ' + sheet.Name + '!' + address)
+              : ('定位失败：' + sheet.Name + '!' + address);
             return;
           }
+          if (!fallback) fallback = { sheet: sheet, address: address };
         }
       }
+    }
+    if (fallback) {
+      var fallbackOk = revealCell(fallback.sheet, fallback.address);
+      $('nasHint').textContent = fallbackOk
+        ? ('已按原文定位 ' + fallback.sheet.Name + '!' + fallback.address + '（译文未匹配）')
+        : ('定位失败：' + fallback.sheet.Name + '!' + fallback.address);
+      return;
     }
     $('nasHint').textContent = '当前工作簿未找到该原文。';
   }
