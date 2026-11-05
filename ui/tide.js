@@ -3429,10 +3429,14 @@
     var tasks = state.nas.tasks || [];
     if (count) count.textContent = tasks.length ? (tasks.length + ' 个任务') : '';
     if (empty) { empty.hidden = tasks.length > 0; empty.textContent = '暂无分配给你的任务。'; }
+    var statusText = { new: '待译', draft: '草稿', translated: '已译', reviewed: '已审' };
     tasks.forEach(function (task) {
-      var card = document.createElement('button');
-      card.type = 'button';
+      var card = document.createElement('div');
       card.className = 'wps-task-card';
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      var head = document.createElement('div');
+      head.className = 'wps-task-head';
       var main = document.createElement('div');
       main.className = 'wps-task-main';
       var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = task.name || '未命名任务';
@@ -3454,15 +3458,37 @@
       bottom.append(bar, pct); main.append(bottom);
       var locate = document.createElement('span'); locate.className = 'wps-task-locate';
       locate.textContent = task.segment ? '定位' : '已完成';
-      card.append(main, locate);
+      head.append(main, locate);
+      card.append(head);
+      var items = task.items || [];
+      if (items.length) {
+        var itemBox = document.createElement('div'); itemBox.className = 'wps-task-items';
+        var itemHead = document.createElement('div'); itemHead.className = 'wps-task-items-head';
+        itemHead.textContent = '条目 ' + items.length + (task.items_total > items.length ? ' / ' + task.items_total : '');
+        itemBox.append(itemHead);
+        items.forEach(function (seg) {
+          var row = document.createElement('button'); row.type = 'button'; row.className = 'wps-task-item';
+          var s1 = document.createElement('span'); s1.className = 'wps-task-item-src'; s1.textContent = seg.source || '';
+          var s2 = document.createElement('span'); s2.className = 'wps-task-item-tgt';
+          s2.textContent = (seg.target || '未翻译') + ' · ' + (statusText[seg.status] || seg.status || '');
+          row.append(s1, s2);
+          row.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task, seg); });
+          itemBox.append(row);
+        });
+        card.append(itemBox);
+      }
       card.addEventListener('click', function () { openNasTask(task); });
+      card.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openNasTask(task); }
+      });
       list.append(card);
     });
   }
 
-  async function openNasTask(task) {
+  async function openNasTask(task, segment) {
     var hint = $('taskHint');
-    if (!task || !task.segment) {
+    var targetSeg = segment || (task && task.segment);
+    if (!task || !targetSeg) {
       if (hint) hint.textContent = '这个任务已经全部完成。';
       return;
     }
@@ -3471,7 +3497,7 @@
       if (task.project_id !== state.nas.pid || task.lang !== state.nas.lang) {
         await nasLoadProject(task.project_id, task.lang);
       }
-      var located = nasLocate(task.segment.source, task.segment.target);
+      var located = nasLocate(targetSeg.source, targetSeg.target);
       if (hint) hint.textContent = located
         ? ('已定位：' + (task.name || '任务'))
         : '未在当前工作簿中找到对应原文，请确认打开的是同一份表格。';
