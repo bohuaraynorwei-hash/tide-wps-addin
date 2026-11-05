@@ -48,7 +48,9 @@
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
-      termsCache: {}, tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
+      termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null,
+      tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
+    preNasTerms: null, preNasMeta: null,
     gridRows: [],
     projectScan: [],
     project: null,
@@ -763,6 +765,10 @@
     if (state.termsMeta) {
       var meta = state.termsMeta;
       var held = state.terms.length - state.matchTerms.length;
+      if (meta.projectId) {
+        el.textContent = 'NAS 项目术语表：' + (meta.source || '') + ' · ' + meta.count + ' 条 · 已同步';
+        return;
+      }
       el.textContent = '已保存导入：' + meta.count + ' 条 · ' + (meta.source || '本机') +
         (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') +
         ' · 仅存本机' + (held ? ' · ' + held + ' 条待确认' : '');
@@ -3329,6 +3335,7 @@
     if ($('nasTable')) $('nasTable').hidden = true;
     if ($('nasPage')) $('nasPage').textContent = '';
     state.nas.tasks = [];
+    clearNasTermbases();
     loadNasTasks();
     $('nasStatus').textContent = '已退出登录。';
   }
@@ -3449,6 +3456,7 @@
       var data = await nasFetch('/api/tasks');
       state.nas.tasks = data.tasks || [];
       renderNasTasks();
+      syncNasTermbases(state.nas.tasks);
       if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length ? '点击任务可定位到表格中的对应原文。' : '当前没有分配给你的任务。';
     } catch (err) {
       state.nas.tasks = [];
@@ -3609,6 +3617,138 @@
         : '未在当前工作簿中找到对应原文，请确认打开的是同一份表格。';
     } catch (err) {
       if (hint) hint.textContent = '打开任务失败：' + err.message;
+    }
+  }
+
+  function nasTermProjectsFromTasks(tasks) {
+    var seen = {}, projects = [];
+    (tasks || []).forEach(function (task) {
+      var pid = Number(task.project_id || 0);
+      if (!pid || seen[pid]) return;
+      seen[pid] = true;
+      projects.push({ id: pid, name: task.project_name || ('项目 ' + pid), lang: task.lang || '' });
+    });
+    return projects;
+  }
+
+  function renderNasTermProject() {
+    var field = $('termProjectField'), sel = $('termProject'), hint = $('termSyncState');
+    if (!field || !sel) return;
+    var projects = state.nas.assignedProjects || [];
+    if (!state.nas.token || !projects.length) {
+      field.hidden = true;
+      return;
+    }
+    field.hidden = false;
+    var current = state.nas.termProject || '';
+    sel.textContent = '';
+    projects.forEach(function (project) {
+      var base = state.nas.termbases[String(project.id)];
+      var option = document.createElement('option');
+      option.value = String(project.id);
+      option.textContent = project.name + ' · ' + (base ? base.terms.length : 0) + ' 条';
+      option.selected = String(project.id) === current;
+      sel.appendChild(option);
+    });
+    if (!current || !projects.some(function (p) { return String(p.id) === current; })) {
+      current = String(projects[0].id);
+      sel.value = current;
+    }
+    if (hint) {
+      var total = projects.reduce(function (n, p) {
+        var base = state.nas.termbases[String(p.id)];
+        return n + (base ? base.terms.length : 0);
+      }, 0);
+      hint.textContent = state.nas.termbasesLoading
+        ? '正在同步项目术语表…'
+        : ('已同步 ' + projects.length + ' 个项目 · ' + total + ' 条术语');
+    }
+  }
+
+  async function loadNasTermbase(project) {
+    var pid = String(project.id);
+    if (state.nas.termbases[pid]) return true;
+    var data = await nasFetch('/api/terms?project_id=' + encodeURIComponent(pid));
+    var rows = data.terms || [];
+    state.nas.termsCache[project.id] = rows;
+    state.nas.termbases[pid] = {
+      id: project.id,
+      name: project.name,
+      terms: rows.map(function (t) {
+        return {
+          zh: t.source || '',
+          en: t.target || '',
+          status: '',
+          lang: state.settings.targetLang || 'en',
+          note: t.note || ''
+        };
+      }).filter(function (t) { return t.zh || t.en; }),
+      loadedAt: new Date().toISOString()
+    };
+    return true;
+  }
+
+  async function syncNasTermbases(tasks) {
+    if (!state.nas.token || state.nas.termbasesLoading) return;
+    var projects = nasTermProjectsFromTasks(tasks);
+    state.nas.assignedProjects = projects;
+    if (!projects.length) {
+      renderNasTermProject();
+      return;
+    }
+    state.nas.termbasesLoading = true;
+    renderNasTermProject();
+    var failed = [];
+    await Promise.all(projects.map(function (project) {
+      return loadNasTermbase(project).catch(function () { failed.push(project.name); });
+    }));
+    state.nas.termbasesLoading = false;
+    renderNasTermProject();
+    if (failed.length && $('termSyncState')) {
+      $('termSyncState').textContent += ' · ' + failed.length + ' 个项目同步失败';
+    }
+    var preferred = state.nas.termProject;
+    if (!preferred || !projects.some(function (p) { return String(p.id) === preferred; })) {
+      try { preferred = window.localStorage.getItem('tide.nasTermProject'); } catch (err) { preferred = null; }
+    }
+    if (!preferred || !projects.some(function (p) { return String(p.id) === preferred; })) {
+      preferred = String(projects[0].id);
+    }
+    selectNasTermbase(preferred);
+  }
+
+  function selectNasTermbase(pid) {
+    var base = state.nas.termbases[String(pid)];
+    if (!base) return;
+    if (state.preNasTerms === null) {
+      state.preNasTerms = (state.terms || []).slice();
+      state.preNasMeta = state.termsMeta;
+    }
+    state.nas.termProject = String(pid);
+    try { window.localStorage.setItem('tide.nasTermProject', String(pid)); } catch (err) { /* ignore */ }
+    setTerms(base.terms, {
+      projectId: base.id,
+      source: 'NAS · ' + base.name,
+      count: base.terms.length
+    });
+    renderNasTermProject();
+    renderTermSource();
+    renderTerms();
+  }
+
+  function clearNasTermbases() {
+    state.nas.termbases = {};
+    state.nas.assignedProjects = [];
+    state.nas.termProject = null;
+    state.nas.termsCache = {};
+    var field = $('termProjectField');
+    if (field) field.hidden = true;
+    if (state.preNasTerms !== null) {
+      setTerms(state.preNasTerms, state.preNasMeta);
+      state.preNasTerms = null;
+      state.preNasMeta = null;
+      renderTermSource();
+      renderTerms();
     }
   }
 
@@ -3914,7 +4054,12 @@
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
-    if (name === 'terms') { syncTermColumns(); renderTerms(); }
+    if (name === 'terms') {
+      syncTermColumns();
+      renderNasTermProject();
+      renderTerms();
+      if (state.nas.token && !state.nas.assignedProjects.length) loadNasTasks();
+    }
     if (name === 'review') renderReview();
     if (name === 'tm') renderTM();
     if (name === 'grid') renderGrid();
@@ -4286,6 +4431,7 @@
       if ($('nasUser')) $('nasUser').focus();
     });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
+    if ($('termProject')) $('termProject').addEventListener('change', function () { selectNasTermbase(this.value); });
     $('nasLang').addEventListener('change', function () { nasLoadProject(state.nas.pid, $('nasLang').value); });
     $('nasQuery').addEventListener('input', function () {
       state.nas.q = $('nasQuery').value.trim();
@@ -4448,6 +4594,7 @@
     var app = sheetApp();
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
+    if (state.nas.token) loadNasTasks();
     renderLock();
     renderTermSource();
     loadBundled().then(function () { renderTermSource(); });

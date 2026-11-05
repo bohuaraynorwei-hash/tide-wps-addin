@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051840">
+  <link rel="stylesheet" href="tide.css?b=202611051850">
 </head>
 <body>
   <header class="bar">
@@ -48,8 +48,9 @@
 
   <nav id="tabs">
     <button data-tab="tasks">我的任务</button>
-    <button data-tab="matches" class="on">命中</button>
     <button data-tab="translate">翻译</button>
+    <button data-tab="terms">术语</button>
+    <button data-tab="matches" class="on">命中</button>
     <button data-tab="keys">Key 定位</button>
     <button data-tab="free" hidden>自由</button>
     <button data-tab="find">搜索</button>
@@ -57,7 +58,6 @@
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">表格编辑</button>
     <button data-tab="project">项目</button>
-    <button data-tab="terms">术语</button>
     <button data-tab="history">记录</button>
     <button data-tab="sync">同步</button>
     <button data-tab="settings">设置</button>
@@ -356,6 +356,11 @@
     </section>
 
     <section id="panel-terms" hidden>
+      <div class="field" id="termProjectField" hidden>
+        <label>NAS 项目术语表</label>
+        <select id="termProject" class="mini"></select>
+        <div class="hint" id="termSyncState">登录 NAS 后自动同步被指派项目的术语表。</div>
+      </div>
       <div class="field">
         <label>本页列映射</label>
         <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
@@ -453,7 +458,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051840</span>
+        <span class="nas-build" id="nasBuild">构建 202611051850</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -586,9 +591,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051840"></script>
+  <script src="i18n.js?b=202611051850"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051840"></script>
-  <script src="onboarding.js?b=202611051840"></script>
+  <script src="tide.js?b=202611051850"></script>
+  <script src="onboarding.js?b=202611051850"></script>
 </body>
 </html>
