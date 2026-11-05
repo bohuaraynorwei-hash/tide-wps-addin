@@ -2704,14 +2704,38 @@
       if (el.id === 'entryDraft') $('entryCheck').textContent = note;
       else showToast(note);
     };
-    bridge().then(function (text) {
-      paneLog('paste:bridge', { length: text ? text.length : 0 });
-      if (text) { window.__tidePasteVia = '本机通道'; insert(text); return; }
-      throw new Error('empty');
-    }).catch(function (err) {
-      paneLog('paste:bridge-failed', { message: String(err && err.message).slice(0, 80) });
-      pasteViaBrowser(el, insert);
-    });
+    var tryBridge = function () {
+      bridge().then(function (text) {
+        paneLog('paste:bridge', { length: text ? text.length : 0 });
+        if (text) { window.__tidePasteVia = '本机通道'; insert(text); return; }
+        throw new Error('empty');
+      }).catch(function (err) {
+        paneLog('paste:bridge-failed', { message: String(err && err.message).slice(0, 80) });
+        pasteViaBrowser(el, insert);
+      });
+    };
+    // Run synchronous clipboard attempts first. WPS CEF consumes the user
+    // activation when the first await/fetch yields; doing execCommand after the
+    // bridge promise is why the button appeared to do nothing.
+    var immediate = execPaste();
+    paneLog('paste:execCommand-immediate', { length: immediate ? immediate.length : 0 });
+    if (immediate) {
+      window.__tidePasteVia = 'execCommand';
+      insert(immediate);
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (text) {
+        paneLog('paste:readText-immediate', { ok: true, length: text ? text.length : 0 });
+        if (text) { window.__tidePasteVia = 'clipboard API'; insert(text); return; }
+        tryBridge();
+      }).catch(function (err) {
+        paneLog('paste:readText-immediate', { ok: false, name: err && err.name, message: String(err && err.message).slice(0, 120) });
+        tryBridge();
+      });
+      return;
+    }
+    tryBridge();
   }
 
   function pasteViaBrowser(el, insert) {
