@@ -520,13 +520,12 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .top-nas{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   display:flex;align-items:center;gap:5px;
-  border:1px solid rgba(0,0,0,.08);border-radius:9px;
+  border:0;border-radius:9px;
   background:rgba(255,255,255,.92);color:#1d1d1f;
   font:600 11.5px/1 var(--font);padding:6px 10px;cursor:pointer;
-  box-shadow:0 1px 4px rgba(0,0,0,.08);
 }
-.top-nas:hover{background:#f2f6fb;border-color:rgba(0,102,204,.28)}
-.top-nas.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 7px rgba(0,102,204,.22)}
+.top-nas:hover{background:#f2f6fb}
+.top-nas.on{background:var(--accent);color:#fff}
 .top-nas-ic{width:16px;height:16px;display:block;flex:0 0 auto}
 
 @media (max-width:520px){
