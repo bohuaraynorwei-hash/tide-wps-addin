@@ -2750,7 +2750,7 @@
     if (entry) revealCell(entrySheet(entry), state.settings.sourceCol + entry.row);
   }
 
-  function writeAndNext() {
+  function writeDraft(advance) {
     if (syncActiveSheet()) {
       $('entryCheck').textContent = '工作表已切换，条目已更新；请确认后再写入。';
       return;
@@ -2770,8 +2770,12 @@
     recordWrite(entry, before, value);
     rememberPair(entry.sheet, entry.row, entry.source, value);
     recordRevision(entry.sheet, entry.row, entry.source, before, value, entry.targetCol);
-    move(1);
+    if (advance) move(1);
     $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
+  }
+
+  function writeAndNext() {
+    writeDraft(true);
   }
 
   function undoSelf() {
@@ -2918,21 +2922,19 @@
   }
 
   function locateTarget() {
-    var entry = currentEntry();
-    // Search what the translation box actually holds, not the source.
-    var text = ($('entryDraft').value || '').trim();
-    if (!text) { $('entryCheck').textContent = '译文草稿为空，没有可定位的内容。'; return; }
-    $('entryCheck').textContent = '搜索译文：' + text.slice(0, 20);
-    searchWorkbookAsync(text, 'target', function (hit) {
-      var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
-      var address = column + hit.row;
+    // Locate the translation cell belonging to the source currently shown in
+    // the source box, rather than searching the draft translation text.
+    var text = (currentSourceText() || '').trim();
+    if (!text) { $('entryCheck').textContent = '原文为空，没有可定位的译文。'; return; }
+    $('entryCheck').textContent = '按原文定位译文：' + text.slice(0, 20);
+    searchWorkbookAsync(text, 'source', function (hit) {
+      var address = state.settings.targetCol + hit.row;
       var ok = revealCell(hit.sheet, address);
-      if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
       $('entryCheck').textContent = ok
         ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
         : '定位失败：请在表格中手动跳到 ' + address;
     }, function () {
-      $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
+      $('entryCheck').textContent = '整本工作簿都没有这段原文：' + text.slice(0, 20);
     });
   }
 
@@ -4378,6 +4380,7 @@
     });
     $('btnPrevEntry').addEventListener('click', function () { move(-1); });
     $('btnNextEntry').addEventListener('click', function () { move(1); });
+    $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
     $('entrySource').addEventListener('input', markSourceDirty);
     $('btnResetSource').addEventListener('click', resetSource);

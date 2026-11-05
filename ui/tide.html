@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051850">
+  <link rel="stylesheet" href="tide.css?b=202611051860">
 </head>
 <body>
   <header class="bar">
@@ -99,7 +99,10 @@
       <div class="field">
         <div class="field-head">
           <label id="entrySourceLabel">原文（只读，来自工作表）</label>
-          <button class="act ghost mini" id="btnLocateSource">定位原文</button>
+          <span class="head-actions">
+            <button class="act ghost mini" id="btnLocate">定位译文</button>
+            <button class="act ghost mini" id="btnLocateSource">定位原文</button>
+          </span>
         </div>
         <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
                   placeholder="可直接输入或粘贴原文；默认只影响本窗口，写回需点按钮"></textarea>
@@ -112,17 +115,17 @@
       <div class="field">
         <div class="field-head">
           <label id="entryDraftLabel">译文草稿</label>
-          <span class="head-actions">
-            <button class="act ghost mini" id="btnLocate">定位译文</button>
-          </span>
         </div>
         <div class="draft-row">
-          <textarea id="entryDraft" rows="5" spellcheck="false"></textarea>
+          <textarea id="entryDraft" rows="5" spellcheck="true" lang="en"
+                    data-gramm="true" data-gramm_editor="true" data-enable-grammarly="true"></textarea>
           <div class="draft-actions">
+            <button class="act" id="btnWriteDraft" title="将草稿写入当前译文单元格">写入</button>
             <button class="act" id="btnDraftPaste" title="粘贴剪贴板内容（等同 Ctrl+V）">粘贴</button>
             <button class="act ghost" id="btnDraftClear" title="清空译文草稿">清空</button>
           </div>
         </div>
+        <div class="hint" id="grammarlyHint">Grammarly 扩展需在 WPS 中启用；此文本框已开放语法检测。</div>
       </div>
       <div class="field">
         <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
@@ -458,7 +461,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051850</span>
+        <span class="nas-build" id="nasBuild">构建 202611051860</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -591,9 +594,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051850"></script>
+  <script src="i18n.js?b=202611051860"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051850"></script>
-  <script src="onboarding.js?b=202611051850"></script>
+  <script src="tide.js?b=202611051860"></script>
+  <script src="onboarding.js?b=202611051860"></script>
 </body>
 </html>
