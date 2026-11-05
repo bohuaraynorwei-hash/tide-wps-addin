@@ -3393,6 +3393,43 @@
     }
   }
 
+  var TASK_PAGE_SIZE = 20;
+
+  async function loadTaskPage(task, page) {
+    if (!task || task._pageLoading) return;
+    task._pageLoading = true;
+    task._pageError = '';
+    renderNasTasks();
+    try {
+      var q = new URLSearchParams();
+      q.set('kind', task.kind || 'job');
+      q.set('project_id', String(task.project_id || 0));
+      q.set('job_id', String(task.job_id || 0));
+      q.set('doc', task.doc || '');
+      q.set('lang', task.lang || '');
+      q.set('offset', String((page - 1) * TASK_PAGE_SIZE));
+      q.set('limit', String(TASK_PAGE_SIZE));
+      var data = await nasFetch('/api/tasks/items?' + q.toString());
+      if (!task._pageCache) task._pageCache = {};
+      task._pageCache[page] = data.items || [];
+      if (data.total != null) task.items_total = data.total;
+    } catch (err) {
+      task._pageError = '读取条目失败：' + err.message;
+    } finally {
+      task._pageLoading = false;
+      renderNasTasks();
+    }
+  }
+
+  function goTaskPage(task, page) {
+    var total = task.items_total || (task.items ? task.items.length : 0);
+    var pages = Math.max(1, Math.ceil(total / TASK_PAGE_SIZE));
+    if (page < 1 || page > pages) return;
+    task._page = page;
+    renderNasTasks();
+    if (page > 1 && !(task._pageCache && task._pageCache[page])) loadTaskPage(task, page);
+  }
+
   async function loadNasTasks() {
     var list = $('taskList'), empty = $('taskEmpty'), count = $('taskCount'), login = $('btnTasksLogin');
     if (!list) return;
@@ -3460,12 +3497,25 @@
       locate.textContent = task.segment ? '定位' : '已完成';
       head.append(main, locate);
       card.append(head);
-      var items = task.items || [];
-      if (items.length) {
+      var totalItems = task.items_total || (task.items ? task.items.length : 0);
+      var pages = Math.max(1, Math.ceil(totalItems / TASK_PAGE_SIZE));
+      var page = Math.min(Math.max(1, task._page || 1), pages);
+      task._page = page;
+      var cached = task._pageCache && task._pageCache[page];
+      var items = cached || (page === 1 ? (task.items || []).slice(0, TASK_PAGE_SIZE) : []);
+      if (!cached && page > 1 && !task._pageLoading) {
+        loadTaskPage(task, page);
+      }
+      if (totalItems > 0) {
         var itemBox = document.createElement('div'); itemBox.className = 'wps-task-items';
         var itemHead = document.createElement('div'); itemHead.className = 'wps-task-items-head';
-        itemHead.textContent = '条目 ' + items.length + (task.items_total > items.length ? ' / ' + task.items_total : '');
+        itemHead.textContent = '条目 ' + totalItems;
         itemBox.append(itemHead);
+        if (!items.length) {
+          var loading = document.createElement('div'); loading.className = 'wps-task-item-loading';
+          loading.textContent = task._pageError || '加载中…';
+          itemBox.append(loading);
+        }
         items.forEach(function (seg) {
           var row = document.createElement('button'); row.type = 'button'; row.className = 'wps-task-item';
           var s1 = document.createElement('span'); s1.className = 'wps-task-item-src'; s1.textContent = seg.source || '';
@@ -3475,7 +3525,15 @@
           row.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task, seg); });
           itemBox.append(row);
         });
+        var pager = document.createElement('div'); pager.className = 'wps-task-pager';
+        var prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '上一页'; prev.disabled = page <= 1;
+        var indicator = document.createElement('span'); indicator.textContent = page + '/' + pages;
+        var next = document.createElement('button'); next.type = 'button'; next.textContent = '下一页'; next.disabled = page >= pages;
+        prev.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page - 1); });
+        next.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page + 1); });
+        pager.append(prev, indicator, next);
         card.append(itemBox);
+        card.append(pager);
       }
       card.addEventListener('click', function () { openNasTask(task); });
       card.addEventListener('keydown', function (ev) {
