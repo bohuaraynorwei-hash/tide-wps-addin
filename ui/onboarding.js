@@ -10,20 +10,20 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '3';   // bump to re-show the tour after a big UI change
+  var VERSION = '4';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
   var TAB_TIPS = [
+    ['tasks', '我的任务', '登录 NAS 后，这里按项目列出分配给你的任务。点条目会跳到原文，并在翻译页同步选中它；展开后可以逐条定位或提交。'],
+    ['translate', '翻译', '逐条处理的主场：「写入」只写当前译文单元格，「写入并下一条」写完后继续；原文框右侧可定位译文或原文。'],
+    ['terms', '术语', '登录后会自动同步被指派项目的全量术语表；多项目时在顶部选择项目，切换项目就切换术语库。'],
     ['matches', '命中', '扫描当前表，列出所有含术语的行。点任意一行，会跳回它所在的原文单元格。'],
-    ['translate', '翻译', '逐条处理的主场。「写入并下一条」会把旧译文自动存进 EN (old)，之后可一键回退。'],
     ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
     ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
     ['review', '审校', '修订的接受/拒绝、条目评论，以及质检与 CSV 导出都在这里。'],
-    ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率，并把当前表已有的译文合并进来。'],
+    ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率；「导出修改记忆」只导出当前文档中由插件产生的修改。'],
     ['grid', '网格', '表格式的逐条编辑，可按「未译 / 有 QA / 有修订」筛选，就地改译文。'],
-    ['project', '项目', '一眼看完整本工作簿：每张表的条目数、已译比例、复用率与问题数。'],
-    ['terms', '术语', '术语表检索与采用。只显示当前目标语言的术语，切换语言后自动换库。'],
     ['history', '记录', '加密归档与历史，可导出留档；口令只存在本机。'],
     ['sync', '同步', '术语表的拉取与推送，需要在本机运行同步 helper。'],
     ['settings', '设置', '目标语言、列映射、项目档案与术语表导入，都集中在这一页。']
@@ -34,15 +34,27 @@
   var FEATURE_STEPS = {
     translate: [{
       before: 'translate',
-      target: '#btnDraftPaste',
+      target: '#btnWriteDraft',
       place: 'left',
-      zh: '草稿右侧的「粘贴 / 清空」不依赖快捷键：WPS 会吞掉 ⌘V，点按钮照样能粘。搜索框也有同样的两个按钮。'
+      zh: '「写入」只把当前草稿写进译文单元格，不跳到下一条；需要连续处理时用下面的「写入并下一条」。'
     }],
     find: [{
       before: 'find',
       target: '#btnRepPreview',
       place: 'top',
       zh: '下面的「批量替换」只改译文列：预览里不会出现原文，执行后源文一个字都不会动。'
+    }],
+    terms: [{
+      before: 'terms',
+      target: '#termProject',
+      place: 'bottom',
+      zh: '这里选择要查看的项目术语表；切换项目会立即换库，不需要重新登录。'
+    }],
+    tm: [{
+      before: 'tm',
+      target: '#btnTmExportChanges',
+      place: 'bottom',
+      zh: '「导出修改记忆」把当前文档中由插件改过的条目导出为 TMX，换设备后可重新导入。'
     }],
     review: [{
       before: 'review',
@@ -55,7 +67,16 @@
   var STEPS = [{
     target: '.brand',
     place: 'bottom',
-    zh: '欢迎使用 Tide。每个标签页都有一句自己的说明，跟着气泡走一遍就能认全。随时点右上角 ? 重看。'
+    zh: '欢迎使用 Tide。这里把 WPS 插件和 NAS 平台串起来：登录、接任务、翻译、术语和提交都在一条流程里。随时点右上角 ? 重看。'
+  }, {
+    target: '#topNas',
+    place: 'bottom',
+    zh: '顶部 NAS 是常驻入口：随时回到登录页，或打开 NAS 操作台。账号登录状态会保存在本设备。'
+  }, {
+    before: 'nas',
+    target: '#btnNasConsole',
+    place: 'bottom',
+    zh: 'NAS 页面只保留登录和网页跳转。打开操作台后，项目、成员、术语、历史与账号管理都在 NAS 平台完成。'
   }];
 
   TAB_TIPS.forEach(function (row) {
@@ -76,7 +97,7 @@
   });
   STEPS.push({
     close: true,
-    zh: '就这些。术语表在设置里导入，记忆库支持 TMX；点右上角 ? 可以再看一次。'
+    zh: '就这些。建议顺序：先在 NAS 建项目/指派任务，再回 WPS 登录，从「我的任务」开始；术语表会自动同步。点右上角 ? 可以再看一次。'
   });
 
   var layer = null;
@@ -92,6 +113,11 @@
   }
 
   function showTab(name) {
+    if (name === 'nas') {
+      var top = document.getElementById('topNas');
+      if (top && !top.classList.contains('on')) top.click();
+      return;
+    }
     var button = document.querySelector('button[data-tab="' + name + '"]');
     if (button && !button.classList.contains('on')) button.click();
   }
