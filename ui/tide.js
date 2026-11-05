@@ -3459,6 +3459,36 @@
     }
   }
 
+  function taskKey(task) {
+    return [task.kind || 'job', task.project_id || 0, task.job_id || 0, task.doc || '', task.lang || ''].join('|');
+  }
+
+  async function submitTask(task) {
+    var hint = $('taskHint');
+    var app = sheetApp();
+    var wb = app && app.ActiveWorkbook;
+    if (!wb) { if (hint) hint.textContent = '没有打开的工作簿，无法提交。'; return; }
+    if (!state.nas.token) { if (hint) hint.textContent = '请先登录 NAS。'; return; }
+    if (hint) hint.textContent = '正在提交到 NAS…';
+    try {
+      if (task.project_id !== state.nas.pid || task.lang !== state.nas.lang) {
+        await nasLoadProject(task.project_id, task.lang);
+      }
+      var result = await syncWorkbookToNas(wb);
+      if (!result || !result.ok) {
+        if (hint) hint.textContent = '提交失败：' + ((result && result.error) || '未知错误');
+        return;
+      }
+      var doneMessage = result.changed
+        ? ('已提交，同步 ' + result.changed + ' 处修改到 NAS')
+        : '已提交，没有需要同步的修改。';
+      await loadNasTasks();
+      if (hint) hint.textContent = doneMessage;
+    } catch (err) {
+      if (hint) hint.textContent = '提交失败：' + err.message;
+    }
+  }
+
   function renderNasTasks() {
     var list = $('taskList'), empty = $('taskEmpty'), count = $('taskCount');
     if (!list) return;
@@ -3469,11 +3499,14 @@
     var statusText = { new: '待译', draft: '草稿', translated: '已译', reviewed: '已审' };
     tasks.forEach(function (task) {
       var card = document.createElement('div');
-      card.className = 'wps-task-card';
+      var key = taskKey(task);
+      var expanded = state.nas.expandedTask === key;
+      card.className = 'wps-task-card' + (expanded ? ' expanded' : '');
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       var head = document.createElement('div');
       head.className = 'wps-task-head';
+      var caret = document.createElement('span'); caret.className = 'wps-task-caret'; caret.textContent = expanded ? '▾' : '▸';
       var main = document.createElement('div');
       main.className = 'wps-task-main';
       var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = task.name || '未命名任务';
@@ -3493,53 +3526,68 @@
       var pct = document.createElement('span'); pct.className = 'wps-task-pct';
       pct.textContent = (task.done || 0) + '/' + (task.total || 0);
       bottom.append(bar, pct); main.append(bottom);
+      var actions = document.createElement('div'); actions.className = 'wps-task-actions';
       var locate = document.createElement('span'); locate.className = 'wps-task-locate';
       locate.textContent = task.segment ? '定位' : '已完成';
-      head.append(main, locate);
+      var submit = document.createElement('button'); submit.type = 'button'; submit.className = 'wps-task-submit'; submit.textContent = '提交';
+      locate.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task); });
+      submit.addEventListener('click', function (ev) { ev.stopPropagation(); submitTask(task); });
+      actions.append(submit, locate);
+      head.append(caret, main, actions);
       card.append(head);
-      var totalItems = task.items_total || (task.items ? task.items.length : 0);
-      var pages = Math.max(1, Math.ceil(totalItems / TASK_PAGE_SIZE));
-      var page = Math.min(Math.max(1, task._page || 1), pages);
-      task._page = page;
-      var cached = task._pageCache && task._pageCache[page];
-      var items = cached || (page === 1 ? (task.items || []).slice(0, TASK_PAGE_SIZE) : []);
-      if (!cached && page > 1 && !task._pageLoading) {
-        loadTaskPage(task, page);
-      }
-      if (totalItems > 0) {
-        var itemBox = document.createElement('div'); itemBox.className = 'wps-task-items';
-        var itemHead = document.createElement('div'); itemHead.className = 'wps-task-items-head';
-        itemHead.textContent = '条目 ' + totalItems;
-        itemBox.append(itemHead);
-        if (!items.length) {
-          var loading = document.createElement('div'); loading.className = 'wps-task-item-loading';
-          loading.textContent = task._pageError || '加载中…';
-          itemBox.append(loading);
+      if (expanded) {
+        var totalItems = task.items_total || (task.items ? task.items.length : 0);
+        var pages = Math.max(1, Math.ceil(totalItems / TASK_PAGE_SIZE));
+        var page = Math.min(Math.max(1, task._page || 1), pages);
+        task._page = page;
+        var cached = task._pageCache && task._pageCache[page];
+        var items = cached || (page === 1 ? (task.items || []).slice(0, TASK_PAGE_SIZE) : []);
+        if (!cached && page > 1 && !task._pageLoading) {
+          loadTaskPage(task, page);
         }
-        items.forEach(function (seg) {
-          var row = document.createElement('button'); row.type = 'button'; row.className = 'wps-task-item';
-          var s1 = document.createElement('span'); s1.className = 'wps-task-item-src'; s1.textContent = seg.source || '';
-          var s2 = document.createElement('span'); s2.className = 'wps-task-item-tgt';
-          s2.textContent = (seg.target || '未翻译') + ' · ' + (statusText[seg.status] || seg.status || '');
-          row.append(s1, s2);
-          row.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task, seg); });
-          itemBox.append(row);
-        });
-        var pager = document.createElement('div'); pager.className = 'wps-task-pager';
-        var prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '上一页'; prev.disabled = page <= 1;
-        var indicator = document.createElement('span'); indicator.textContent = page + '/' + pages;
-        var next = document.createElement('button'); next.type = 'button'; next.textContent = '下一页'; next.disabled = page >= pages;
-        prev.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page - 1); });
-        next.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page + 1); });
-        pager.append(prev, indicator, next);
-        card.append(itemBox);
-        card.append(pager);
+        if (totalItems > 0) {
+          var itemBox = document.createElement('div'); itemBox.className = 'wps-task-items';
+          var itemHead = document.createElement('div'); itemHead.className = 'wps-task-items-head';
+          itemHead.textContent = '条目 ' + totalItems;
+          itemBox.append(itemHead);
+          if (!items.length) {
+            var loading = document.createElement('div'); loading.className = 'wps-task-item-loading';
+            loading.textContent = task._pageError || '加载中…';
+            itemBox.append(loading);
+          }
+          items.forEach(function (seg) {
+            var row = document.createElement('button'); row.type = 'button'; row.className = 'wps-task-item';
+            var s1 = document.createElement('span'); s1.className = 'wps-task-item-src'; s1.textContent = seg.source || '';
+            var s2 = document.createElement('span'); s2.className = 'wps-task-item-tgt';
+            s2.textContent = (seg.target || '未翻译') + ' · ' + (statusText[seg.status] || seg.status || '');
+            row.append(s1, s2);
+            row.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task, seg); });
+            itemBox.append(row);
+          });
+          var pager = document.createElement('div'); pager.className = 'wps-task-pager';
+          var prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '上一页'; prev.disabled = page <= 1;
+          var indicator = document.createElement('span'); indicator.textContent = page + '/' + pages;
+          var next = document.createElement('button'); next.type = 'button'; next.textContent = '下一页'; next.disabled = page >= pages;
+          prev.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page - 1); });
+          next.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page + 1); });
+          pager.append(prev, indicator, next);
+          card.append(itemBox);
+          card.append(pager);
+        }
       }
-      card.addEventListener('click', function () { openNasTask(task); });
+      card.addEventListener('click', function () {
+        state.nas.expandedTask = expanded ? null : key;
+        renderNasTasks();
+      });
       card.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openNasTask(task); }
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          state.nas.expandedTask = expanded ? null : key;
+          renderNasTasks();
+        }
       });
       list.append(card);
+
     });
   }
 
@@ -3699,11 +3747,11 @@
   }
 
   async function syncWorkbookToNas(wb) {
-    if (state.nas.syncing) return;
+    if (state.nas.syncing) return { ok: false, error: '正在同步，请稍后再试' };
     var hint = $('nasSyncState');
     if (!state.nas.token || !state.nas.pid) {
       if (hint) hint.textContent = '保存已完成；未登录 NAS 或未选择项目，未同步修改。';
-      return;
+      return { ok: false, error: '未登录 NAS 或未选择项目' };
     }
     state.nas.syncing = true;
     if (hint) hint.textContent = '保存后正在同步修改…';
@@ -3712,7 +3760,7 @@
       var inspected = sheets.reduce(function (n, sh) { return n + sh.rows.length; }, 0);
       if (!inspected) {
         if (hint) hint.textContent = '保存完成：没有可同步的非空译文。';
-        return;
+        return { ok: true, changed: 0, inspected: 0 };
       }
       var data = await nasFetch('/api/wps/sync', {
         method: 'POST',
@@ -3729,8 +3777,10 @@
           ? ('已同步 ' + data.changed + ' 处修改到 NAS')
           : '保存完成：没有需要同步的修改。';
       }
+      return { ok: true, changed: data.changed || 0, inspected: inspected, data: data };
     } catch (err) {
       if (hint) hint.textContent = '保存同步失败：' + err.message;
+      return { ok: false, error: err.message };
     } finally {
       state.nas.syncing = false;
     }

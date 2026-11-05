@@ -471,7 +471,13 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .wps-task-card{display:block;width:100%;text-align:left;border:1px solid var(--hair);
   background:var(--card);border-radius:10px;padding:10px;cursor:pointer;font-family:var(--font);color:var(--label);outline:none}
 .wps-task-card:focus{border-color:var(--accent)}
-.wps-task-head{display:flex;align-items:stretch;gap:9px}
+.wps-task-head{display:flex;align-items:flex-start;gap:7px}
+.wps-task-caret{flex:0 0 9px;color:var(--label3);font:600 10px/1.5 var(--font);text-align:center;margin-top:2px}
+.wps-task-card.expanded .wps-task-caret{color:var(--accent)}
+.wps-task-actions{display:flex;flex-direction:column;gap:5px;align-items:stretch;flex:0 0 auto}
+.wps-task-submit{border:0;border-radius:6px;background:var(--accent);color:#fff;padding:5px 7px;
+  font:600 10px/1 var(--font);cursor:pointer;white-space:nowrap}
+.wps-task-submit:hover{background:var(--accent-press,#0055ad)}
 .wps-task-card:hover{border-color:var(--accent)}
 .wps-task-main{min-width:0;flex:1}
 .wps-task-name{font:600 12.5px/1.35 var(--font);color:var(--label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -482,12 +488,12 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .wps-task-bar{height:4px;border-radius:2px;background:rgba(118,118,128,.16);flex:1;overflow:hidden}
 .wps-task-bar i{display:block;height:100%;background:var(--accent);border-radius:2px}
 .wps-task-pct{font:500 9.5px/1.2 var(--mono);color:var(--label3);white-space:nowrap}
-.wps-task-locate{align-self:center;flex:0 0 auto;font:600 10px/1 var(--font);color:var(--accent);
-  background:rgba(0,102,204,.09);border-radius:6px;padding:5px 6px}
+.wps-task-locate{flex:0 0 auto;text-align:center;font:600 10px/1 var(--font);color:var(--accent);
+  background:rgba(0,102,204,.09);border-radius:6px;padding:5px 6px;cursor:pointer}
 .wps-task-empty{padding:22px 10px;text-align:center;color:var(--label3);font:400 12px/1.6 var(--font)}
 .wps-task-empty[hidden]{display:none}
 
-.wps-task-items{margin-top:8px;border-top:1px solid var(--hair);max-height:190px;overflow:auto}
+.wps-task-items{margin-top:8px;border-top:1px solid var(--hair)}
 .wps-task-items-head{font:600 9.5px/1.4 var(--font);letter-spacing:.03em;color:var(--label3);padding:6px 2px 4px}
 .wps-task-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:7px;width:100%;text-align:left;
   border:0;border-top:1px solid var(--hair);background:transparent;padding:5px 2px;cursor:pointer;
