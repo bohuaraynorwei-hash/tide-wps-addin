@@ -4497,6 +4497,15 @@
     $('btnUndoWrite').addEventListener('click', undoSelf);
     $('btnRollback').addEventListener('click', rollbackEntry);
     $('btnDraftPaste').addEventListener('click', function () { pasteWithDiagnostics($('entryDraft')); });
+    if ($('btnSourcePaste')) $('btnSourcePaste').addEventListener('click', function () { pasteWithDiagnostics($('entrySource')); });
+    if ($('btnSourceClear')) $('btnSourceClear').addEventListener('click', function () {
+      var field = $('entrySource');
+      if (!field || !field.value) return;
+      field.value = '';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      $('entryCheck').textContent = '已清空原文输入。';
+      field.focus();
+    });
     $('btnDraftClear').addEventListener('click', function () {
       var draft = $('entryDraft');
       if (!draft.value) return;
