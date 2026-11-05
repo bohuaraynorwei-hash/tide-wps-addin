@@ -3896,6 +3896,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
+    if ($('topNas')) $('topNas').classList.toggle('on', name === 'nas');
     ['tasks', 'matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
@@ -4276,6 +4277,7 @@
     });
     $('btnNasLogin').addEventListener('click', nasLogin);
     $('btnNasConsole').addEventListener('click', openNasConsole);
+    if ($('topNas')) $('topNas').addEventListener('click', function () { showTab('nas'); });
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
     if ($('btnTasksRefresh')) $('btnTasksRefresh').addEventListener('click', loadNasTasks);
