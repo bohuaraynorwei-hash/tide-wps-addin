@@ -2668,8 +2668,8 @@
     var el = target || $('entryDraft');
     // Strategy 0: same-origin clipboard bridge (works inside CEF, where the
     // clipboard API is denied). Falls through to the browser APIs elsewhere.
-    var bridge = function () {
-      return fetch('/__clipboard', { cache: 'no-store' }).then(function (res) {
+    function bridgeRequest(url) {
+      return fetch(url, { cache: 'no-store', mode: 'cors' }).then(function (res) {
         if (!res.ok) throw new Error('bridge ' + res.status);
         return res.json();
       }).then(function (data) {
@@ -2679,6 +2679,13 @@
         var bytes = new Uint8Array(raw.length);
         for (var i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
         return new TextDecoder('utf-8').decode(bytes);
+      });
+    }
+    var bridge = function () {
+      // Same-origin when the pane is served by the bridge; absolute loopback
+      // fallback when WPS loads the add-in from a local folder (file://).
+      return bridgeRequest('/__clipboard').catch(function () {
+        return bridgeRequest('http://127.0.0.1:8902/__clipboard');
       });
     };
     paneLog('paste:start', {
@@ -2697,18 +2704,14 @@
       if (el.id === 'entryDraft') $('entryCheck').textContent = note;
       else showToast(note);
     };
-    if (location.protocol === 'http:' || location.protocol === 'https:') {
-      bridge().then(function (text) {
-        paneLog('paste:bridge', { length: text ? text.length : 0 });
-        if (text) { window.__tidePasteVia = '本机通道'; insert(text); return; }
-        throw new Error('empty');
-      }).catch(function (err) {
-        paneLog('paste:bridge-failed', { message: String(err && err.message).slice(0, 80) });
-        pasteViaBrowser(el, insert);
-      });
-      return;
-    }
-    pasteViaBrowser(el, insert);
+    bridge().then(function (text) {
+      paneLog('paste:bridge', { length: text ? text.length : 0 });
+      if (text) { window.__tidePasteVia = '本机通道'; insert(text); return; }
+      throw new Error('empty');
+    }).catch(function (err) {
+      paneLog('paste:bridge-failed', { message: String(err && err.message).slice(0, 80) });
+      pasteViaBrowser(el, insert);
+    });
   }
 
   function pasteViaBrowser(el, insert) {
