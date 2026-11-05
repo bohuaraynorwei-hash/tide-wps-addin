@@ -51,6 +51,7 @@
       termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null,
       tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
     preNasTerms: null, preNasMeta: null,
+    pendingTranslateFocus: null,
     gridRows: [],
     projectScan: [],
     project: null,
@@ -2450,6 +2451,33 @@
     $('entryPos').textContent = base;
   }
 
+  function focusTranslateEntry(source, target) {
+    var wanted = String(source || '').trim();
+    if (!wanted) return false;
+    var entries = state.entries || [];
+    var first = -1;
+    for (var i = 0; i < entries.length; i += 1) {
+      if (String(entries[i].source || '').trim() !== wanted) continue;
+      if (first < 0) first = i;
+      if (target != null && String(entries[i].target || '') === String(target)) {
+        first = i;
+        break;
+      }
+    }
+    if (first < 0) return false;
+    state.cursor = first;
+    renderEntry();
+    return true;
+  }
+
+  function applyPendingTranslateFocus() {
+    var pending = state.pendingTranslateFocus;
+    if (!pending) return false;
+    var found = focusTranslateEntry(pending.source, pending.target);
+    if (found) state.pendingTranslateFocus = null;
+    return found;
+  }
+
   function renderEntry() {
     var entry = currentEntry();
     renderPosition();
@@ -3614,8 +3642,12 @@
         await nasLoadProject(task.project_id, task.lang);
       }
       var located = nasLocate(targetSeg.source, targetSeg.target);
+      if (located) {
+        state.pendingTranslateFocus = { source: targetSeg.source || '', target: targetSeg.target || '' };
+        if (state.lastTab === 'translate') applyPendingTranslateFocus();
+      }
       if (hint) hint.textContent = located
-        ? ('已定位：' + (task.name || '任务'))
+        ? ('已定位：' + (task.name || '任务') + ' · 翻译页将显示此条')
         : '未在当前工作簿中找到对应原文，请确认打开的是同一份表格。';
     } catch (err) {
       if (hint) hint.textContent = '打开任务失败：' + err.message;
@@ -4052,7 +4084,7 @@
       try { activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
     }
     if (name === 'tasks') loadNasTasks();
-    if (name === 'translate') { loadEntries(); renderEntry(); }
+    if (name === 'translate') { loadEntries(); renderEntry(); applyPendingTranslateFocus(); }
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
