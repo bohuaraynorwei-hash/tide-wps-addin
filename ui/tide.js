@@ -3180,8 +3180,10 @@
     if ($('nasTermsCard')) $('nasTermsCard').hidden = !logged;
   }
 
-  async function nasFetch(path) {
-    var response = await fetch(nasURL(path), { headers: nasHeaders() });
+  async function nasFetch(path, options) {
+    var init = options || {};
+    init.headers = Object.assign({}, nasHeaders(), init.headers || {});
+    var response = await fetch(nasURL(path), init);
     var data = await response.json().catch(function () { return {}; });
     if (response.status === 401) {
       clearNasAuth();
@@ -3462,6 +3464,110 @@
       return;
     }
     $('nasHint').textContent = '当前工作簿未找到该原文。';
+  }
+
+  function isSourceHeaderText(text) {
+    var value = String(text || '').trim();
+    return /^source(\s*text)?(\s*\(old\))?$/i.test(value) || value === '原文' || value === '源文';
+  }
+
+  function collectSheetSegments(sheet) {
+    var used;
+    try { used = sheet.UsedRange; } catch (err) { return []; }
+    if (!used) return [];
+    var grid;
+    try { grid = toGrid(used.Value2); } catch (err) { return []; }
+    if (!grid.length) return [];
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var groups = detectColumnGroups(grid, startCol);
+    if (!groups || !groups.length) {
+      var detected = detectColumns(grid, startCol);
+      groups = detected ? [detected] : [{ sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol }];
+    }
+    var rows = [];
+    groups.forEach(function (group) {
+      var srcIdx = colToNumber(group.sourceCol) - startCol;
+      var tgtIdx = colToNumber(group.targetCol) - startCol;
+      if (srcIdx < 0 || tgtIdx < 0 || srcIdx === tgtIdx) return;
+      var headerAt = -1;
+      for (var r = 0; r < Math.min(12, grid.length); r += 1) {
+        if (isSourceHeaderText(cellText(grid, r, srcIdx)) && isTargetHeader(cellText(grid, r, tgtIdx))) {
+          headerAt = r;
+          break;
+        }
+      }
+      var first = headerAt >= 0 ? headerAt + 1 : 0;
+      for (var row = first; row < grid.length; row += 1) {
+        var source = String(cellText(grid, row, srcIdx) || '').trim();
+        var target = String(cellText(grid, row, tgtIdx) || '').trim();
+        if (!source || !target) continue;
+        rows.push({ source: source, target: target });
+      }
+    });
+    return rows;
+  }
+
+  function collectWorkbookSegments(wb) {
+    var out = [];
+    var sheets = wb && wb.Worksheets;
+    var count = 0;
+    try { count = sheets ? sheets.Count : 0; } catch (err) { count = 0; }
+    for (var i = 1; i <= count; i += 1) {
+      var sheet;
+      try { sheet = sheets.Item(i); } catch (err) { continue; }
+      if (!sheet) continue;
+      var rows = collectSheetSegments(sheet);
+      if (rows.length) out.push({ name: sheet.Name, rows: rows });
+    }
+    return out;
+  }
+
+  async function syncWorkbookToNas(wb) {
+    if (state.nas.syncing) return;
+    var hint = $('nasSyncState');
+    if (!state.nas.token || !state.nas.pid) {
+      if (hint) hint.textContent = '保存已完成；未登录 NAS 或未选择项目，未同步修改。';
+      return;
+    }
+    state.nas.syncing = true;
+    if (hint) hint.textContent = '保存后正在同步修改…';
+    try {
+      var sheets = collectWorkbookSegments(wb);
+      var inspected = sheets.reduce(function (n, sh) { return n + sh.rows.length; }, 0);
+      if (!inspected) {
+        if (hint) hint.textContent = '保存完成：没有可同步的非空译文。';
+        return;
+      }
+      var data = await nasFetch('/api/wps/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: state.nas.pid,
+          lang: state.nas.lang,
+          workbook: wb && wb.Name ? wb.Name : '',
+          sheets: sheets
+        })
+      });
+      if (hint) {
+        hint.textContent = data.changed
+          ? ('已同步 ' + data.changed + ' 处修改到 NAS')
+          : '保存完成：没有需要同步的修改。';
+      }
+    } catch (err) {
+      if (hint) hint.textContent = '保存同步失败：' + err.message;
+    } finally {
+      state.nas.syncing = false;
+    }
+  }
+
+  function installSaveSync() {
+    try {
+      if (typeof wps === 'undefined' || !wps || !wps.ApiEvent || typeof wps.ApiEvent.AddApiEventListener !== 'function') return;
+      wps.ApiEvent.AddApiEventListener('WorkbookBeforeSave', function (wb) {
+        syncWorkbookToNas(wb);
+      });
+    } catch (err) { /* WPS build without the event API */ }
   }
 
   function startJumpWatch() {
@@ -4105,6 +4211,7 @@
     bind();
     loadSettings();
     startJumpWatch();
+    installSaveSync();
     var app = sheetApp();
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
