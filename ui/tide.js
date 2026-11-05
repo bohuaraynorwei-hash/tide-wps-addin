@@ -22,6 +22,7 @@
   };
   var HISTORY_LIMIT = 3000;
   var HELPER = 'http://127.0.0.1:8765';
+  var PROJECT_TAB_ENABLED = false;
 
   var state = {
     terms: [],
@@ -4068,6 +4069,7 @@
   }
 
   function showTab(name) {
+    if (name === 'project' && !PROJECT_TAB_ENABLED) name = 'matches';
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
     if ($('topNas')) $('topNas').classList.toggle('on', name === 'nas');
