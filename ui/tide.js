@@ -3540,7 +3540,7 @@
       var data = await nasFetch('/api/tasks');
       state.nas.tasks = data.tasks || [];
       renderNasTasks();
-      syncNasTermbases(state.nas.tasks);
+      syncNasTermbases();
       if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length ? '点击任务可定位到表格中的对应原文。' : '当前没有分配给你的任务。';
     } catch (err) {
       state.nas.tasks = [];
@@ -3696,6 +3696,15 @@
         await nasLoadProject(task.project_id, task.lang);
       }
       var located = nasLocate(targetSeg.source, targetSeg.target);
+      if (task.project_id) {
+        var taskPid = String(task.project_id);
+        if (!state.nas.termbases[taskPid] && state.nas.token) {
+          var project = (state.nas.projects || []).find(function (p) { return String(p.id) === taskPid; }) ||
+            { id: task.project_id, name: task.project_name || ('项目 ' + task.project_id), lang: task.lang || '' };
+          try { await loadNasTermbase(project); } catch (err) { /* keep current glossary */ }
+        }
+        if (state.nas.termbases[taskPid]) selectNasTermbase(taskPid);
+      }
       if (located) {
         state.pendingTranslateFocus = { source: targetSeg.source || '', target: targetSeg.target || '' };
         if (state.lastTab === 'translate') applyPendingTranslateFocus();
@@ -3748,7 +3757,7 @@
         return n + (base ? base.terms.length : 0);
       }, 0);
       hint.textContent = state.nas.termbasesLoading
-        ? '正在同步项目术语表…'
+        ? '正在同步全部术语表…'
         : ('已同步 ' + projects.length + ' 个项目 · ' + total + ' 条术语');
     }
   }
@@ -3776,14 +3785,24 @@
     return true;
   }
 
-  async function syncNasTermbases(tasks) {
+  async function syncNasTermbases() {
     if (!state.nas.token || state.nas.termbasesLoading) return;
-    var projects = nasTermProjectsFromTasks(tasks);
-    state.nas.assignedProjects = projects;
+    var projects = [];
+    try {
+      var data = await nasFetch('/api/projects');
+      state.nas.projects = data.projects || [];
+      projects = state.nas.projects.map(function (project) {
+        return { id: project.id, name: project.name, lang: project.target_lang || '' };
+      });
+    } catch (err) {
+      projects = (state.nas.assignedProjects || []).slice();
+    }
     if (!projects.length) {
+      state.nas.assignedProjects = [];
       renderNasTermProject();
       return;
     }
+    state.nas.assignedProjects = projects;
     state.nas.termbasesLoading = true;
     renderNasTermProject();
     var failed = [];
