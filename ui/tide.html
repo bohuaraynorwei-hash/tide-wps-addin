@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051500">
+  <link rel="stylesheet" href="tide.css?b=202611051700">
 </head>
 <body>
   <header class="bar">
@@ -39,6 +39,7 @@
   </header>
 
   <nav id="tabs">
+    <button data-tab="tasks">我的任务</button>
     <button data-tab="matches" class="on">命中</button>
     <button data-tab="translate">翻译</button>
     <button data-tab="keys">Key 定位</button>
@@ -65,6 +66,17 @@
 
   <div class="content">
   <main id="mainScroll">
+    <section id="panel-tasks" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTasksRefresh">刷新</button>
+        <span class="count" id="taskCount"></span>
+      </div>
+      <div class="hint" id="taskHint">通过 NAS 登录后，这里会列出分配给你的任务。</div>
+      <div class="wps-task-list" id="taskList"></div>
+      <div class="wps-task-empty" id="taskEmpty" hidden>暂无分配给你的任务。</div>
+      <button class="act nas-login" id="btnTasksLogin" type="button" hidden>前往 NAS 登录</button>
+    </section>
+
     <section id="panel-matches">
       <div class="toolbar">
         <button class="act" id="btnScan">扫描当前表</button>
@@ -441,7 +453,7 @@
           </div>
           <div class="nas-sub">项目 · 术语 · 翻译记忆</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051500</span>
+        <span class="nas-build" id="nasBuild">构建 202611051700</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <button class="act nas-console" id="btnNasConsole">
@@ -572,9 +584,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051500"></script>
+  <script src="i18n.js?b=202611051700"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051500"></script>
-  <script src="onboarding.js?b=202611051500"></script>
+  <script src="tide.js?b=202611051700"></script>
+  <script src="onboarding.js?b=202611051700"></script>
 </body>
 </html>

@@ -48,7 +48,7 @@
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
-      termsCache: {}, jumpStarted: false, jumpBusy: false },
+      termsCache: {}, tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
     gridRows: [],
     projectScan: [],
     project: null,
@@ -3312,6 +3312,7 @@
       $('nasPass').value = '';
       $('nasStatus').textContent = '已登录 ' + state.nas.user;
       await nasConnect();
+      loadNasTasks();
     } catch (err) {
       clearNasAuth();
       $('nasStatus').textContent = '登录失败：' + err.message;
@@ -3327,6 +3328,8 @@
     if ($('nasLang')) $('nasLang').textContent = '';
     if ($('nasTable')) $('nasTable').hidden = true;
     if ($('nasPage')) $('nasPage').textContent = '';
+    state.nas.tasks = [];
+    loadNasTasks();
     $('nasStatus').textContent = '已退出登录。';
   }
 
@@ -3387,6 +3390,91 @@
       renderNasRows();
     } catch (err) {
       $('nasStatus').textContent = '读取失败：' + err.message;
+    }
+  }
+
+  async function loadNasTasks() {
+    var list = $('taskList'), empty = $('taskEmpty'), count = $('taskCount'), login = $('btnTasksLogin');
+    if (!list) return;
+    if (!state.nas.token) {
+      state.nas.tasks = [];
+      list.textContent = '';
+      if (count) count.textContent = '';
+      if (empty) { empty.hidden = false; empty.textContent = '请先登录 NAS，登录后会显示分配给你的任务。'; }
+      if (login) login.hidden = false;
+      return;
+    }
+    if (login) login.hidden = true;
+    if (state.nas.tasksLoading) return;
+    state.nas.tasksLoading = true;
+    if ($('taskHint')) $('taskHint').textContent = '正在读取任务…';
+    try {
+      var data = await nasFetch('/api/tasks');
+      state.nas.tasks = data.tasks || [];
+      renderNasTasks();
+      if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length ? '点击任务可定位到表格中的对应原文。' : '当前没有分配给你的任务。';
+    } catch (err) {
+      state.nas.tasks = [];
+      renderNasTasks();
+      if ($('taskHint')) $('taskHint').textContent = '读取任务失败：' + err.message;
+    } finally {
+      state.nas.tasksLoading = false;
+    }
+  }
+
+  function renderNasTasks() {
+    var list = $('taskList'), empty = $('taskEmpty'), count = $('taskCount');
+    if (!list) return;
+    list.textContent = '';
+    var tasks = state.nas.tasks || [];
+    if (count) count.textContent = tasks.length ? (tasks.length + ' 个任务') : '';
+    if (empty) { empty.hidden = tasks.length > 0; empty.textContent = '暂无分配给你的任务。'; }
+    tasks.forEach(function (task) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'wps-task-card';
+      var main = document.createElement('div');
+      main.className = 'wps-task-main';
+      var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = task.name || '未命名任务';
+      var meta = document.createElement('div'); meta.className = 'wps-task-meta';
+      meta.textContent = (task.project_name || '') + ' · ' + (task.lang || '') +
+        (task.kind === 'segments' ? ' · 选中条目' : '') + (task.due ? ' · 截止 ' + task.due : '');
+      main.append(name, meta);
+      if (task.segment && task.segment.source) {
+        var src = document.createElement('div'); src.className = 'wps-task-src';
+        src.textContent = '下一段：' + task.segment.source; main.append(src);
+      }
+      var bottom = document.createElement('div'); bottom.className = 'wps-task-bottom';
+      var bar = document.createElement('div'); bar.className = 'wps-task-bar';
+      var fill = document.createElement('i');
+      fill.style.width = (task.total ? Math.round(100 * (task.done || 0) / task.total) : 0) + '%';
+      bar.append(fill);
+      var pct = document.createElement('span'); pct.className = 'wps-task-pct';
+      pct.textContent = (task.done || 0) + '/' + (task.total || 0);
+      bottom.append(bar, pct); main.append(bottom);
+      var locate = document.createElement('span'); locate.className = 'wps-task-locate';
+      locate.textContent = task.segment ? '定位' : '已完成';
+      card.append(main, locate);
+      card.addEventListener('click', function () { openNasTask(task); });
+      list.append(card);
+    });
+  }
+
+  async function openNasTask(task) {
+    var hint = $('taskHint');
+    if (!task || !task.segment) {
+      if (hint) hint.textContent = '这个任务已经全部完成。';
+      return;
+    }
+    if (hint) hint.textContent = '正在打开任务…';
+    try {
+      if (task.project_id !== state.nas.pid || task.lang !== state.nas.lang) {
+        await nasLoadProject(task.project_id, task.lang);
+      }
+      nasLocate(task.segment.source, task.segment.target);
+      if (hint) hint.textContent = '已定位：' + (task.name || '任务');
+    } catch (err) {
+      if (hint) hint.textContent = '打开任务失败：' + err.message;
     }
   }
 
@@ -3671,7 +3759,7 @@
   function showTab(name) {
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
-    ['matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['tasks', 'matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     if (state.lastTab && state.lastTab !== name) state.prevTab = state.lastTab;
@@ -3683,6 +3771,7 @@
     if (activeTab && activeTab.scrollIntoView) {
       try { activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
     }
+    if (name === 'tasks') loadNasTasks();
     if (name === 'translate') { loadEntries(); renderEntry(); }
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
@@ -4052,6 +4141,11 @@
     $('btnNasConsole').addEventListener('click', openNasConsole);
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
+    if ($('btnTasksRefresh')) $('btnTasksRefresh').addEventListener('click', loadNasTasks);
+    if ($('btnTasksLogin')) $('btnTasksLogin').addEventListener('click', function () {
+      showTab('nas');
+      if ($('nasUser')) $('nasUser').focus();
+    });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
     $('nasLang').addEventListener('change', function () { nasLoadProject(state.nas.pid, $('nasLang').value); });
     $('nasQuery').addEventListener('input', function () {

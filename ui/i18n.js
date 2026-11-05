@@ -18,7 +18,7 @@
   var DICT = {
     zh: {},
     vi: {
-      'tab.matches': 'Khớp', 'tab.translate': 'Dịch', 'tab.keys': 'Định vị Key',
+      'tab.tasks': 'Nhiệm vụ', 'tab.matches': 'Khớp', 'tab.translate': 'Dịch', 'tab.keys': 'Định vị Key',
       'tab.free': 'Tự do', 'tab.find': 'Tìm kiếm', 'tab.review': 'Duyệt', 'tab.tm': 'Bộ nhớ',
       'tab.grid': 'Bảng', 'tab.project': 'Dự án', 'tab.terms': 'Thuật ngữ',
       'tab.history': 'Lịch sử', 'tab.sync': 'Đồng bộ', 'tab.settings': 'Cài đặt',
@@ -44,7 +44,7 @@
       'tour.settings': 'Ngôn ngữ đích, ánh xạ cột, hồ sơ dự án và nhập thuật ngữ.'
     },
     ru: {
-      'tab.matches': 'Совпадения', 'tab.translate': 'Перевод', 'tab.keys': 'Поиск Key',
+      'tab.tasks': 'Задачи', 'tab.matches': 'Совпадения', 'tab.translate': 'Перевод', 'tab.keys': 'Поиск Key',
       'tab.free': 'Свободно', 'tab.find': 'Поиск', 'tab.review': 'Проверка', 'tab.tm': 'Память',
       'tab.grid': 'Сетка', 'tab.project': 'Проект', 'tab.terms': 'Термины',
       'tab.history': 'История', 'tab.sync': 'Синхронизация', 'tab.settings': 'Настройки',
@@ -107,6 +107,7 @@
     ['nav button[data-tab="find"]', 'tab.find'],
     ['nav button[data-tab="review"]', 'tab.review'],
     ['nav button[data-tab="tm"]', 'tab.tm'],
+    ['nav button[data-tab="tasks"]', 'tab.tasks'],
     ['nav button[data-tab="grid"]', 'tab.grid'],
     ['nav button[data-tab="project"]', 'tab.project'],
     ['nav button[data-tab="terms"]', 'tab.terms'],
