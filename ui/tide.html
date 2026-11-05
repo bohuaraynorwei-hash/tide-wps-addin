@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051770">
+  <link rel="stylesheet" href="tide.css?b=202611051790">
 </head>
 <body>
   <header class="bar">
@@ -449,11 +449,11 @@
               <rect x="5.2" y="6" width="13.6" height="3.7" rx="1.85" fill="#fff"/>
               <rect x="5.2" y="11" width="13.6" height="3.7" rx="1.85" fill="#fff" opacity=".72"/>
               <path d="M5 19c2.4-1.8 4.8-1.8 7.2 0s4.8 1.8 7.2 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>NAS 数据
+            </svg>NAS
           </div>
-          <div class="nas-sub">项目 · 术语 · 翻译记忆</div>
+          <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051770</span>
+        <span class="nas-build" id="nasBuild">构建 202611051790</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <button class="act nas-console" id="btnNasConsole">
@@ -480,8 +480,9 @@
         <button class="act ghost nas-logout" id="btnNasLogout">退出登录</button>
         <div class="hint" id="nasSessionHint">登录状态已保存在本设备，下次打开无需再次输入密码。</div>
       </div>
-      <div class="hint" id="nasSyncState">保存工作簿时，会自动把非空译文修改同步到当前 NAS 项目。</div>
+      <div class="hint" id="nasSyncState" hidden>保存工作簿时，会自动把非空译文修改同步到当前 NAS 项目。</div>
       <div class="count nas-status" id="nasStatus"></div>
+      <div id="nasAdvanced" hidden>
       <div class="nas-authcard" id="nasTermsCard" hidden>
         <div class="nas-section-title">术语追踪 <span class="nas-term-count" id="nasTermCount"></span></div>
         <div class="nas-terms" id="nasTermList"></div>
@@ -501,6 +502,7 @@
         <button class="act ghost" id="btnNasNext">下一页</button>
       </div>
       <div class="hint" id="nasHint">点击任意行，在 WPS 表格中定位该原文。</div>
+      </div>
     </section>
 
     <section id="panel-settings" hidden>
@@ -584,9 +586,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051770"></script>
+  <script src="i18n.js?b=202611051790"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051770"></script>
-  <script src="onboarding.js?b=202611051770"></script>
+  <script src="tide.js?b=202611051790"></script>
+  <script src="onboarding.js?b=202611051790"></script>
 </body>
 </html>

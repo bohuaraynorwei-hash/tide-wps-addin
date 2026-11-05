@@ -3347,7 +3347,7 @@
         return;
       }
       state.nas.loaded = true;
-      $('nasStatus').textContent = '已连接 · ' + state.nas.projects.length + ' 个项目';
+      $('nasStatus').textContent = '已连接';
       var first = state.nas.projects[0];
       $('nasProject').value = String(first.id);
       await nasLoadProject(first.id);
