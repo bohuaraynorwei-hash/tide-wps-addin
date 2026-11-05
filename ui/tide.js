@@ -1751,6 +1751,59 @@
     $('tmStats').textContent = '已导出 ' + state.tm.length + ' 条记忆。';
   }
 
+  function tmExportChanges() {
+    var project = state.project;
+    if (!project) {
+      loadProject().then(tmExportChanges);
+      return;
+    }
+    if (!project.segments) {
+      $('tmStats').textContent = '当前文档没有修改记忆。';
+      return;
+    }
+    var units = [];
+    var seen = {};
+    var revisions = 0;
+    Object.keys(project.segments).forEach(function (key) {
+      var record = project.segments[key] || {};
+      if (!record.revisions || !record.revisions.length) return;
+      revisions += record.revisions.length;
+      var source = String(record.source || '').trim();
+      var target = String(record.target || '').trim();
+      if (!target) {
+        for (var i = record.revisions.length - 1; i >= 0; i -= 1) {
+          if (String(record.revisions[i].after || '').trim()) {
+            target = String(record.revisions[i].after).trim();
+            break;
+          }
+        }
+      }
+      if (!source || !target) return;
+      var pair = source + '\u0000' + target;
+      if (seen[pair]) return;
+      seen[pair] = true;
+      units.push({ source: source, target: target });
+    });
+    if (!units.length) {
+      $('tmStats').textContent = '当前文档没有可导出的修改记忆。';
+      return;
+    }
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    var bookName = book && (book.Name || book.FullName) ? String(book.Name || book.FullName) : 'current';
+    var baseName = bookName.replace(/\.[^.]+$/, '');
+    var safeName = baseName.replace(/[\\/:*?"<>|]+/g, '-');
+    var locale = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en') : { tmx: 'en-US' };
+    var xml = window.TideTM.buildTmx(units, 'zh-CN', locale.tmx);
+    var blob = new Blob([xml], { type: 'application/xml' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'tide-changes-' + safeName + '.tmx';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    $('tmStats').textContent = '已导出当前文档 ' + units.length + ' 条修改记忆（' + revisions + ' 条修订）。';
+  }
+
   // ---------- QA ----------
 
   function severityLabel(sev) {
@@ -4330,6 +4383,7 @@
       if (file) tmImport(file);
     });
     $('btnTmExport').addEventListener('click', tmExport);
+    $('btnTmExportChanges').addEventListener('click', tmExportChanges);
     $('btnTmCollect').addEventListener('click', tmCollectFromSheet);
     $('btnTmAnalyze').addEventListener('click', tmAnalyze);
     $('tmQuery').addEventListener('input', function () {
