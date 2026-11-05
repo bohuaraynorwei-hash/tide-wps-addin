@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051790">
+  <link rel="stylesheet" href="tide.css?b=202611051800">
 </head>
 <body>
   <header class="bar">
@@ -442,7 +442,7 @@
 
     <section id="panel-nas" hidden>
       <div class="nas-head">
-        <div>
+        <div class="nas-head-brand">
           <div class="nas-title">
             <svg class="nas-mark" viewBox="0 0 24 24" aria-hidden="true">
               <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#2563eb"/>
@@ -453,12 +453,12 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051790</span>
+        <button class="act nas-console nas-console-top" id="btnNasConsole">
+          <span>打开操作台</span><span class="nas-console-arrow" aria-hidden="true">→</span>
+        </button>
+        <span class="nas-build" id="nasBuild">构建 202611051800</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
-      <button class="act nas-console" id="btnNasConsole">
-        <span>打开 NAS 操作台</span><span class="nas-console-arrow" aria-hidden="true">→</span>
-      </button>
       <div class="hint" id="nasConsoleHint">在系统浏览器中打开管理平台</div>
       <div id="nasLoginBox" class="nas-authcard">
         <div class="nas-section-title">登录 NAS</div>
@@ -586,9 +586,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051790"></script>
+  <script src="i18n.js?b=202611051800"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051790"></script>
-  <script src="onboarding.js?b=202611051790"></script>
+  <script src="tide.js?b=202611051800"></script>
+  <script src="onboarding.js?b=202611051800"></script>
 </body>
 </html>
