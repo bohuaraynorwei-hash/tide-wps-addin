@@ -3471,8 +3471,10 @@
       if (task.project_id !== state.nas.pid || task.lang !== state.nas.lang) {
         await nasLoadProject(task.project_id, task.lang);
       }
-      nasLocate(task.segment.source, task.segment.target);
-      if (hint) hint.textContent = '已定位：' + (task.name || '任务');
+      var located = nasLocate(task.segment.source, task.segment.target);
+      if (hint) hint.textContent = located
+        ? ('已定位：' + (task.name || '任务'))
+        : '未在当前工作簿中找到对应原文，请确认打开的是同一份表格。';
     } catch (err) {
       if (hint) hint.textContent = '打开任务失败：' + err.message;
     }
@@ -3505,10 +3507,10 @@
 
   function nasLocate(text, target) {
     var app = sheetApp();
-    if (!app) { $('nasHint').textContent = '未连接 WPS 工作簿。'; return; }
+    if (!app) { $('nasHint').textContent = '未连接 WPS 工作簿。'; return false; }
     var book = app.ActiveWorkbook;
     var sheets = book && book.Worksheets;
-    if (!sheets) { $('nasHint').textContent = '没有打开的工作簿。'; return; }
+    if (!sheets) { $('nasHint').textContent = '没有打开的工作簿。'; return false; }
     var count = 0;
     try { count = sheets.Count; } catch (err) { count = 0; }
     var needle = String(text || '').trim();
@@ -3526,7 +3528,7 @@
       for (var r = 0; r < grid.length; r += 1) {
         for (var c = 0; c < grid[r].length; c += 1) {
           if (String(cellText(grid, r, c)).trim() !== needle) continue;
-          var address = sheet.Cells(startRow + r, startCol + c).Address;
+          var address = numberToCol(startCol + c) + (startRow + r);
           var targetHit = false;
           if (wanted) {
             for (var tc = 0; tc < grid[r].length; tc += 1) {
@@ -3538,7 +3540,7 @@
             $('nasHint').textContent = ok
               ? ('已精确定位 ' + sheet.Name + '!' + address)
               : ('定位失败：' + sheet.Name + '!' + address);
-            return;
+            return ok;
           }
           if (!fallback) fallback = { sheet: sheet, address: address };
         }
@@ -3549,9 +3551,10 @@
       $('nasHint').textContent = fallbackOk
         ? ('已按原文定位 ' + fallback.sheet.Name + '!' + fallback.address + '（译文未匹配）')
         : ('定位失败：' + fallback.sheet.Name + '!' + fallback.address);
-      return;
+      return fallbackOk;
     }
     $('nasHint').textContent = '当前工作簿未找到该原文。';
+    return false;
   }
 
   function isSourceHeaderText(text) {
