@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051992">
+  <link rel="stylesheet" href="tide.css?b=202611051994">
 </head>
 <body>
   <header class="bar">
@@ -372,11 +372,16 @@
         <div class="hint" id="termSyncState">登录 NAS 后自动同步所有可访问项目的术语表。</div>
       </div>
       <div class="field" id="localTermField">
-        <label>本地术语表（离线）</label>
+        <label>离线术语来源</label>
+        <div class="toolbar" id="termSourceChoice" hidden>
+          <label class="check"><input type="radio" name="termSourceMode" value="nas"> NAS 缓存（默认）</label>
+          <label class="check"><input type="radio" name="termSourceMode" value="local"> 本地术语表</label>
+        </div>
         <div class="toolbar">
           <button class="act" id="btnImportLocalTerm">导入本地术语</button>
           <span class="count" id="localTermState">未导入本地术语</span>
         </div>
+        <div class="hint" id="nasCacheState"></div>
         <input id="localTermFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="hint" id="localTermHint">NAS 未连接时可在此导入，只保存在本机。连接 NAS 后以 NAS 项目术语表为准，本地术语表自动隐藏。</div>
       </div>
@@ -477,7 +482,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051992</span>
+        <span class="nas-build" id="nasBuild">构建 202611051994</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -610,9 +615,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051992"></script>
+  <script src="i18n.js?b=202611051994"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051992"></script>
-  <script src="onboarding.js?b=202611051992"></script>
+  <script src="tide.js?b=202611051994"></script>
+  <script src="onboarding.js?b=202611051994"></script>
 </body>
 </html>

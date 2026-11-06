@@ -18,9 +18,12 @@
     repo: 'tide.syncRepo',
     branch: 'tide.syncBranch',
     nas: 'tide.nas',
-    nasAuth: 'tide.nas.auth'
+    nasAuth: 'tide.nas.auth',
+    nasTermCache: 'tide.nas.termcache.v1',
+    termMode: 'tide.terms.mode'
   };
   var HISTORY_LIMIT = 3000;
+  var NAS_TERM_CACHE_TTL = 24 * 60 * 60 * 1000;
   var HELPER = 'http://127.0.0.1:8765';
   var PROJECT_TAB_ENABLED = false;
 
@@ -49,7 +52,7 @@
     qaMode: '全部检查',
     nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
-      termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null,
+      termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null, cacheProject: '',
       tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
     preNasTerms: null, preNasMeta: null,
     pendingTranslateFocus: null,
@@ -745,15 +748,112 @@
     });
   }
 
-  function suspendLocalTermsForNas() {
-    if (!state.nas.token) return;
+  function readNasTermCache() {
+    var cache = readJSON(K.nasTermCache, null);
+    if (!cache || typeof cache !== 'object' || !cache.projects || typeof cache.projects !== 'object') return null;
+    return cache;
+  }
+
+  function saveNasTermCache(cache) {
+    try {
+      cache.updatedAt = new Date().toISOString();
+      writeJSON(K.nasTermCache, cache);
+    } catch (err) { /* quota or disabled storage: keep the in-memory glossary */ }
+  }
+
+  function cacheEntry(pid) {
+    var cache = readNasTermCache();
+    if (!cache) return null;
+    var key = String(pid || cache.activeProject || '');
+    if (!key && Object.keys(cache.projects).length) key = Object.keys(cache.projects)[0];
+    var entry = key ? cache.projects[key] : null;
+    return entry && Array.isArray(entry.terms) ? entry : null;
+  }
+
+  function cacheIsFresh(entry) {
+    if (!entry || !entry.fetchedAt) return false;
+    var at = new Date(entry.fetchedAt).getTime();
+    return !isNaN(at) && (Date.now() - at) < NAS_TERM_CACHE_TTL;
+  }
+
+  function cacheProjectTerms(project, terms, version) {
+    var cache = readNasTermCache() || { projects: {} };
+    var key = String(project.id);
+    var now = new Date().toISOString();
+    cache.activeProject = key;
+    cache.projects[key] = {
+      id: project.id,
+      name: project.name || ('项目 ' + project.id),
+      lang: project.lang || state.settings.targetLang || 'en',
+      terms: terms || [],
+      version: Number(version || 0),
+      fetchedAt: now
+    };
+    saveNasTermCache(cache);
+  }
+
+  function currentTermMode() {
+    var mode = readJSON(K.termMode, 'nas');
+    return mode === 'local' ? 'local' : 'nas';
+  }
+
+  function captureLocalTerms() {
     if (state.preNasTerms === null) {
       state.preNasTerms = (state.terms || []).slice();
       state.preNasMeta = state.termsMeta;
     }
-    // NAS is authoritative from the moment login succeeds. Do not let a local
-    // or bundled glossary answer matches while the NAS glossary is syncing.
-    setTerms([], { projectId: "pending", source: "NAS · 连接中", count: 0 });
+  }
+
+  function applyCachedNasTerms(pid) {
+    var cache = readNasTermCache();
+    if (!cache) return false;
+    var key = String(pid || cache.activeProject || '');
+    if (!key && Object.keys(cache.projects).length) key = Object.keys(cache.projects)[0];
+    var entry = key ? cache.projects[key] : null;
+    if (!entry || !Array.isArray(entry.terms) || !entry.terms.length && !entry.name) return false;
+    state.nas.cacheProject = String(entry.id);
+    setTerms(entry.terms, {
+      projectId: entry.id,
+      source: 'NAS 缓存 · ' + (entry.name || ('项目 ' + entry.id)),
+      count: entry.terms.length,
+      cached: true,
+      cachedAt: entry.fetchedAt,
+      version: entry.version || 0
+    });
+    renderTermSource();
+    renderTerms();
+    renderLocalTermField();
+    return true;
+  }
+
+  function setTermMode(mode) {
+    if (state.nas && (state.nas.token || state.nas.termProject)) return false;
+    var next = mode === 'local' ? 'local' : 'nas';
+    writeJSON(K.termMode, next);
+    if (next === 'local') {
+      state.nas.cacheProject = '';
+      captureLocalTerms();
+      setTerms(state.preNasTerms || [], state.preNasMeta);
+      renderTermSource();
+      renderTerms();
+    } else {
+      if (!applyCachedNasTerms()) {
+        showToast('本机还没有 NAS 术语缓存');
+      }
+    }
+    renderLocalTermField();
+    return true;
+  }
+
+  function suspendLocalTermsForNas() {
+    if (!state.nas.token) return;
+    captureLocalTerms();
+    writeJSON(K.termMode, 'nas');
+    // Show the last NAS cache while the fresh glossary syncs; never fall back
+    // to the local glossary once a NAS session exists.
+    if (!applyCachedNasTerms(state.nas.termProject)) {
+      setTerms([], { projectId: "pending", source: "NAS · 连接中", count: 0 });
+    }
     renderTermSource();
     renderTerms();
     renderLocalTermField();
@@ -762,17 +862,39 @@
   function renderLocalTermField() {
     var field = $('localTermField'), status = $('localTermState');
     if (!field) return;
-    // NAS is authoritative whenever an NAS project glossary is active.
-    var nasActive = !!(state.nas && (state.nas.token || state.nas.termProject));
-    field.hidden = nasActive;
-    if (nasActive || !status) return;
-    var meta = state.termsMeta;
-    if (meta && !meta.projectId) {
-      status.textContent = (meta.count || state.terms.length) + ' 条 · 仅存本机';
-    } else if (state.bundledTerms && state.bundledTerms.length && (!state.terms || !state.terms.length)) {
-      status.textContent = '内置 ' + state.bundledTerms.length + ' 条';
+    // While NAS is connected, only the NAS project glossary is shown.
+    var nasOnline = !!(state.nas && (state.nas.token || state.nas.termProject));
+    field.hidden = nasOnline;
+    if (nasOnline || !status) return;
+    var cache = readNasTermCache();
+    var key = cache && (cache.activeProject || (Object.keys(cache.projects || {})[0] || ''));
+    var entry = key && cache ? cache.projects[key] : null;
+    var mode = currentTermMode();
+    if (!entry) mode = 'local';
+    var choice = $('termSourceChoice');
+    if (choice) {
+      choice.hidden = !entry;
+      var radios = choice.querySelectorAll('input[name="termSourceMode"]');
+      for (var i = 0; i < radios.length; i += 1) radios[i].checked = radios[i].value === mode;
+    }
+    if (mode === 'nas' && entry) {
+      status.textContent = (entry.terms || []).length + ' 条 · NAS 缓存';
+      var cacheState = $('nasCacheState');
+      if (cacheState) {
+        var fresh = cacheIsFresh(entry);
+        cacheState.textContent = 'NAS 缓存：' + (entry.name || '') +
+          (entry.fetchedAt ? ' · ' + localStamp(entry.fetchedAt) : '') +
+          (fresh ? ' · 24 小时内有效' : ' · 已超过 24 小时，登录 NAS 后自动刷新');
+      }
     } else {
-      status.textContent = state.terms && state.terms.length ? (state.terms.length + ' 条 · 当前术语') : '未导入本地术语';
+      var meta = state.termsMeta;
+      if (meta && !meta.projectId) {
+        status.textContent = (meta.count || state.terms.length) + ' 条 · 仅存本机';
+      } else {
+        status.textContent = state.terms.length ? (state.terms.length + ' 条 · 本地术语') : '未导入本地术语';
+      }
+      var cs = $('nasCacheState');
+      if (cs) cs.textContent = entry ? '本地术语表模式：不会使用 NAS 缓存。' : '还没有 NAS 缓存。';
     }
   }
 
@@ -795,9 +917,11 @@
           return term;
         });
         var meta = { source: file.name, count: terms.length, importedAt: new Date().toISOString() };
-        // A fresh local import supersedes any pre-NAS snapshot.
-        state.preNasTerms = null;
-        state.preNasMeta = null;
+        // A fresh local import is an explicit local-mode choice.
+        state.nas.cacheProject = '';
+        state.preNasTerms = terms.slice();
+        state.preNasMeta = meta;
+        writeJSON(K.termMode, 'local');
         setTerms(terms, meta);
         persistTerms(meta);
         renderTermSource();
@@ -834,7 +958,12 @@
       var meta = state.termsMeta;
       var held = state.terms.length - state.matchTerms.length;
       if (meta.projectId) {
-        el.textContent = 'NAS 项目术语表：' + (meta.source || '') + ' · ' + meta.count + ' 条 · 已同步';
+        if (meta.cached) {
+          el.textContent = (meta.source || 'NAS 缓存') + ' · ' + meta.count + ' 条' +
+            (meta.cachedAt ? ' · 缓存于 ' + localStamp(meta.cachedAt) : '');
+        } else {
+          el.textContent = 'NAS 项目术语表：' + (meta.source || '') + ' · ' + meta.count + ' 条 · 已同步';
+        }
         return;
       }
       el.textContent = '已保存导入：' + meta.count + ' 条 · ' + (meta.source || '本机') +
@@ -858,7 +987,12 @@
   function usePayload(data) {
     state.bundledTerms = window.TideEngine.parseTermbase(data.terms);
     state.bundledMeta = data.meta || { count: state.bundledTerms.length, source: 'bundled' };
-    if (!state.terms.length && !state.nas.token) setTerms(state.bundledTerms.slice());
+    if (!state.terms.length && !state.nas.token && !state.nas.cacheProject) {
+      setTerms(state.bundledTerms.slice());
+      // Keep the offline/local snapshot in sync with the built-in fallback.
+      state.preNasTerms = (state.terms || []).slice();
+      state.preNasMeta = state.termsMeta;
+    }
     renderTermSource();
     renderTerms();
     return state.bundledTerms;
@@ -3860,25 +3994,47 @@
     }
   }
 
-  async function loadNasTermbase(project) {
+  async function loadNasTermbase(project, force) {
     var pid = String(project.id);
-    if (state.nas.termbases[pid]) return true;
+    var cached = cacheEntry(pid);
+    var serverVersion = null;
+    try {
+      var v = await nasFetch('/api/terms/version?project_id=' + encodeURIComponent(pid));
+      serverVersion = Number(v.version || 0);
+    } catch (err) { /* older server or offline: fall through */ }
+    if (!force && cached && cacheIsFresh(cached) &&
+        (serverVersion === null || Number(cached.version || 0) === serverVersion)) {
+      state.nas.termsCache[project.id] = cached.terms;
+      state.nas.termbases[pid] = {
+        id: project.id,
+        name: project.name || cached.name || ('项目 ' + project.id),
+        terms: cached.terms.slice(),
+        loadedAt: cached.fetchedAt,
+        version: cached.version || 0,
+        cached: true
+      };
+      return true;
+    }
     var data = await nasFetch('/api/terms?project_id=' + encodeURIComponent(pid));
     var rows = data.terms || [];
     state.nas.termsCache[project.id] = rows;
+    var terms = rows.map(function (t) {
+      return {
+        zh: t.source || '',
+        en: t.target || '',
+        status: '',
+        lang: state.settings.targetLang || 'en',
+        note: t.note || ''
+      };
+    }).filter(function (t) { return t.zh || t.en; });
+    var version = data.version != null ? Number(data.version) : (serverVersion || 0);
+    cacheProjectTerms(project, terms, version);
     state.nas.termbases[pid] = {
       id: project.id,
       name: project.name,
-      terms: rows.map(function (t) {
-        return {
-          zh: t.source || '',
-          en: t.target || '',
-          status: '',
-          lang: state.settings.targetLang || 'en',
-          note: t.note || ''
-        };
-      }).filter(function (t) { return t.zh || t.en; }),
-      loadedAt: new Date().toISOString()
+      terms: terms,
+      loadedAt: new Date().toISOString(),
+      version: version
     };
     return true;
   }
@@ -3930,6 +4086,12 @@
       state.preNasMeta = state.termsMeta;
     }
     state.nas.termProject = String(pid);
+    var cache = readNasTermCache();
+    if (cache && cache.projects && cache.projects[String(pid)]) {
+      cache.activeProject = String(pid);
+      saveNasTermCache(cache);
+      state.nas.cacheProject = String(pid);
+    }
     try { window.localStorage.setItem('tide.nasTermProject', String(pid)); } catch (err) { /* ignore */ }
     setTerms(base.terms, {
       projectId: base.id,
@@ -3949,13 +4111,15 @@
     state.nas.termsCache = {};
     var field = $('termProjectField');
     if (field) field.hidden = true;
-    if (state.preNasTerms !== null) {
+    // Offline default: cached NAS glossary. The local glossary remains
+    // available only through the explicit source switch.
+    if (currentTermMode() === 'local' && state.preNasTerms !== null) {
       setTerms(state.preNasTerms, state.preNasMeta);
-      state.preNasTerms = null;
-      state.preNasMeta = null;
-      renderTermSource();
-      renderTerms();
+    } else if (!applyCachedNasTerms() && state.preNasTerms !== null) {
+      setTerms(state.preNasTerms, state.preNasMeta);
     }
+    renderTermSource();
+    renderTerms();
     renderLocalTermField();
   }
 
@@ -4267,6 +4431,7 @@
       renderNasTermProject();
       renderTerms();
       if (state.nas.token && !state.nas.assignedProjects.length) loadNasTasks();
+      if (state.nas.token) syncNasTermbases();
     }
     if (name === 'review') renderReview();
     if (name === 'tm') renderTM();
@@ -4417,6 +4582,10 @@
         return;
       }
       setTerms(state.bundledTerms.slice(), null);
+      state.preNasTerms = (state.terms || []).slice();
+      state.preNasMeta = null;
+      state.nas.cacheProject = '';
+      writeJSON(K.termMode, 'local');
       try {
         window.localStorage.removeItem(K.termStore);
         window.localStorage.removeItem(K.terms);
@@ -4647,6 +4816,11 @@
       var pass = $('termsPass').value;
       if (!pass) { $('settingsStatus').textContent = '请输入术语表口令。'; return; }
       decryptTerms(pass).then(function () {
+        state.preNasTerms = (state.terms || []).slice();
+        state.preNasMeta = state.termsMeta;
+        state.nas.cacheProject = '';
+        writeJSON(K.termMode, 'local');
+        renderLocalTermField();
         $('settingsStatus').textContent = '术语表已解锁：' + state.terms.length + ' 条。';
       }).catch(function () {
         $('settingsStatus').textContent = '口令错误，或加密包已损坏。';
@@ -4664,6 +4838,12 @@
     });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
     if ($('termProject')) $('termProject').addEventListener('change', function () { selectNasTermbase(this.value); });
+    var sourceRadios = document.querySelectorAll('input[name="termSourceMode"]');
+    for (var ri = 0; ri < sourceRadios.length; ri += 1) {
+      sourceRadios[ri].addEventListener('change', function () {
+        if (this.checked) setTermMode(this.value);
+      });
+    }
     $('nasLang').addEventListener('change', function () { nasLoadProject(state.nas.pid, $('nasLang').value); });
     $('nasQuery').addEventListener('input', function () {
       state.nas.q = $('nasQuery').value.trim();
@@ -4696,7 +4876,12 @@
     // The saved termbase may have been parsed before settings were restored, so
     // re-filter it against the project's language now that the settings exist.
     setTerms(state.terms, state.termsMeta);
-    if (state.nas.token) suspendLocalTermsForNas();
+    captureLocalTerms();
+    if (state.nas.token) {
+      suspendLocalTermsForNas();
+    } else if (currentTermMode() !== 'local') {
+      applyCachedNasTerms();
+    }
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
