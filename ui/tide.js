@@ -745,6 +745,20 @@
     });
   }
 
+  function suspendLocalTermsForNas() {
+    if (!state.nas.token) return;
+    if (state.preNasTerms === null) {
+      state.preNasTerms = (state.terms || []).slice();
+      state.preNasMeta = state.termsMeta;
+    }
+    // NAS is authoritative from the moment login succeeds. Do not let a local
+    // or bundled glossary answer matches while the NAS glossary is syncing.
+    setTerms([], { projectId: "pending", source: "NAS · 连接中", count: 0 });
+    renderTermSource();
+    renderTerms();
+    renderLocalTermField();
+  }
+
   function renderLocalTermField() {
     var field = $('localTermField'), status = $('localTermState');
     if (!field) return;
@@ -844,7 +858,7 @@
   function usePayload(data) {
     state.bundledTerms = window.TideEngine.parseTermbase(data.terms);
     state.bundledMeta = data.meta || { count: state.bundledTerms.length, source: 'bundled' };
-    if (!state.terms.length) setTerms(state.bundledTerms.slice());
+    if (!state.terms.length && !state.nas.token) setTerms(state.bundledTerms.slice());
     renderTermSource();
     renderTerms();
     return state.bundledTerms;
@@ -3342,6 +3356,7 @@
     }
     try { localStorage.removeItem(K.nasAuth); } catch (err) { /* ignore */ }
     renderNasAuthUI();
+    clearNasTermbases();
   }
 
   function renderNasAuthUI() {
@@ -3481,6 +3496,7 @@
       state.nas.user = data.username || user;
       saveNasAuth();
       renderNasAuthUI();
+      suspendLocalTermsForNas();
       $('nasPass').value = '';
       $('nasStatus').textContent = '已登录 ' + state.nas.user;
       await nasConnect();
@@ -4680,6 +4696,7 @@
     // The saved termbase may have been parsed before settings were restored, so
     // re-filter it against the project's language now that the settings exist.
     setTerms(state.terms, state.termsMeta);
+    if (state.nas.token) suspendLocalTermsForNas();
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
     $('colUid').value = state.settings.uidCol;
