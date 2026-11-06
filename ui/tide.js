@@ -871,11 +871,13 @@
     var entry = key && cache ? cache.projects[key] : null;
     var mode = currentTermMode();
     if (!entry) mode = 'local';
-    var choice = $('termSourceChoice');
-    if (choice) {
-      choice.hidden = !entry;
-      var radios = choice.querySelectorAll('input[name="termSourceMode"]');
-      for (var i = 0; i < radios.length; i += 1) radios[i].checked = radios[i].value === mode;
+    var sw = $('btnSwitchTermSource');
+    if (sw) {
+      sw.hidden = false;
+      sw.disabled = !entry;
+      sw.title = entry
+        ? (mode === 'nas' ? '当前：NAS 缓存；点击切换到本地术语表' : '当前：本地术语表；点击切换到 NAS 缓存')
+        : '还没有 NAS 缓存，无法切换';
     }
     if (mode === 'nas' && entry) {
       status.textContent = (entry.terms || []).length + ' 条 · NAS 缓存';
@@ -4838,10 +4840,15 @@
     });
     $('nasProject').addEventListener('change', function () { nasLoadProject($('nasProject').value); });
     if ($('termProject')) $('termProject').addEventListener('change', function () { selectNasTermbase(this.value); });
-    var sourceRadios = document.querySelectorAll('input[name="termSourceMode"]');
-    for (var ri = 0; ri < sourceRadios.length; ri += 1) {
-      sourceRadios[ri].addEventListener('change', function () {
-        if (this.checked) setTermMode(this.value);
+    if ($('btnSwitchTermSource')) {
+      $('btnSwitchTermSource').addEventListener('click', function () {
+        if (state.nas && (state.nas.token || state.nas.termProject)) {
+          showToast('NAS 已登录，术语库由 NAS 决定');
+          return;
+        }
+        var entry = cacheEntry(state.nas.cacheProject);
+        if (!entry) { showToast('还没有 NAS 缓存'); return; }
+        setTermMode(currentTermMode() === 'nas' ? 'local' : 'nas');
       });
     }
     $('nasLang').addEventListener('change', function () { nasLoadProject(state.nas.pid, $('nasLang').value); });

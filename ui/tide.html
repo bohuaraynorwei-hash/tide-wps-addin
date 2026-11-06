@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051994">
+  <link rel="stylesheet" href="tide.css?b=202611051995">
 </head>
 <body>
   <header class="bar">
@@ -373,12 +373,9 @@
       </div>
       <div class="field" id="localTermField">
         <label>离线术语来源</label>
-        <div class="toolbar" id="termSourceChoice" hidden>
-          <label class="check"><input type="radio" name="termSourceMode" value="nas"> NAS 缓存（默认）</label>
-          <label class="check"><input type="radio" name="termSourceMode" value="local"> 本地术语表</label>
-        </div>
         <div class="toolbar">
           <button class="act" id="btnImportLocalTerm">导入本地术语</button>
+          <button class="act ghost" id="btnSwitchTermSource" title="在 NAS 缓存术语表和本地术语表之间切换">切换</button>
           <span class="count" id="localTermState">未导入本地术语</span>
         </div>
         <div class="hint" id="nasCacheState"></div>
@@ -482,7 +479,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051994</span>
+        <span class="nas-build" id="nasBuild">构建 202611051995</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -615,9 +612,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051994"></script>
+  <script src="i18n.js?b=202611051995"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051994"></script>
-  <script src="onboarding.js?b=202611051994"></script>
+  <script src="tide.js?b=202611051995"></script>
+  <script src="onboarding.js?b=202611051995"></script>
 </body>
 </html>
