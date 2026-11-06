@@ -634,6 +634,7 @@
   }
 
   function renderTerms() {
+    renderLocalTermField();
     var table = $('termTable');
     if (!table) return;
     var body = table.tBodies[0];
@@ -742,6 +743,59 @@
     state.matchTerms = currentTerms().filter(function (term) {
       return term.status !== 'needs_review';
     });
+  }
+
+  function renderLocalTermField() {
+    var field = $('localTermField'), status = $('localTermState');
+    if (!field) return;
+    // NAS is authoritative whenever an NAS project glossary is active.
+    var nasActive = !!(state.nas && (state.nas.token || state.nas.termProject));
+    field.hidden = nasActive;
+    if (nasActive || !status) return;
+    var meta = state.termsMeta;
+    if (meta && !meta.projectId) {
+      status.textContent = (meta.count || state.terms.length) + ' 条 · 仅存本机';
+    } else if (state.bundledTerms && state.bundledTerms.length && (!state.terms || !state.terms.length)) {
+      status.textContent = '内置 ' + state.bundledTerms.length + ' 条';
+    } else {
+      status.textContent = state.terms && state.terms.length ? (state.terms.length + ' 条 · 当前术语') : '未导入本地术语';
+    }
+  }
+
+  function importLocalTermsFile(file, done) {
+    if (!file) return;
+    if (state.nas && (state.nas.token || state.nas.termProject)) {
+      showToast('NAS 术语库优先，请断开 NAS 后再导入本地术语');
+      return;
+    }
+    var isSheet = /\.(xlsx|xls)$/i.test(file.name);
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var parsed = isSheet
+          ? parseWorkbook(reader.result)
+          : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+        var langCode = state.settings.targetLang || 'en';
+        var terms = parsed.map(function (term) {
+          term.lang = term.lang || langCode;
+          return term;
+        });
+        var meta = { source: file.name, count: terms.length, importedAt: new Date().toISOString() };
+        // A fresh local import supersedes any pre-NAS snapshot.
+        state.preNasTerms = null;
+        state.preNasMeta = null;
+        setTerms(terms, meta);
+        persistTerms(meta);
+        renderTermSource();
+        renderTerms();
+        if (done) done(terms, meta);
+      } catch (err) {
+        if (done) done(null, null, err);
+        else showToast('导入失败：' + err.message);
+      }
+    };
+    if (isSheet) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file, 'utf-8');
   }
 
   function refreshTermLanguage() {
@@ -3869,6 +3923,7 @@
     renderNasTermProject();
     renderTermSource();
     renderTerms();
+    renderLocalTermField();
   }
 
   function clearNasTermbases() {
@@ -3885,6 +3940,7 @@
       renderTermSource();
       renderTerms();
     }
+    renderLocalTermField();
   }
 
   function renderNasRows() {
@@ -4272,31 +4328,36 @@
     $('termFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
       if (!file) return;
-      var isSheet = /\.(xlsx|xls)$/i.test(file.name);
-      var reader = new FileReader();
-      reader.onload = function () {
-        try {
-          var parsed = isSheet
-            ? parseWorkbook(reader.result)
-            : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
-          var langCode = state.settings.targetLang || 'en';
-          var terms = parsed.map(function (term) {
-            term.lang = term.lang || langCode;
-            return term;
-          });
-          var meta = { source: file.name, count: terms.length, importedAt: new Date().toISOString() };
-          setTerms(terms, meta);
-          persistTerms(meta);
-          $('settingsStatus').textContent = '已导入并保存到本机：' + terms.length + ' 条（' + file.name + '）。';
-          renderTermSource();
-          renderTerms();
-        } catch (err) {
-          $('settingsStatus').textContent = '导入失败：' + err.message;
-        }
-      };
-      if (isSheet) reader.readAsArrayBuffer(file);
-      else reader.readAsText(file, 'utf-8');
+      event.target.value = '';
+      if (state.nas && (state.nas.token || state.nas.termProject)) {
+        $('settingsStatus').textContent = 'NAS 术语库优先，断开 NAS 后再导入本地术语。';
+        return;
+      }
+      importLocalTermsFile(file, function (terms, meta, err) {
+        if (err) { $('settingsStatus').textContent = '导入失败：' + err.message; return; }
+        $('settingsStatus').textContent = '已导入并保存到本机：' + terms.length + ' 条（' + file.name + '）。';
+      });
     });
+    if ($('btnImportLocalTerm')) {
+      $('btnImportLocalTerm').addEventListener('click', function () {
+        if (state.nas && (state.nas.token || state.nas.termProject)) {
+          showToast('NAS 术语库优先，请断开 NAS 后再导入本地术语');
+          return;
+        }
+        $('localTermFile').click();
+      });
+    }
+    if ($('localTermFile')) {
+      $('localTermFile').addEventListener('change', function (event) {
+        var file = event.target.files && event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        importLocalTermsFile(file, function (terms, meta, err) {
+          if (err) { showToast('导入失败：' + err.message); return; }
+          showToast('已导入本地术语 ' + terms.length + ' 条');
+        });
+      });
+    }
     $('btnUnlock').addEventListener('click', async function () {
       try {
         await unlockArchive($('passInput').value);
