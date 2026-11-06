@@ -67,7 +67,8 @@
     memory: [],
     cursor: 0,
     lastWrite: null,
-    sessionEdits: {}
+    sessionEdits: {},
+    navColumn: 'source' 
   };
 
   function $(id) { return document.getElementById(id); }
@@ -3195,6 +3196,15 @@
     return -1;
   }
 
+  function navigationColumn() {
+    var col = selectedColumnLetter();
+    if (col && (col === state.settings.sourceCol || col === state.settings.targetCol)) return col;
+    if (state.navColumn === 'source' || state.navColumn === 'target') {
+      return state.navColumn === 'source' ? state.settings.sourceCol : state.settings.targetCol;
+    }
+    return state.settings.sourceCol;
+  }
+
   // When the user pastes a new source into the read box, the arrows first
   // anchor on that source, then jump to the previous/next already-translated
   // row instead of blindly walking from the old cursor.
@@ -3214,7 +3224,7 @@
       state.cursor = anchor;
       renderEntry();
       var at = state.entries[anchor];
-      if (at) revealCell(entrySheet(at), entryAddress(at.row));
+      if (at) revealCell(entrySheet(at), navigationColumn() + at.row);
       $('entryCheck').textContent = '已定位粘贴原文到第 ' + at.row + ' 行；' +
         (delta < 0 ? '上方' : '下方') + '没有已有译文的条目。';
       return;
@@ -3222,7 +3232,7 @@
     state.cursor = neighbor;
     renderEntry();
     var found = state.entries[neighbor];
-    if (found) revealCell(entrySheet(found), entryAddress(found.row));
+    if (found) revealCell(entrySheet(found), navigationColumn() + found.row);
     $('entryCheck').textContent = '已按粘贴原文定位，跳到' + (delta < 0 ? '上' : '下') +
       '一条已有译文：第 ' + found.row + ' 行。';
     } catch (err) {
@@ -3243,7 +3253,7 @@
     state.cursor = next;
     renderEntry();
     var entry = currentEntry();
-    if (entry) revealCell(entrySheet(entry), state.settings.sourceCol + entry.row);
+    if (entry) revealCell(entrySheet(entry), navigationColumn() + entry.row);
   }
 
   function writeDraft(advance) {
@@ -3260,6 +3270,7 @@
     var before = entry.target;
     archivePrevious(entrySheet(entry), entry.row, before, entry.oldCol);
     if (!writeCell(entry, value)) return;
+    state.navColumn = 'target';
     var address = entryAddress(entry.row);
     entry.target = value;
     refreshMemory();
@@ -3411,6 +3422,7 @@
       var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
       var address = column + hit.row;
       var ok = revealCell(hit.sheet, address);
+      if (ok) state.navColumn = hit.foundIn === 'target' ? 'target' : 'source';
       if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
       var where = (hit.foundIn === 'target' ? '译文列' : '原文列');
       $('entryCheck').textContent = ok
@@ -3430,6 +3442,7 @@
     searchWorkbookAsync(text, 'source', function (hit) {
       var address = state.settings.targetCol + hit.row;
       var ok = revealCell(hit.sheet, address);
+      if (ok) state.navColumn = 'target';
       $('entryCheck').textContent = ok
         ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
         : '定位失败：请在表格中手动跳到 ' + address;
