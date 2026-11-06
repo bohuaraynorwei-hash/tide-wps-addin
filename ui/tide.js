@@ -66,7 +66,8 @@
     sourceDirty: false,
     memory: [],
     cursor: 0,
-    lastWrite: null
+    lastWrite: null,
+    sessionEdits: {}
   };
 
   function $(id) { return document.getElementById(id); }
@@ -1120,9 +1121,89 @@
       return;
     }
     recordRevision(entry.sheet, entry.row, entry.source, current, archived);
+    trackSessionEdit('译文', entry.sheet || sheet.Name, entry.row, entry.targetCol || state.settings.targetCol,
+      entry.source, current, archived);
     entry.target = archived;
     renderEntry();
     $('entryCheck').textContent = '已回退到旧译文（' + oldAddress + '），再次点击可换回。';
+  }
+
+  function trackSessionEdit(kind, sheet, row, column, sourceText, before, after) {
+    var sheetName = sheet || (currentSheet() ? currentSheet().Name : '');
+    if (!sheetName || !row) return;
+    var col = String(column || '').toUpperCase();
+    var key = sheetName + '!' + row + '!' + col;
+    var now = new Date().toISOString();
+    var current = state.sessionEdits[key];
+    if (!current) {
+      state.sessionEdits[key] = {
+        key: key, kind: kind, sheet: sheetName, row: row, column: col,
+        address: col + row, source: String(sourceText == null ? '' : sourceText),
+        before: before == null ? '' : String(before),
+        after: after == null ? '' : String(after),
+        firstAt: now, updatedAt: now, count: 1
+      };
+    } else {
+      current.kind = kind;
+      current.source = String(sourceText == null ? '' : sourceText);
+      current.after = after == null ? '' : String(after);
+      current.updatedAt = now;
+      current.count += 1;
+    }
+    renderSessionEditCount();
+  }
+
+  function sessionEditRows() {
+    var keys = Object.keys(state.sessionEdits);
+    return keys.map(function (key) { return state.sessionEdits[key]; }).sort(function (a, b) {
+      if (a.sheet !== b.sheet) return a.sheet.localeCompare(b.sheet);
+      return a.row - b.row;
+    });
+  }
+
+  function renderSessionEditCount() {
+    var el = $('sessionEditCount');
+    if (!el) return;
+    var n = Object.keys(state.sessionEdits).length;
+    el.textContent = n ? (n + ' 条已编辑') : '0 条';
+  }
+
+  function exportSessionEdits() {
+    var rows = sessionEditRows();
+    if (!rows.length) {
+      $('entryCheck').textContent = '本次还没有编辑过内容。';
+      return;
+    }
+    if (typeof XLSX === 'undefined') {
+      $('entryCheck').textContent = 'xlsx 导出库未加载，无法导出。';
+      return;
+    }
+    var data = [['工作表', '行', '列', '单元格', '类型', '原文', '修改前', '修改后', '修改时间', '编辑次数']];
+    rows.forEach(function (edit) {
+      data.push([
+        edit.sheet, edit.row, edit.column, edit.address, edit.kind,
+        edit.source, edit.before, edit.after, edit.updatedAt, edit.count
+      ]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 18 }, { wch: 7 }, { wch: 6 }, { wch: 10 }, { wch: 8 },
+      { wch: 36 }, { wch: 36 }, { wch: 36 }, { wch: 22 }, { wch: 8 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '本次编辑');
+    var stamp = new Date();
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    var name = 'Tide-本次编辑-' + stamp.getFullYear() + two(stamp.getMonth() + 1) + two(stamp.getDate()) +
+      '-' + two(stamp.getHours()) + two(stamp.getMinutes()) + '.xlsx';
+    var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+    $('entryCheck').textContent = '已导出本次编辑 ' + rows.length + ' 条：' + name;
   }
 
   function writeCell(entry, value) {
@@ -1134,6 +1215,8 @@
     state.lastWrite = {
       row: entry.row, sheet: entry.sheet, before: before, after: value, address: entryAddress(entry.row)
     };
+    trackSessionEdit('译文', entry.sheet || (sheet && sheet.Name), entry.row,
+      entry.targetCol || state.settings.targetCol, entry.source, before, value);
     return true;
   }
 
@@ -2148,6 +2231,8 @@
       return false;
     }
     row.target = value;
+    trackSessionEdit('译文', row.sheet, row.row, row.targetCol || state.settings.targetCol,
+      row.source, before, value);
     rememberPair(row.sheet, row.row, row.source, value);
     recordRevision(row.sheet, row.row, row.source, before, value, row.targetCol);
     recordWrite({ sheet: row.sheet, row: row.row, source: row.source }, before, value);
@@ -3056,6 +3141,7 @@
     var cell = sheet.Range(state.settings.sourceCol + entry.row);
     var before = cell.Value2;
     cell.Value2 = text;
+    trackSessionEdit('原文', sheet.Name, entry.row, state.settings.sourceCol, text, before, text);
     if (state.unlocked) {
       state.archive.history.push({
         ts: new Date().toISOString(),
@@ -3179,7 +3265,11 @@
     for (var i = 0; i < state.entries.length; i += 1) {
       if (state.entries[i].row === state.lastWrite.row) { entry = state.entries[i]; break; }
     }
-    if (entry) entry.target = state.lastWrite.before == null ? '' : String(state.lastWrite.before);
+    if (entry) {
+      entry.target = state.lastWrite.before == null ? '' : String(state.lastWrite.before);
+      trackSessionEdit('译文', state.lastWrite.sheet, state.lastWrite.row, entry.targetCol || state.settings.targetCol,
+        entry.source, state.lastWrite.after, state.lastWrite.before);
+    }
     $('entryCheck').textContent = '已撤销 ' + state.lastWrite.address;
     state.lastWrite = null;
     renderEntry();
@@ -4778,6 +4868,7 @@
     $('btnPunctQA').addEventListener('click', function () { runQA('punct'); });
     $('btnPlaceholderQA').addEventListener('click', function () { runQA('placeholder'); });
     $('btnExportQA').addEventListener('click', exportQA);
+    if ($('btnExportSessionEdits')) $('btnExportSessionEdits').addEventListener('click', exportSessionEdits);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
