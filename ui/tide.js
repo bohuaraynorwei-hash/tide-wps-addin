@@ -678,10 +678,8 @@
       use.className = 'act ghost';
       use.textContent = '采用';
       use.addEventListener('click', function () {
-        $('entryDraft').value = term.en || '';
-        $('entryDraft').dispatchEvent(new Event('input'));
-        showTab('translate');
-        $('entryCheck').textContent = '已采用术语：' + term.zh + ' → ' + (term.en || '');
+        var termLabel = String(term.zh || '').slice(0, 24) + ' → ' + (term.en || '');
+        adoptIntoDraft(term.en || '', termLabel);
       });
       td.appendChild(use);
       tr.appendChild(td);
@@ -1673,9 +1671,7 @@
       use.className = 'act ghost';
       use.textContent = '采用';
       use.addEventListener('click', function () {
-        $('entryDraft').value = hit.entry.target;
-        $('entryDraft').dispatchEvent(new Event('input'));
-        showTab('translate');
+        adoptIntoDraft(hit.entry.target, '记忆匹配：' + (hit.entry.source || '').slice(0, 20));
       });
       td.appendChild(use);
       tr.appendChild(td);
@@ -3112,6 +3108,30 @@
   }
 
   // ---------- free input (no sheet writes) ----------
+
+  // Apply a glossary/memory hit to the current translation draft. The old
+  // handlers set entryDraft before showTab('translate'); showTab re-rendered
+  // the entry and overwrote it, so the pane jumped but stayed empty.
+  function adoptIntoDraft(value, label) {
+    var text = String(value || '');
+    if (!text.trim()) {
+      showToast('这条术语没有译文');
+      return;
+    }
+    showTab('translate');
+    var entry = currentEntry();
+    if (!entry) {
+      $('entryCheck').textContent = '当前没有可用的原文条目，请先在表格中定位一条原文。';
+      showToast('未定位到原文条目');
+      return;
+    }
+    var draft = $('entryDraft');
+    draft.value = text;
+    draft.dispatchEvent(new Event('input', { bubbles: true }));
+    draft.focus();
+    $('entryCheck').textContent = '已采用术语：' + (label || text) + '。已填入当前译文草稿，请核对后点击「写入」。';
+    showToast('已填入译文草稿');
+  }
 
   var freeTimer = null;
 
