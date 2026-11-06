@@ -51,7 +51,7 @@
       before: 'translate',
       target: '#btnExportSessionEdits',
       place: 'top',
-      zh: '底部「一键导出本次编辑」把本次通过插件改过的原文/译文导出为 xlsx，包含修改前后值和单元格位置。'
+      zh: '底部「一键导出本次编辑」复制原工作簿，保留全部工作表、UID/Key、列宽和布局，只保留本次修改过的数据行；「导出修改记录」另存修改前后明细。'
     }],
     find: [{
       before: 'find',

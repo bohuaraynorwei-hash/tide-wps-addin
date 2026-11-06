@@ -1169,6 +1169,103 @@
     el.textContent = n ? (n + ' 条已编辑') : '0 条';
   }
 
+  function sessionExportName() {
+    var wb = sheetApp() && sheetApp().ActiveWorkbook;
+    var base = wb && wb.Name ? String(wb.Name).replace(/\.(xlsx|xlsm|xls)$/i, '') : 'Tide';
+    var d = new Date();
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    return base + '-本次编辑-' + d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) +
+      '-' + two(d.getHours()) + two(d.getMinutes()) + '.xlsx';
+  }
+
+  function chooseSessionExportPath() {
+    var app = sheetApp();
+    if (!app) return null;
+    var name = sessionExportName();
+    try {
+      if (typeof app.GetSaveAsFilename === 'function') {
+        var picked = app.GetSaveAsFilename(name, 'Excel 工作簿 (*.xlsx), *.xlsx', 1, '导出本次编辑');
+        if (picked === false || !picked) return null;
+        var path = String(picked);
+        if (!/\.xlsx$/i.test(path)) path += '.xlsx';
+        return path;
+      }
+    } catch (err) { /* fall through */ }
+    var wb = app.ActiveWorkbook;
+    var dir = wb && wb.Path ? String(wb.Path) : '';
+    if (!dir) return null;
+    return dir + '/' + name;
+  }
+
+  // Full workbook copy: SaveCopyAs preserves original sheets, headers, UID/Key
+  // columns and layout. The copy is then reduced to modified data rows only.
+  function exportSessionWorkbook() {
+    var edits = sessionEditRows();
+    if (!edits.length) {
+      $('entryCheck').textContent = '本次还没有编辑过内容。';
+      return;
+    }
+    var app = sheetApp();
+    var original = app && app.ActiveWorkbook;
+    if (!app || !original) {
+      $('entryCheck').textContent = '未连接 WPS，无法导出完整工作簿。';
+      return;
+    }
+    var mods = {};
+    edits.forEach(function (e) { (mods[e.sheet] = mods[e.sheet] || {})[e.row] = 1; });
+    var plans = [];
+    try {
+      var sheets = original.Worksheets;
+      var count = Number(sheets.Count) || 0;
+      for (var i = 1; i <= count; i += 1) {
+        var sheet = sheets.Item(i);
+        var rows = rowsForSheet(sheet) || [];
+        plans.push({ name: sheet.Name, rows: rows });
+      }
+    } catch (err) {
+      $('entryCheck').textContent = '读取原表结构失败：' + err.message;
+      return;
+    }
+    var path = chooseSessionExportPath();
+    if (!path) {
+      $('entryCheck').textContent = '已取消导出。';
+      return;
+    }
+    $('entryCheck').textContent = '正在复制原工作簿…';
+    var copy = null;
+    try {
+      original.SaveCopyAs(path);
+      copy = app.Workbooks.Open(path);
+      plans.forEach(function (plan) {
+        var ws = copy.Worksheets.Item(plan.name);
+        if (!ws) return;
+        var keep = mods[plan.name] || {};
+        var rows = plan.rows.slice().sort(function (a, b) { return a.row - b.row; });
+        var runStart = -1, runEnd = -1;
+        function flush() {
+          if (runStart < 0) return;
+          ws.Range('A' + runStart + ':A' + runEnd).EntireRow.Delete();
+          runStart = -1; runEnd = -1;
+        }
+        rows.forEach(function (row) {
+          if (keep[row.row]) { flush(); return; }
+          if (runStart < 0) { runStart = row.row; runEnd = row.row; }
+          else if (row.row === runEnd + 1) runEnd = row.row;
+          else { flush(); runStart = row.row; runEnd = row.row; }
+        });
+        flush();
+      });
+      copy.Save();
+      copy.Close(false);
+      copy = null;
+      try { original.Activate(); } catch (err) { /* ignore */ }
+      $('entryCheck').textContent = '已导出完整表格：仅保留本次修改的 ' + edits.length + ' 条数据行；原表布局与全部工作表已保留。';
+    } catch (err) {
+      try { if (copy) copy.Close(false); } catch (err2) { /* ignore */ }
+      $('entryCheck').textContent = '导出完整表格失败：' + (err && err.message ? err.message : '未知错误');
+    }
+  }
+
   function exportSessionEdits() {
     var rows = sessionEditRows();
     if (!rows.length) {
@@ -4899,7 +4996,8 @@
     $('btnPunctQA').addEventListener('click', function () { runQA('punct'); });
     $('btnPlaceholderQA').addEventListener('click', function () { runQA('placeholder'); });
     $('btnExportQA').addEventListener('click', exportQA);
-    if ($('btnExportSessionEdits')) $('btnExportSessionEdits').addEventListener('click', exportSessionEdits);
+    if ($('btnExportSessionEdits')) $('btnExportSessionEdits').addEventListener('click', exportSessionWorkbook);
+    if ($('btnExportSessionLog')) $('btnExportSessionLog').addEventListener('click', exportSessionEdits);
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
