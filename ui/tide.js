@@ -2732,6 +2732,52 @@
     return found;
   }
 
+  function renderEntryTerms(source) {
+    var field = $('entryTermField');
+    if (!field) return;
+    var text = String(source || '');
+    var hits = text ? window.TideEngine.findMatches(text, state.matchTerms) : [];
+    var seen = {};
+    var terms = [];
+    (hits || []).forEach(function (hit) {
+      var term = hit && hit.term;
+      if (!term || (!term.zh && !term.en)) return;
+      var key = (term.zh || '') + '\u0000' + (term.en || '');
+      if (seen[key]) return;
+      seen[key] = 1;
+      terms.push(term);
+    });
+    if (!terms.length) {
+      field.hidden = true;
+      $('entryTermHits').textContent = '';
+      $('entrySourceHighlight').textContent = '';
+      $('entryTermCount').textContent = '';
+      return;
+    }
+    field.hidden = false;
+    $('entryTermCount').textContent = terms.length + ' 条';
+    var preview = $('entrySourceHighlight');
+    preview.textContent = '';
+    preview.appendChild(markTokens(text, terms.map(function (term) { return term.zh; }).filter(Boolean)));
+    var box = $('entryTermHits');
+    box.textContent = '';
+    terms.forEach(function (term) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'term-chip';
+      chip.title = '采用此术语并填入译文草稿';
+      var zh = document.createElement('b'); zh.textContent = term.zh || '';
+      var arrow = document.createElement('span'); arrow.textContent = '→';
+      var en = document.createElement('span'); en.textContent = term.en || '（无译文）';
+      chip.append(zh, arrow, en);
+      chip.addEventListener('click', function () {
+        adoptIntoDraft(term.en || '', (term.zh || '') + ' → ' + (term.en || ''));
+      });
+      box.appendChild(chip);
+    });
+    $('entryTermHint').textContent = '已标出 ' + terms.length + ' 条命中术语；点击术语填入译文草稿。';
+  }
+
   function renderEntry() {
     var entry = currentEntry();
     renderPosition();
@@ -2740,6 +2786,7 @@
       $('entryDraft').value = '';
       $('entryCheck').textContent = '';
       renderMemory(null);
+      renderEntryTerms('');
       return;
     }
     $('entrySource').value = entry.source;
@@ -2748,6 +2795,7 @@
     $('entryDraft').value = entry.target || '';
     $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
     renderMemory(entry, entry.source);
+    renderEntryTerms(entry.source);
   }
 
   // WPS's CEF host swallows the usual shortcuts, so copying goes through an
@@ -4769,7 +4817,10 @@
     $('btnNextEntry').addEventListener('click', function () { move(1); });
     $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
-    $('entrySource').addEventListener('input', markSourceDirty);
+    $('entrySource').addEventListener('input', function () {
+      markSourceDirty();
+      renderEntryTerms($('entrySource').value);
+    });
     $('btnResetSource').addEventListener('click', resetSource);
     $('btnSaveSource').addEventListener('click', saveSource);
     $('btnLocateSource').addEventListener('click', locateSource);

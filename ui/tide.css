@@ -529,3 +529,11 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 @media (max-width:520px){
   #updateBar{max-width:82px;overflow:hidden;text-overflow:ellipsis;padding-left:8px;padding-right:8px}
 }
+
+.term-preview{margin-top:7px;padding:7px 8px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--panel);font:12.5px/1.55 var(--font);word-break:break-word;max-height:92px;overflow:auto}
+.term-preview mark{background:rgba(255,204,0,.42);padding:0 1px;border-radius:2px}
+.term-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.term-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(0,102,204,.22);background:rgba(0,102,204,.07);color:var(--ink);border-radius:999px;padding:4px 8px;font:11.5px/1.2 var(--font);cursor:pointer}
+.term-chip:hover{background:rgba(0,102,204,.13)}
+.term-chip b{font-weight:600}
+.term-chip span{color:var(--label-2)}

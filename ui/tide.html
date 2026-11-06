@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611051995">
+  <link rel="stylesheet" href="tide.css?b=202611051996">
 </head>
 <body>
   <header class="bar">
@@ -112,6 +112,14 @@
             <button class="act ghost" id="btnSourceClear" title="清空原文输入">清空</button>
           </div>
         </div>
+      </div>
+      <div class="field" id="entryTermField" hidden>
+        <div class="field-head">
+          <label>本句术语 <span class="count" id="entryTermCount"></span></label>
+        </div>
+        <div class="term-preview" id="entrySourceHighlight"></div>
+        <div class="term-chips" id="entryTermHits"></div>
+        <div class="hint" id="entryTermHint">点击术语可填入译文草稿。</div>
       </div>
       <div class="toolbar">
         <button class="act ghost" id="btnResetSource">重置为单元格值</button>
@@ -479,7 +487,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611051995</span>
+        <span class="nas-build" id="nasBuild">构建 202611051996</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -612,9 +620,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611051995"></script>
+  <script src="i18n.js?b=202611051996"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611051995"></script>
-  <script src="onboarding.js?b=202611051995"></script>
+  <script src="tide.js?b=202611051996"></script>
+  <script src="onboarding.js?b=202611051996"></script>
 </body>
 </html>
