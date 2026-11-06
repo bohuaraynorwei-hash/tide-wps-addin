@@ -2818,6 +2818,7 @@
   }
 
   function renderEntryTerms(source) {
+    try {
     var field = $('entryTermField');
     if (!field) return;
     var text = String(source || '');
@@ -2861,6 +2862,11 @@
       box.appendChild(chip);
     });
     $('entryTermHint').textContent = '已标出 ' + terms.length + ' 条命中术语；点击术语填入译文草稿。';
+    } catch (err) {
+      paneLog('terms:error', { message: String(err && err.message).slice(0, 100) });
+      var termField = $('entryTermField');
+      if (termField) termField.hidden = true;
+    }
   }
 
   function renderEntry() {
@@ -3030,12 +3036,17 @@
     });
     if (!el) return;
     var insert = function (text) {
-      el.value = text;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+      try { el.value = text; } catch (err) { paneLog('paste:set-failed', { message: String(err && err.message).slice(0, 80) }); }
+      try {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      } catch (err) {
+        paneLog('paste:input-failed', { message: String(err && err.message).slice(0, 80) });
+        // Keep the pasted value even if a downstream input listener failed.
+        try { el.value = text; } catch (err2) { /* ignore */ }
+      }
       paneLog('paste:inserted', { length: text.length, via: window.__tidePasteVia || 'clipboard', target: el.id || el.tagName });
       var note = '已粘贴 ' + text.length + ' 个字符（来源：' + (window.__tidePasteVia || 'clipboard') + '）。';
-      if (el.id === 'entryDraft') $('entryCheck').textContent = note;
-      else showToast(note);
+      try { if (el.id === 'entryDraft') $('entryCheck').textContent = note; else showToast(note); } catch (err) { /* ignore */ }
     };
     var timeout = new Promise(function (_resolve, reject) {
       window.setTimeout(function () { reject(new Error('bridge timeout')); }, 1500);
@@ -3188,6 +3199,7 @@
   // anchor on that source, then jump to the previous/next already-translated
   // row instead of blindly walking from the old cursor.
   function navigateEntry(delta) {
+    try {
     var entry = currentEntry();
     var typed = normalizeNavSource($('entrySource').value);
     var changed = !!(typed && (state.sourceDirty || !entry || typed !== normalizeNavSource(entry.source)));
@@ -3213,6 +3225,12 @@
     if (found) revealCell(entrySheet(found), entryAddress(found.row));
     $('entryCheck').textContent = '已按粘贴原文定位，跳到' + (delta < 0 ? '上' : '下') +
       '一条已有译文：第 ' + found.row + ' 行。';
+    } catch (err) {
+      paneLog('nav:error', { message: String(err && err.message).slice(0, 100) });
+      try { move(delta); } catch (e2) {
+        $('entryCheck').textContent = '上一条/下一条切换失败：' + (err && err.message ? err.message : '未知错误');
+      }
+    }
   }
 
   function move(delta) {
@@ -4963,8 +4981,12 @@
     $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
     $('entrySource').addEventListener('input', function () {
-      markSourceDirty();
-      renderEntryTerms($('entrySource').value);
+      try {
+        markSourceDirty();
+        renderEntryTerms($('entrySource').value);
+      } catch (err) {
+        paneLog('source:input-error', { message: String(err && err.message).slice(0, 100) });
+      }
     });
     $('btnResetSource').addEventListener('click', resetSource);
     $('btnSaveSource').addEventListener('click', saveSource);
