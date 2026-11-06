@@ -3075,6 +3075,60 @@
 
   // Navigation moves the grid too, so the sheet and the pane never disagree
   // about which row is being worked on.
+  function normalizeNavSource(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function findEntryBySource(text) {
+    var wanted = normalizeNavSource(text);
+    if (!wanted) return -1;
+    var best = -1, bestDist = 1e9;
+    for (var i = 0; i < state.entries.length; i += 1) {
+      if (normalizeNavSource(state.entries[i].source) !== wanted) continue;
+      var dist = Math.abs(i - state.cursor);
+      if (dist < bestDist) { best = i; bestDist = dist; }
+    }
+    return best;
+  }
+
+  function findTranslatedNeighbor(anchor, delta) {
+    for (var i = anchor + delta; i >= 0 && i < state.entries.length; i += delta) {
+      if (String(state.entries[i].target || '').trim()) return i;
+    }
+    return -1;
+  }
+
+  // When the user pastes a new source into the read box, the arrows first
+  // anchor on that source, then jump to the previous/next already-translated
+  // row instead of blindly walking from the old cursor.
+  function navigateEntry(delta) {
+    var entry = currentEntry();
+    var typed = normalizeNavSource($('entrySource').value);
+    var changed = !!(typed && (state.sourceDirty || !entry || typed !== normalizeNavSource(entry.source)));
+    if (!changed) { move(delta); return; }
+    var anchor = findEntryBySource(typed);
+    if (anchor < 0) {
+      $('entryCheck').textContent = '当前表中找不到与粘贴原文完全一致的条目，未移动。';
+      return;
+    }
+    var neighbor = findTranslatedNeighbor(anchor, delta);
+    if (neighbor < 0) {
+      state.cursor = anchor;
+      renderEntry();
+      var at = state.entries[anchor];
+      if (at) revealCell(entrySheet(at), entryAddress(at.row));
+      $('entryCheck').textContent = '已定位粘贴原文到第 ' + at.row + ' 行；' +
+        (delta < 0 ? '上方' : '下方') + '没有已有译文的条目。';
+      return;
+    }
+    state.cursor = neighbor;
+    renderEntry();
+    var found = state.entries[neighbor];
+    if (found) revealCell(entrySheet(found), entryAddress(found.row));
+    $('entryCheck').textContent = '已按粘贴原文定位，跳到' + (delta < 0 ? '上' : '下') +
+      '一条已有译文：第 ' + found.row + ' 行。';
+  }
+
   function move(delta) {
     if (!state.entries.length) return;
     var next = Math.min(Math.max(state.cursor + delta, 0), state.entries.length - 1);
@@ -4813,8 +4867,8 @@
       renderEntry();
       $('entryCheck').textContent = '已刷新到 ' + activeSheetName() + '，正在重建整簿记忆…';
     });
-    $('btnPrevEntry').addEventListener('click', function () { move(-1); });
-    $('btnNextEntry').addEventListener('click', function () { move(1); });
+    $('btnPrevEntry').addEventListener('click', function () { navigateEntry(-1); });
+    $('btnNextEntry').addEventListener('click', function () { navigateEntry(1); });
     $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
     $('btnWriteNext').addEventListener('click', writeAndNext);
     $('entrySource').addEventListener('input', function () {
