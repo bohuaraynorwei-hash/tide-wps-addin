@@ -10,14 +10,14 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '4';   // bump to re-show the tour after a big UI change
+  var VERSION = '6';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
   var TAB_TIPS = [
     ['tasks', '我的任务', '登录 NAS 后，这里按项目列出分配给你的任务。点条目会跳到原文，并在翻译页同步选中它；展开后可以逐条定位或提交。'],
-    ['translate', '翻译', '逐条处理的主场：「写入」只写当前译文单元格，「写入并下一条」写完后继续；原文框右侧可定位译文或原文。'],
-    ['terms', '术语', '登录后会同步账号可访问的全部项目术语表；多项目时在顶部选择项目。点击任务会自动切换到该任务绑定的术语表。'],
+    ['translate', '翻译', '逐条处理的主场：原文下方自动标出命中术语，点击术语即可填入草稿；粘贴新原文后，「上一条/下一条」会按原文定位并跳到相邻已有译文。底部可一键导出本次编辑。'],
+    ['terms', '术语', '登录 NAS 后，NAS 项目术语表优先并缓存到本机；离线时默认使用 24 小时缓存。未登录时可导入本地术语，并用「切换」在缓存与本地术语表之间切换。'],
     ['matches', '命中', '扫描当前表，列出所有含术语的行。点任意一行，会跳回它所在的原文单元格。'],
     ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
     ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
@@ -34,9 +34,24 @@
   var FEATURE_STEPS = {
     translate: [{
       before: 'translate',
+      target: '#entrySource',
+      place: 'bottom',
+      zh: '当前原文中的命中术语会显示在下方高亮区和术语标签中；点标签即可把术语译文填入草稿。'
+    }, {
+      before: 'translate',
+      target: '#btnNextEntry',
+      place: 'bottom',
+      zh: '把新原文粘贴到原文框后，点「上一条/下一条」会先按原文定位，再跳到相邻已有译文的条目。'
+    }, {
+      before: 'translate',
       target: '#btnWriteDraft',
       place: 'left',
       zh: '「写入」只把当前草稿写进译文单元格，不跳到下一条；需要连续处理时用下面的「写入并下一条」。'
+    }, {
+      before: 'translate',
+      target: '#btnExportSessionEdits',
+      place: 'top',
+      zh: '底部「一键导出本次编辑」把本次通过插件改过的原文/译文导出为 xlsx，包含修改前后值和单元格位置。'
     }],
     find: [{
       before: 'find',
@@ -49,6 +64,11 @@
       target: '#termProject',
       place: 'bottom',
       zh: '这里选择要查看的项目术语表；切换项目会立即换库，不需要重新登录。'
+    }, {
+      before: 'terms',
+      target: '#btnSwitchTermSource',
+      place: 'top',
+      zh: '未登录 NAS 时显示「切换」：默认使用缓存的 NAS 术语表，也可以切到本地导入的术语表；登录 NAS 后本地入口自动隐藏。'
     }],
     tm: [{
       before: 'tm',
