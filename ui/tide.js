@@ -4908,12 +4908,13 @@
       var editable = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
       var combo = (event.metaKey ? '⌘' : '') + (event.ctrlKey ? 'Ctrl+' : '') + (event.altKey ? '⌥' : '') + 'V';
       if ((event.metaKey || event.ctrlKey || event.altKey) && (event.key === 'v' || event.key === 'V')) {
-        // Reaching this line proves WPS forwarded the key. Focus can be any
-        // search field, so paste into whatever is focused (draft by default).
+        // In an editable field, let WPS/CEF perform the native paste. The old
+        // preventDefault path replaced native Ctrl+V with the bridge and left
+        // the textarea empty when the bridge was unavailable.
+        if (editable) return;
         event.preventDefault();
         event.stopPropagation();
-        if (editable) pasteWithDiagnostics(el);
-        else pasteWithDiagnostics($('entryDraft'));
+        pasteWithDiagnostics($('entryDraft'));
         return;
       }
       if (event.key === 'Escape' && editable && el.value) {
