@@ -4392,6 +4392,10 @@
       renderHistory();
     });
     $('btnResetTerms').addEventListener('click', function () {
+      if (state.nas && (state.nas.token || state.nas.termProject)) {
+        $('settingsStatus').textContent = 'NAS 术语库优先，断开 NAS 后再恢复本地内置术语。';
+        return;
+      }
       if (!state.bundledTerms.length) {
         $('settingsStatus').textContent = '没有可恢复的内置术语表。';
         return;
@@ -4620,6 +4624,10 @@
       $('entryCheck').textContent = describeEntry(entry, $('entryDraft').value);
     });
     $('btnUnlockTerms').addEventListener('click', function () {
+      if (state.nas && (state.nas.token || state.nas.termProject)) {
+        $('settingsStatus').textContent = 'NAS 术语库优先，断开 NAS 后再解锁本地术语。';
+        return;
+      }
       var pass = $('termsPass').value;
       if (!pass) { $('settingsStatus').textContent = '请输入术语表口令。'; return; }
       decryptTerms(pass).then(function () {
