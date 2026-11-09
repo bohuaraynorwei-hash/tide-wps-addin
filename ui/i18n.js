@@ -365,6 +365,47 @@
     ['#uiLangLabel', 'label.uiLang']
   ];
 
+  var staticObserver = null;
+
+  function applyStaticTexts() {
+    if (typeof document === 'undefined') return;
+    var maps = root.TideI18nStatic || {};
+    var map = maps[state.lang] || {};
+    var nodes = document.querySelectorAll('button:not([data-i18n]), label:not([data-i18n]), option:not([data-i18n]), th, h2, h3');
+    nodes.forEach(function (el) {
+      if (el.children.length) return;
+      var current = String(el.textContent || '').trim();
+      if (!current) return;
+      var orig = el.dataset.i18nStaticOrig;
+      var applied = el.dataset.i18nStaticApplied;
+      if (!orig) {
+        orig = current;
+        el.dataset.i18nStaticOrig = orig;
+      } else if (current !== orig && current !== applied) {
+        // Dynamic text changed; treat the new source string as the base.
+        orig = current;
+        el.dataset.i18nStaticOrig = orig;
+        el.dataset.i18nStaticApplied = '';
+        applied = '';
+      }
+      if (state.lang === 'zh') {
+        if (current !== orig) el.textContent = orig;
+        return;
+      }
+      var value = map[orig];
+      if (value && current !== value) {
+        el.textContent = value;
+        el.dataset.i18nStaticApplied = value;
+      }
+    });
+  }
+
+  function watchStaticTexts() {
+    if (staticObserver || typeof document === 'undefined') return;
+    staticObserver = new MutationObserver(function () { applyStaticTexts(); });
+    staticObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   var state = { lang: 'zh' };
 
   function t(key) {
@@ -394,6 +435,7 @@
       var value = t(el.dataset.i18nPh);
       el.setAttribute('placeholder', value || el.dataset.i18nPhOrig);
     });
+    if (typeof applyStaticTexts === 'function') applyStaticTexts();
   }
 
   function setLang(code) {
@@ -407,6 +449,7 @@
     try { saved = localStorage.getItem('tide.uiLang') || 'zh'; } catch (err) { saved = 'zh'; }
     state.lang = DICT[saved] ? saved : 'zh';
     apply();
+    watchStaticTexts();
   }
 
   var api = { langs: LANGS, t: t, apply: apply, setLang: setLang, boot: boot, get lang() { return state.lang; } };
