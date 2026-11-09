@@ -4652,24 +4652,26 @@
       state.nas.tasks = [];
       list.textContent = '';
       if (count) count.textContent = '';
-      if (empty) { empty.hidden = false; empty.textContent = '请先登录 NAS，登录后会显示分配给你的任务。'; }
+      if (empty) { empty.hidden = false; empty.textContent = tr('task.loginEmpty', '请先登录 NAS，登录后会显示分配给你的任务。'); }
       if (login) login.hidden = false;
       return;
     }
     if (login) login.hidden = true;
     if (state.nas.tasksLoading) return;
     state.nas.tasksLoading = true;
-    if ($('taskHint')) $('taskHint').textContent = '正在读取任务…';
+    if ($('taskHint')) $('taskHint').textContent = tr('task.loading', '正在读取任务…');
     try {
       var data = await nasFetch('/api/tasks');
       state.nas.tasks = data.tasks || [];
       renderNasTasks();
       syncNasTermbases();
-      if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length ? '点击任务可定位到表格中的对应原文。' : '当前没有分配给你的任务。';
+      if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length
+        ? tr('task.hint', '点击任务可定位到表格中的对应原文。')
+        : tr('task.none', '当前没有分配给你的任务。');
     } catch (err) {
       state.nas.tasks = [];
       renderNasTasks();
-      if ($('taskHint')) $('taskHint').textContent = '读取任务失败：' + err.message;
+      if ($('taskHint')) $('taskHint').textContent = tr('task.loadFailed', '读取任务失败：') + err.message;
     } finally {
       state.nas.tasksLoading = false;
     }
@@ -4710,9 +4712,12 @@
     if (!list) return;
     list.textContent = '';
     var tasks = state.nas.tasks || [];
-    if (count) count.textContent = tasks.length ? (tasks.length + ' 个任务') : '';
-    if (empty) { empty.hidden = tasks.length > 0; empty.textContent = '暂无分配给你的任务。'; }
-    var statusText = { new: '待译', draft: '草稿', translated: '已译', reviewed: '已审' };
+    if (count) count.textContent = tasks.length ? trFormat('task.count', '{count} 个任务', { count: tasks.length }) : '';
+    if (empty) { empty.hidden = tasks.length > 0; empty.textContent = tr('task.empty', '暂无分配给你的任务。'); }
+    var statusText = {
+      new: tr('status.new', '待译'), draft: tr('status.draft', '草稿'),
+      translated: tr('status.translated', '已译'), reviewed: tr('status.reviewed', '已审')
+    };
     tasks.forEach(function (task) {
       var card = document.createElement('div');
       var key = taskKey(task);
@@ -4728,11 +4733,12 @@
       var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = task.name || '未命名任务';
       var meta = document.createElement('div'); meta.className = 'wps-task-meta';
       meta.textContent = (task.project_name || '') + ' · ' + (task.lang || '') +
-        (task.kind === 'segments' ? ' · 选中条目' : '') + (task.due ? ' · 截止 ' + task.due : '');
+        (task.kind === 'segments' ? ' · ' + tr('task.selectedItems', '选中条目') : '') +
+        (task.due ? ' · ' + tr('task.due', '截止') + ' ' + task.due : '');
       main.append(name, meta);
       if (task.segment && task.segment.source) {
         var src = document.createElement('div'); src.className = 'wps-task-src';
-        src.textContent = '下一段：' + task.segment.source; main.append(src);
+        src.textContent = tr('task.nextSegment', '下一段：') + task.segment.source; main.append(src);
       }
       var bottom = document.createElement('div'); bottom.className = 'wps-task-bottom';
       var bar = document.createElement('div'); bar.className = 'wps-task-bar';
@@ -4744,8 +4750,8 @@
       bottom.append(bar, pct); main.append(bottom);
       var actions = document.createElement('div'); actions.className = 'wps-task-actions';
       var locate = document.createElement('span'); locate.className = 'wps-task-locate';
-      locate.textContent = task.segment ? '定位' : '已完成';
-      var submit = document.createElement('button'); submit.type = 'button'; submit.className = 'wps-task-submit'; submit.textContent = '提交';
+      locate.textContent = task.segment ? tr('task.locate', '定位') : tr('task.done', '已完成');
+      var submit = document.createElement('button'); submit.type = 'button'; submit.className = 'wps-task-submit'; submit.textContent = tr('task.submit', '提交');
       locate.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task); });
       submit.addEventListener('click', function (ev) { ev.stopPropagation(); submitTask(task); });
       actions.append(submit, locate);
@@ -4764,11 +4770,11 @@
         if (totalItems > 0) {
           var itemBox = document.createElement('div'); itemBox.className = 'wps-task-items';
           var itemHead = document.createElement('div'); itemHead.className = 'wps-task-items-head';
-          itemHead.textContent = '条目 ' + totalItems;
+          itemHead.textContent = tr('task.items', '条目') + ' ' + totalItems;
           itemBox.append(itemHead);
           if (!items.length) {
             var loading = document.createElement('div'); loading.className = 'wps-task-item-loading';
-            loading.textContent = task._pageError || '加载中…';
+            loading.textContent = task._pageError || tr('task.loadingPage', '加载中…');
             itemBox.append(loading);
           }
           items.forEach(function (seg) {
@@ -4781,9 +4787,9 @@
             itemBox.append(row);
           });
           var pager = document.createElement('div'); pager.className = 'wps-task-pager';
-          var prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '上一页'; prev.disabled = page <= 1;
+          var prev = document.createElement('button'); prev.type = 'button'; prev.textContent = tr('task.prevPage', '上一页'); prev.disabled = page <= 1;
           var indicator = document.createElement('span'); indicator.textContent = page + '/' + pages;
-          var next = document.createElement('button'); next.type = 'button'; next.textContent = '下一页'; next.disabled = page >= pages;
+          var next = document.createElement('button'); next.type = 'button'; next.textContent = tr('task.nextPage', '下一页'); next.disabled = page >= pages;
           prev.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page - 1); });
           next.addEventListener('click', function (ev) { ev.stopPropagation(); goTaskPage(task, page + 1); });
           pager.append(prev, indicator, next);
