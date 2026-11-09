@@ -1160,16 +1160,16 @@
       var held = state.terms.length - state.matchTerms.length;
       if (meta.projectId) {
         if (meta.cached) {
-          el.textContent = (meta.source || 'NAS 缓存') + ' · ' + meta.count + ' 条' +
-            (meta.cachedAt ? ' · 缓存于 ' + localStamp(meta.cachedAt) : '');
+          el.textContent = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + meta.count + ' ' + tr('term.items', '条') +
+            (meta.cachedAt ? ' · ' + tr('term.cachedAt', '缓存于') + ' ' + localStamp(meta.cachedAt) : '');
         } else {
-          el.textContent = 'NAS 项目术语表：' + (meta.source || '') + ' · ' + meta.count + ' 条 · 已同步';
+          el.textContent = tr('term.nasProject', 'NAS 项目术语表') + ': ' + (meta.source || '') + ' · ' + meta.count + ' ' + tr('term.items', '条') + ' · ' + tr('term.synced', '已同步');
         }
         return;
       }
-      el.textContent = '已保存导入：' + meta.count + ' 条 · ' + (meta.source || '本机') +
+      el.textContent = tr('term.savedImport', '已保存导入') + ': ' + meta.count + ' ' + tr('term.items', '条') + ' · ' + (meta.source || tr('term.onDevice', '本机')) +
         (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') +
-        ' · 本机' + (held ? ' · ' + held + ' 条待确认' : '');
+        ' · ' + tr('term.onDevice', '本机') + (held ? ' · ' + held + ' ' + tr('term.pending', '条待确认') : '');
       return;
     }
     if (state.bundledMeta) {
@@ -2927,8 +2927,9 @@
     body.textContent = '';
     table.hidden = shown.length === 0;
     $('gridCount').textContent = rows.length
-      ? shown.length + ' / ' + rows.length + ' 条' + (rows.length > shown.length ? '（仅显示前 200）' : '')
-      : '没有符合条件的条目';
+      ? trFormat('grid.count', '{shown} / {total} 条', { shown: shown.length, total: rows.length }) +
+        (rows.length > shown.length ? tr('grid.limit', '（仅显示前 200）') : '')
+      : tr('grid.noMatch', '没有符合条件的条目');
     shown.forEach(function (row) {
       var tr = document.createElement('tr');
       tr.dataset.row = String(row.row);
@@ -4324,8 +4325,9 @@
     $('passInput').hidden = state.unlocked;
     $('lockBar').hidden = state.unlocked && !!state.passphrase;
     $('lockStatus').textContent = state.unlocked
-      ? '归档已解锁，本次修改会加密记录。'
-      : (exists ? '归档已锁定。解锁后才会记录改动。' : '尚未设置归档口令。设置后修改才会被记录。');
+      ? tr('history.unlocked', '归档已解锁，本次修改会加密记录。')
+      : (exists ? tr('history.locked', '归档已锁定。解锁后才会记录改动。')
+        : tr('history.noPass', '尚未设置归档口令。设置后修改才会被记录。'));
   }
 
   function renderHistory() {
@@ -5379,7 +5381,7 @@
       $('btnPush').disabled = !data.password_set;
     }).catch(function () {
       state.helper = { ok: false };
-      $('syncStatus').textContent = '助手未运行。在 sync/ 目录执行 python3 helper.py serve。';
+      $('syncStatus').textContent = tr('sync.helperOff', '助手未运行。在 sync/ 目录执行 python3 helper.py serve。');
       $('btnPush').disabled = true;
     });
   }

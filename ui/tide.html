@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052022">
+  <link rel="stylesheet" href="tide.css?b=202611052023">
 </head>
 <body>
   <header class="bar">
@@ -537,11 +537,8 @@
         <button class="act" id="btnPull" disabled>拉取</button>
         <button class="act" id="btnPush" disabled>上传</button>
       </div>
-      <div class="note danger">
-        上传会把本机数据发到 GitHub。工作区规则要求本地化数据不出本机，
-        因此该功能默认禁用，需你明确授权并指定仓库与内容范围后才可启用。
-      </div>
-      <div class="hint">口令只用于解锁本机助手，不会上传；GitHub 令牌由助手从环境变量读取。</div>
+      <div class="note danger" data-i18n="sync.note">上传会把本机数据发到 GitHub。工作区规则要求本地化数据不出本机，因此该功能默认禁用，需你明确授权并指定仓库与内容范围后才可启用。</div>
+      <div class="hint" data-i18n="sync.hint">口令只用于解锁本机助手，不会上传；GitHub 令牌由助手从环境变量读取。</div>
       <div class="status" id="syncStatus"></div>
     </section>
 
@@ -558,7 +555,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052022</span>
+        <span class="nas-build" id="nasBuild">构建 202611052023</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -614,12 +611,12 @@
       <div class="field">
         <label id="uiLangLabel">界面语言</label>
         <select id="uiLang" class="mini"></select>
-        <div class="hint">影响标签页、面板标题与主要按钮；说明性提示仍为中文，后续逐条补齐。</div>
+        <div class="hint" data-i18n="settings.uiLangHint">影响标签页、面板标题与主要按钮；说明性提示仍为中文，后续逐条补齐。</div>
       </div>
       <div class="field">
         <label id="targetLangLabel">目标语言</label>
         <select id="targetLang" class="mini"></select>
-        <div class="hint">源语固定为中文。切换目标语言会影响列识别、术语表筛选与质检标点规则。</div>
+        <div class="hint" data-i18n="settings.sourceHint">源语固定为中文。切换目标语言会影响列识别、术语表筛选与质检标点规则。</div>
       </div>
       <div class="field">
         <label id="projectLabel">项目（表格规则）</label>
@@ -627,21 +624,16 @@
           <select id="projectSelect" class="mini"></select>
           <button class="act ghost" id="btnManageProjects" disabled title="项目结构管理：入口预留，暂未开放">管理项目</button>
         </div>
-        <div class="hint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
+        <div class="hint" data-i18n="settings.projectHint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
       </div>
       <div class="field">
         <label>导入术语表（JSON）</label>
         <input id="termFile" type="file" accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
       </div>
-      <div class="note">支持 <b>.xlsx</b>、<b>.xls</b> 与 JSON。Excel 会按表头识别
-        <code>中文</code> 与目标语言列（如 <code>日语</code>、<code>Русский</code>）；无表头时按前两列。
-        JSON 格式：<code>[{"zh":"刺鱼","en":"Hook"}]</code> 或 <code>{"terms":[…]}</code>。解析后只保存在本机。</div>
+      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls 与 JSON。Excel 会按表头识别中文与目标语言列；无表头时按前两列。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
       <div class="field">
         <label id="columnsLabel">列设置（用于当前表）</label>
-        <div class="hint" style="margin-bottom:8px">
-          填<b>列字母</b>，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如
-          <code>C12</code>，字母 <code>C</code> 就是列。示例：A=UID，C=中文原文，F=目标语言译文。
-        </div>
+        <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：A=UID，C=中文原文，F=目标语言译文。</div>
         <div class="colrow">
           <div class="colfield">
             <label>源文列（中文）</label>
@@ -691,11 +683,11 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n-static.js?b=202611052022"></script>
-  <script src="i18n-patch.js?b=202611052022"></script>
-  <script src="i18n.js?b=202611052022"></script>
+  <script src="i18n-static.js?b=202611052023"></script>
+  <script src="i18n-patch.js?b=202611052023"></script>
+  <script src="i18n.js?b=202611052023"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052022"></script>
-  <script src="onboarding.js?b=202611052022"></script>
+  <script src="tide.js?b=202611052023"></script>
+  <script src="onboarding.js?b=202611052023"></script>
 </body>
 </html>
