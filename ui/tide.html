@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052023">
+  <link rel="stylesheet" href="tide.css?b=202611052024">
 </head>
 <body>
   <header class="bar">
@@ -287,15 +287,15 @@
       <div class="hint" id="findStatus"></div>
 
       <hr class="rule">
-      <h3 class="sub">批量替换</h3>
+      <h3 class="sub" data-i18n="find.replaceTitle">批量替换</h3>
       <div class="colrow">
         <div class="colfield">
           <label>查找</label>
-          <input id="repFind" placeholder="要查找的文字" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+          <input id="repFind" placeholder="要查找的文字" data-i18n-ph="find.repFindPlaceholder" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
         </div>
         <div class="colfield">
           <label>替换为</label>
-          <input id="repWith" placeholder="留空表示删除" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+          <input id="repWith" placeholder="留空表示删除" data-i18n-ph="find.repWithPlaceholder" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
         </div>
       </div>
       <div class="toolbar" style="margin-top:8px">
@@ -350,7 +350,7 @@
         </div>
       </div>
       <hr class="rule">
-      <h3 class="sub">质检（QA）</h3>
+      <h3 class="sub" data-i18n="review.qaTitle">质检（QA）</h3>
       <div class="toolbar">
         <button class="act" id="btnRunQA">运行质检</button>
         <button class="act ghost" id="btnExportQA">导出 CSV</button>
@@ -505,7 +505,7 @@
       <div class="lockbar" id="lockBar">
         <div class="field">
           <label>归档口令</label>
-          <input id="passInput" type="password" placeholder="至少 8 位">
+          <input id="passInput" type="password" placeholder="至少 8 位" data-i18n-ph="history.passPlaceholder">
         </div>
         <div class="toolbar">
           <button class="act" id="btnUnlock">解锁归档</button>
@@ -531,7 +531,7 @@
       </div>
       <div class="field">
         <label>口令</label>
-        <input id="syncPass" type="password" placeholder="上传前输入">
+        <input id="syncPass" type="password" placeholder="上传前输入" data-i18n-ph="sync.passPlaceholder">
       </div>
       <div class="toolbar">
         <button class="act" id="btnPull" disabled>拉取</button>
@@ -555,7 +555,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052023</span>
+        <span class="nas-build" id="nasBuild">构建 202611052024</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -627,8 +627,12 @@
         <div class="hint" data-i18n="settings.projectHint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
       </div>
       <div class="field">
-        <label>导入术语表（JSON）</label>
-        <input id="termFile" type="file" accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <label data-i18n="settings.importLabel">导入术语表（JSON）</label>
+        <input id="termFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="toolbar">
+          <button class="act ghost" id="btnTermFile" type="button" data-i18n="file.choose">选择文件</button>
+          <span class="hint" id="termFileName" data-i18n="file.none">未选择任何文件</span>
+        </div>
       </div>
       <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls 与 JSON。Excel 会按表头识别中文与目标语言列；无表头时按前两列。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
       <div class="field">
@@ -664,7 +668,7 @@
       </div>
       <div class="field" id="termsUnlockBlock" hidden>
         <label>术语表口令（加密包）</label>
-        <input id="termsPass" type="password" placeholder="与其他设备相同的口令">
+        <input id="termsPass" type="password" placeholder="与其他设备相同的口令" data-i18n-ph="term.passPlaceholder">
         <div class="toolbar"><button class="act" id="btnUnlockTerms">解锁术语表</button></div>
       </div>
       <div class="hint" id="termSource">内置术语表未加载</div>
@@ -683,11 +687,11 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n-static.js?b=202611052023"></script>
-  <script src="i18n-patch.js?b=202611052023"></script>
-  <script src="i18n.js?b=202611052023"></script>
+  <script src="i18n-static.js?b=202611052024"></script>
+  <script src="i18n-patch.js?b=202611052024"></script>
+  <script src="i18n.js?b=202611052024"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052023"></script>
-  <script src="onboarding.js?b=202611052023"></script>
+  <script src="tide.js?b=202611052024"></script>
+  <script src="onboarding.js?b=202611052024"></script>
 </body>
 </html>

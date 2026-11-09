@@ -1732,7 +1732,9 @@
     var result = window.TideEngine.findMemory(sourceText || entry.source, state.memory, 0.5, 5);
     var rows = result.exact.map(function (item) { return { item: item, exact: true, score: 1 }; })
       .concat(result.fuzzy.map(function (item) { return { item: item, exact: false, score: item.score }; }));
-    count.textContent = rows.length ? rows.length + ' 条匹配 / ' + state.memory.length + ' 条整簿记忆' : '';
+    count.textContent = rows.length
+      ? trFormat('memory.matchCount', '{matches} 条匹配 / {total} 条整簿记忆', { matches: rows.length, total: state.memory.length })
+      : '';
     table.hidden = rows.length === 0;
     $('memoryEmpty').hidden = rows.length > 0;
     $('memoryEmpty').textContent = '当前条目没有匹配。';
@@ -5435,9 +5437,11 @@
       writeJSON(K.branch, $('syncBranch').value);
       $('settingsStatus').textContent = '已保存到本机。';
     });
+    if ($('btnTermFile')) $('btnTermFile').addEventListener('click', function () { $('termFile').click(); });
     $('termFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
       if (!file) return;
+      if ($('termFileName')) $('termFileName').textContent = trFormat('file.selected', '已选择：{name}', { name: file.name });
       event.target.value = '';
       if (state.nas && (state.nas.token || state.nas.termProject)) {
         $('settingsStatus').textContent = 'NAS 术语库优先，断开 NAS 后再导入本地术语。';
