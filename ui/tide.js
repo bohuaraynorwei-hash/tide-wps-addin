@@ -956,7 +956,42 @@
       ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
   }
 
+  function renderTermSourceBox() {
+    var box = $('termSourceBox'), value = $('termSourceValue'), detail = $('termSourceDetail');
+    if (!box || !value || !detail) return;
+    var meta = state.termsMeta;
+    var mode = 'none';
+    var title = '尚未加载';
+    var note = '打开术语页后自动识别 NAS 项目、缓存或本地术语。';
+    if (meta && meta.projectId) {
+      var count = Number(meta.count || state.terms.length || 0);
+      if (meta.cached) {
+        mode = 'nas';
+        title = 'NAS 缓存';
+        note = (meta.source || 'NAS 缓存') + ' · ' + count + ' 条' +
+          (meta.cachedAt ? ' · 缓存于 ' + localStamp(meta.cachedAt) : '');
+      } else {
+        mode = 'nas';
+        title = 'NAS 项目术语表';
+        note = (meta.source || '项目术语表') + ' · ' + count + ' 条 · 已同步';
+      }
+    } else if (meta) {
+      mode = 'local';
+      title = '本地术语表';
+      note = (state.terms.length || meta.count || 0) + ' 条 · ' + (meta.source || '本机导入') +
+        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · 仅存本机';
+    } else if (state.bundledMeta) {
+      mode = 'bundled';
+      title = '内置术语表';
+      note = (state.terms.length || state.bundledMeta.count || 0) + ' 条 · 随插件提供';
+    }
+    box.className = 'term-source-box ' + mode;
+    value.textContent = title;
+    detail.textContent = note;
+  }
+
   function renderTermSource() {
+    renderTermSourceBox();
     var el = $('termSource');
     if (!el) return;
     if (state.termsMeta) {

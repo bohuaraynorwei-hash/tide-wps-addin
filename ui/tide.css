@@ -539,3 +539,15 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .term-chip span{color:var(--label-2)}
 
 #findScopeTabs button.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+
+/* Current terminology source: one strong, always-visible box. */
+.term-source-box{margin:0 0 12px;padding:10px 12px 9px;border:1px solid var(--hair-strong);border-left:4px solid var(--label-3);border-radius:10px;background:var(--card)}
+.term-source-head{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.term-source-label{font:500 10.5px/1.2 var(--font);letter-spacing:.04em;color:var(--label-2);text-transform:uppercase}
+.term-source-value{font:700 14px/1.35 var(--font);color:var(--label);word-break:break-word}
+.term-source-detail{font:400 11.5px/1.5 var(--font);color:var(--label-2);margin-top:2px;word-break:break-word}
+.term-source-box.nas{border-left-color:var(--accent);background:#f0f7ff}
+.term-source-box.nas .term-source-value{color:var(--accent)}
+.term-source-box.local{border-left-color:#b35c00;background:#fff8ed}
+.term-source-box.local .term-source-value{color:#9a4f00}
+.term-source-box.bundled{border-left-color:var(--label-2)}
