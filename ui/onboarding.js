@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '10';   // bump to re-show the tour after a big UI change
+  var VERSION = '11';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -58,7 +58,7 @@
       before: 'find',
       target: '#findScopeTabs',
       place: 'bottom',
-      zh: '搜索页新增定位范围：选项卡 1 选择工作表，选项卡 2 输入行号；两项同时满足才限定搜索，点「清除定位范围」恢复整本工作簿。'
+      zh: '搜索页新增定位范围：选项卡 1 选择工作表，选项卡 2 输入行号；两项同时满足才限定搜索。「跳转到原文」直接定位到对应行的原文列，点「清除定位范围」恢复整本工作簿。'
     }, {
 
       before: 'find',

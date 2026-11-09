@@ -1601,6 +1601,7 @@
     else if (scope.active) el.textContent = '定位：' + scope.sheet + ' · 第 ' + scope.row + ' 行';
     else el.textContent = '未限定：搜索整本工作簿';
     if ($('btnFindAll')) $('btnFindAll').textContent = scope.active ? '搜索指定位置' : '搜索整本工作簿';
+    if ($('btnFindJumpSource')) $('btnFindJumpSource').disabled = !scope.active;
   }
 
   function refreshFindSheets() {
@@ -5333,6 +5334,19 @@
       $('findRow').addEventListener('input', updateFindScopeSummary);
       $('findRow').addEventListener('keydown', function (event) { if (event.key === 'Enter') runFind(); });
     }
+    if ($('btnFindJumpSource')) $('btnFindJumpSource').addEventListener('click', function () {
+      var scope = readFindScope();
+      if (!scope.active) {
+        $('findStatus').textContent = '先同时选择工作表和输入行号，再跳转。';
+        return;
+      }
+      var sheet = sheetByName(scope.sheet);
+      if (!sheet) { $('findStatus').textContent = '找不到工作表：' + scope.sheet; return; }
+      var address = state.settings.sourceCol + scope.row;
+      $('findStatus').textContent = revealCell(sheet, address)
+        ? '已跳转到 ' + scope.sheet + ' ' + address
+        : '跳转失败：' + scope.sheet + ' ' + address;
+    });
     if ($('btnFindClearScope')) $('btnFindClearScope').addEventListener('click', function () {
       if ($('findSheet')) $('findSheet').value = '';
       if ($('findRow')) $('findRow').value = '';
