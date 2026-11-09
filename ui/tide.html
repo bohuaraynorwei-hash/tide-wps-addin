@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052020">
+  <link rel="stylesheet" href="tide.css?b=202611052021">
 </head>
 <body>
   <header class="bar">
@@ -24,7 +24,7 @@
       </svg>
     </span>
     <button class="backbtn" id="btnBack" title="返回上一标签页" aria-label="返回上一标签页">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg><span>返回</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg><span data-i18n="btn.back">返回</span>
     </button>
     <button class="top-nas" id="topNas" type="button" title="打开 NAS 页面" aria-label="打开 NAS 页面">
       <svg class="top-nas-ic" viewBox="0 0 24 24" aria-hidden="true">
@@ -81,13 +81,13 @@
     <section id="panel-matches">
       <div class="toolbar">
         <button class="act" id="btnScan">扫描当前表</button>
-        <span class="count" id="matchCount">未扫描</span>
+        <span class="count" id="matchCount" data-i18n="match.notScanned">未扫描</span>
       </div>
       <table id="matchTable" hidden>
         <thead><tr><th>行</th><th>源文命中</th><th>批准译法</th><th></th><th>当前译文</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="empty" id="matchEmpty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
+      <div class="empty" id="matchEmpty" data-i18n="match.empty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
     </section>
 
     <section id="panel-translate" hidden>
@@ -137,7 +137,7 @@
       </div>
       <div class="field" id="entryTermField" hidden>
         <div class="field-head">
-          <label>本句术语 <span class="count" id="entryTermCount"></span></label>
+          <label><span data-i18n="entry.terms">本句术语</span> <span class="count" id="entryTermCount"></span></label>
         </div>
         <div class="term-preview" id="entrySourceHighlight"></div>
         <div class="term-chips" id="entryTermHits"></div>
@@ -161,7 +161,7 @@
             <button class="act ghost" id="btnDraftClear" title="清空译文草稿">清空</button>
           </div>
         </div>
-        <div class="hint" id="grammarlyHint">Grammarly 扩展需在 WPS 中启用；此文本框已开放语法检测。</div>
+        <div class="hint" id="grammarlyHint" data-i18n="entry.grammarly">Grammarly 扩展需在 WPS 中启用；此文本框已开放语法检测。</div>
       </div>
       <div class="field">
         <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
@@ -169,7 +169,7 @@
           <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div class="hint" id="memoryEmpty">当前表还没有可用的已确认译文。</div>
+        <div class="hint" id="memoryEmpty" data-i18n="entry.memoryEmpty">当前表还没有可用的已确认译文。</div>
       </div>
       <div class="toolbar">
         <button class="act" id="btnWriteNext">写入并下一条</button>
@@ -181,7 +181,7 @@
         <button class="act ghost" id="btnCopyDraft">复制草稿</button>
         <button class="act ghost" id="btnReadCell">读取选区→译文</button>
       </div>
-      <div class="hint" id="clipHint" style="margin:-4px 0 10px">
+      <div class="hint" id="clipHint" data-i18n="hint.clipboard" style="margin:-4px 0 10px">
         窗格收不到 ⌘V（WPS 在窗口层拦截）。可靠做法：在表格里粘贴到任意单元格并选中它，
         再点「读取选区→原文 / →译文」；也可以把文字直接拖进输入框。
       </div>
@@ -228,7 +228,7 @@
           <thead><tr><th>中文</th><th>英文</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div class="hint" id="freeTermEmpty">没有命中术语。</div>
+        <div class="hint" id="freeTermEmpty" data-i18n="free.termEmpty">没有命中术语。</div>
       </div>
       <div class="field">
         <label>记忆匹配 <span class="count" id="freeMemoryCount"></span></label>
@@ -236,7 +236,7 @@
           <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div class="hint" id="freeMemoryEmpty">没有记忆匹配。</div>
+        <div class="hint" id="freeMemoryEmpty" data-i18n="free.memoryEmpty">没有记忆匹配。</div>
       </div>
       <div class="field">
         <label>译文草稿（仅本页，不写入工作表）</label>
@@ -273,7 +273,7 @@
       </div>
       <div class="field">
         <label>全表模糊搜索（包含即命中）</label>
-        <input id="findInput" type="search" placeholder="输入片段，如：宝箱" title="Ctrl+V 粘贴 · Esc 清空">
+        <input id="findInput" type="search" placeholder="输入片段，如：宝箱" data-i18n-ph="find.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <div class="toolbar">
         <button class="act" id="btnFindAll">搜索整本工作簿</button>
@@ -283,7 +283,7 @@
         <thead><tr><th>表</th><th>单元格</th><th>列</th><th>内容</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="hint" id="findEmpty">输入片段后开始搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
+      <div class="hint" id="findEmpty" data-i18n="find.empty">输入片段后开始搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
       <div class="hint" id="findStatus"></div>
 
       <hr class="rule">
@@ -306,7 +306,7 @@
         <select id="repColumn" class="mini" disabled title="替换只作用于译文列">
           <option value="target">仅译文列</option>
         </select>
-        <label class="chk"><input type="checkbox" id="repCase"> 区分大小写</label>
+        <label class="chk"><input type="checkbox" id="repCase"> <span data-i18n="find.caseSensitive">区分大小写</span></label>
       </div>
       <div class="toolbar">
         <button class="act ghost" id="btnRepPreview">预览</button>
@@ -422,15 +422,15 @@
     <section id="panel-keys" hidden>
       <div class="toolbar">
         <button class="act" id="btnKeySearch">搜索</button>
-        <label class="check"><input type="checkbox" id="keyWholeBook"> 整本工作簿</label>
-        <label class="check"><input type="checkbox" id="keyExactOnly"> 仅精确</label>
+        <label class="check"><input type="checkbox" id="keyWholeBook"> <span data-i18n="key.wholeBook">整本工作簿</span></label>
+        <label class="check"><input type="checkbox" id="keyExactOnly"> <span data-i18n="key.exactOnly">仅精确</span></label>
         <span class="count" id="keyCount"></span>
       </div>
       <div class="field">
         <label>Key（支持片段与近似）</label>
-        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12" title="Ctrl+V 粘贴 · Esc 清空">
+        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12" data-i18n-ph="key.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
-      <div class="hint" id="keyHint">按表头「完整Key」与「完整Key（复制用）」定位；点结果跳到对应词条。</div>
+      <div class="hint" id="keyHint" data-i18n="key.hint">按表头「完整Key」与「完整Key（复制用）」定位；点结果跳到对应词条。</div>
       <table id="keyTable" hidden>
         <thead><tr><th>位置</th><th>Key</th><th>源文 / 译文</th></tr></thead>
         <tbody></tbody>
@@ -446,12 +446,12 @@
         <div class="term-source-detail" id="termSourceDetail">打开术语页后自动识别 NAS 项目、缓存或本地术语。</div>
       </div>
       <div class="field" id="termProjectField" hidden>
-        <label>NAS 项目术语表</label>
+        <label data-i18n="term.nasTable">NAS 项目术语表</label>
         <select id="termProject" class="mini"></select>
-        <div class="hint" id="termSyncState">登录 NAS 后自动同步所有可访问项目的术语表。</div>
+        <div class="hint" id="termSyncState" data-i18n="term.syncHint">登录 NAS 后自动同步所有可访问项目的术语表。</div>
       </div>
       <div class="field" id="localTermField">
-        <label>离线术语来源</label>
+        <label data-i18n="term.offlineSource">离线术语来源</label>
         <div class="toolbar">
           <button class="act" id="btnImportLocalTerm">导入本地术语</button>
           <button class="act ghost" id="btnSwitchTermSource" title="在 NAS 缓存术语表和本地术语表之间切换">切换</button>
@@ -459,7 +459,7 @@
         </div>
         <div class="hint" id="nasCacheState"></div>
         <input id="localTermFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-        <div class="hint" id="localTermHint">NAS 未连接时可在此导入，只保存在本机。连接 NAS 后以 NAS 项目术语表为准，本地术语表自动隐藏。</div>
+        <div class="hint" id="localTermHint" data-i18n="term.localHint">NAS 未连接时可在此导入，只保存在本机。连接 NAS 后以 NAS 项目术语表为准，本地术语表自动隐藏。</div>
       </div>
       <div class="field">
         <label>本页列映射</label>
@@ -477,11 +477,11 @@
             <input id="termColUid" placeholder="A" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
           </div>
         </div>
-        <div class="hint" style="margin-top:6px">改完点「刷新」按新列重新统计命中；这里只影响命中统计，不改术语表内容。</div>
+        <div class="hint" style="margin-top:6px" data-i18n="term.columnHint">改完点「刷新」按新列重新统计命中；这里只影响命中统计，不改术语表内容。</div>
       </div>
       <div class="field">
-        <label>搜索术语（中文或英文，支持片段与近似）</label>
-        <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod" title="Ctrl+V 粘贴 · Esc 清空">
+        <label data-i18n="term.searchLabel">搜索术语（中文或英文，支持片段与近似）</label>
+        <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod" data-i18n-ph="term.searchPlaceholder" title="Ctrl+V 粘贴 · Esc 清空">
       </div>
       <div class="toolbar">
         <button class="act ghost" id="btnRefreshTerms">刷新</button>
@@ -492,7 +492,7 @@
         <thead><tr><th>中文</th><th>英文</th><th>命中</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="empty" id="termEmpty">尚未导入术语表。<br>NAS 未连接时可在上方「导入本地术语」导入 JSON 或 xlsx。</div>
+      <div class="empty" id="termEmpty" data-i18n="term.empty">尚未导入术语表。NAS 未连接时可在上方「导入本地术语」导入 JSON 或 xlsx。</div>
     </section>
 
     <section id="panel-history" hidden>
@@ -558,7 +558,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052020</span>
+        <span class="nas-build" id="nasBuild">构建 202611052021</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -691,10 +691,11 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n-static.js?b=202611052020"></script>
-  <script src="i18n.js?b=202611052020"></script>
+  <script src="i18n-static.js?b=202611052021"></script>
+  <script src="i18n-patch.js?b=202611052021"></script>
+  <script src="i18n.js?b=202611052021"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052020"></script>
-  <script src="onboarding.js?b=202611052020"></script>
+  <script src="tide.js?b=202611052021"></script>
+  <script src="onboarding.js?b=202611052021"></script>
 </body>
 </html>

@@ -172,7 +172,8 @@
     "巴西葡语 · Português (Brasil)": "Tiếng Bồ Đào Nha (Brasil) · Português (Brasil)",
     "法语 · Français": "Tiếng Pháp · Français",
     "西班牙语 · Español": "Tiếng Tây Ban Nha · Español",
-    "泰语 · ไทย": "Tiếng Thái · ไทย"
+    "泰语 · ไทย": "Tiếng Thái · ไทย",
+    "0 条": "0 mục"
   },
   "ru": {
     "有新版本，点击重新加载": "Новая версия, нажмите для перезагрузки",
@@ -345,7 +346,8 @@
     "巴西葡语 · Português (Brasil)": "Португальский (Бразилия) · Português (Brasil)",
     "法语 · Français": "Французский · Français",
     "西班牙语 · Español": "Испанский · Español",
-    "泰语 · ไทย": "Тайский · ไทย"
+    "泰语 · ไทย": "Тайский · ไทย",
+    "0 条": "0"
   },
   "pt-BR": {
     "有新版本，点击重新加载": "Nova versão, clique para recarregar",
@@ -518,7 +520,8 @@
     "巴西葡语 · Português (Brasil)": "Português (Brasil) · Português (Brasil)",
     "法语 · Français": "Francês · Français",
     "西班牙语 · Español": "Espanhol · Español",
-    "泰语 · ไทย": "Tailandês · ไทย"
+    "泰语 · ไทย": "Tailandês · ไทย",
+    "0 条": "0"
   }
 };
 })(typeof globalThis !== "undefined" ? globalThis : this);

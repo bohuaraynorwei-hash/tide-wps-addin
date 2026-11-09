@@ -667,7 +667,9 @@
     var table = $('matchTable');
     var body = table.tBodies[0];
     body.textContent = '';
-    $('matchCount').textContent = state.scanned.length ? state.scanned.length + ' 行命中' : '无命中';
+    $('matchCount').textContent = state.scanned.length
+      ? trFormat('match.rows', '{count} 行命中', { count: state.scanned.length })
+      : tr('match.none', '无命中');
     $('matchEmpty').hidden = state.scanned.length > 0;
     table.hidden = state.scanned.length === 0;
     state.scanned.forEach(function (row) {
@@ -783,9 +785,10 @@
     var body = table.tBodies[0];
     body.textContent = '';
     var total = currentTerms().length;
-    var langName = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en').name : '';
+    var langProfile = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en') : null;
+    var langName = langProfile ? (langProfile.native || langProfile.name) : '';
     if (!total) {
-      $('termCount').textContent = '术语表未导入';
+      $('termCount').textContent = tr('term.notImported', '术语表未导入');
       $('termEmpty').hidden = false;
       table.hidden = true;
       return;
@@ -801,11 +804,11 @@
     });
     var rows = result.rows.slice(0, 300);
     $('termCount').textContent = (query
-      ? rows.length + ' / ' + total + ' 条' + (result.fuzzy ? ' · 近似匹配' : '')
-      : total + ' 条术语') + (langName ? ' · ' + langName : '');
+      ? trFormat('term.filteredCount', '{shown} / {total} 条', { shown: rows.length, total: total }) + (result.fuzzy ? ' · ' + tr('term.fuzzy', '近似匹配') : '')
+      : trFormat('term.totalCount', '{count} 条术语', { count: total })) + (langName ? ' · ' + langName : '');
     table.hidden = rows.length === 0;
     $('termEmpty').hidden = rows.length > 0;
-    $('termEmpty').textContent = query ? '没有匹配的术语，换个词试试。' : '术语表为空。';
+    $('termEmpty').textContent = query ? tr('term.noMatch', '没有匹配的术语，换个词试试。') : tr('term.isEmpty', '术语表为空。');
     rows.forEach(function (term) {
       var tr = document.createElement('tr');
       tr.appendChild(textNode('td', term.zh || ''));
@@ -1020,23 +1023,27 @@
         : '还没有 NAS 缓存，无法切换';
     }
     if (mode === 'nas' && entry) {
-      status.textContent = (entry.terms || []).length + ' 条 · NAS 缓存';
+      status.textContent = (entry.terms || []).length + ' ' + tr('term.items', '条') + ' · ' + tr('term.nasCache', 'NAS 缓存');
       var cacheState = $('nasCacheState');
       if (cacheState) {
         var fresh = cacheIsFresh(entry);
-        cacheState.textContent = 'NAS 缓存：' + (entry.name || '') +
+        cacheState.textContent = tr('term.nasCache', 'NAS 缓存') + ': ' + (entry.name || '') +
           (entry.fetchedAt ? ' · ' + localStamp(entry.fetchedAt) : '') +
-          (fresh ? ' · 24 小时内有效' : ' · 已超过 24 小时，登录 NAS 后自动刷新');
+          (fresh ? ' · ' + tr('term.fresh', '24 小时内有效') : ' · ' + tr('term.stale', '已超过 24 小时，登录 NAS 后自动刷新'));
       }
     } else {
       var meta = state.termsMeta;
       if (meta && !meta.projectId) {
-        status.textContent = (meta.count || state.terms.length) + ' 条 · 本机';
+        status.textContent = (meta.count || state.terms.length) + ' ' + tr('term.items', '条') + ' · ' + tr('term.onDevice', '本机');
       } else {
-        status.textContent = state.terms.length ? (state.terms.length + ' 条 · 本地术语') : '未导入本地术语';
+        status.textContent = state.terms.length
+          ? (state.terms.length + ' ' + tr('term.items', '条') + ' · ' + tr('term.localShort', '本地术语'))
+          : tr('term.localNotImported', '未导入本地术语');
       }
       var cs = $('nasCacheState');
-      if (cs) cs.textContent = entry ? '本地术语表模式：不会使用 NAS 缓存。' : '还没有 NAS 缓存。';
+      if (cs) cs.textContent = entry
+        ? tr('term.localMode', '本地术语表模式：不会使用 NAS 缓存。')
+        : tr('term.noCache', '还没有 NAS 缓存。');
     }
   }
 
@@ -1088,6 +1095,10 @@
   function tr(key, fallback) {
     var value = window.TideI18n && window.TideI18n.t ? window.TideI18n.t(key) : '';
     return value || fallback;
+  }
+
+  function currentLangIsZh() {
+    return !window.TideI18n || !window.TideI18n.lang || window.TideI18n.lang === 'zh';
   }
 
   function trFormat(key, fallback, values) {
@@ -1352,7 +1363,9 @@
     var el = $('sessionEditCount');
     if (!el) return;
     var n = Object.keys(state.sessionEdits).length;
-    el.textContent = n ? (n + ' 条已编辑') : '0 条';
+    el.textContent = n
+      ? trFormat('session.edited', '{count} 条已编辑', { count: n })
+      : tr('session.zero', '0 条');
   }
 
   function sessionExportName() {
@@ -1710,7 +1723,9 @@
     if (!entry || !state.memory.length) {
       table.hidden = true;
       $('memoryEmpty').hidden = false;
-      $('memoryEmpty').textContent = state.memory.length ? '当前条目没有匹配。' : '当前表还没有可用的已确认译文。';
+      $('memoryEmpty').textContent = state.memory.length
+        ? tr('entry.noMemory', '当前条目没有匹配。')
+        : tr('entry.memoryEmpty', '当前表还没有可用的已确认译文。');
       count.textContent = state.memory.length ? state.memory.length + ' 条记忆' : '';
       return;
     }
@@ -3467,7 +3482,7 @@
       return;
     }
     field.hidden = false;
-    $('entryTermCount').textContent = terms.length + ' 条';
+    $('entryTermCount').textContent = trFormat('entry.termCount', '{count} 条', { count: terms.length });
     var preview = $('entrySourceHighlight');
     preview.textContent = '';
     preview.appendChild(markTokens(text, terms.map(function (term) { return term.zh; }).filter(Boolean)));
@@ -3487,7 +3502,7 @@
       });
       box.appendChild(chip);
     });
-    $('entryTermHint').textContent = '已标出 ' + terms.length + ' 条命中术语；点击术语填入译文草稿。';
+    $('entryTermHint').textContent = trFormat('entry.termHint', '已标出 {count} 条命中术语；点击术语填入译文草稿。', { count: terms.length });
     } catch (err) {
       paneLog('terms:error', { message: String(err && err.message).slice(0, 100) });
       var termField = $('entryTermField');
@@ -3732,12 +3747,13 @@
 
 
   function describeEntry(entry, draft) {
-    var head = '第 ' + entry.row + ' 行 · ' + entryAddress(entry.row);
-    if (!String(draft || '').trim()) return head + ' · 尚未翻译';
+    var head = trFormat('entry.line', '第 {row} 行 · {cell}', { row: entry.row, cell: entryAddress(entry.row) });
+    if (!String(draft || '').trim()) return head + ' · ' + tr('entry.untranslated', '尚未翻译');
     var check = window.TideEngine.checkTokens(entry.source, draft);
-    if (check.ok) return head + ' · 占位符一致';
-    return head + ' · 占位符不一致：缺 ' + (check.missing.join(' ') || '无') +
-      ' / 多 ' + (check.extra.join(' ') || '无');
+    if (check.ok) return head + ' · ' + tr('entry.tokensOk', '占位符一致');
+    return head + ' · ' + tr('entry.tokensBad', '占位符不一致：缺 ') +
+      (check.missing.join(' ') || tr('entry.none', '无')) +
+      ' / ' + tr('entry.extra', '多 ') + (check.extra.join(' ') || tr('entry.none', '无'));
   }
 
   function currentSourceText() {
@@ -4677,6 +4693,14 @@
     }
   }
 
+  function localizedTaskName(name) {
+    var text = String(name || '');
+    if (currentLangIsZh()) return text;
+    return text.replace(/选中\s*(\d+)\s*条/g, function (_, count) {
+      return trFormat('task.selectedPattern', 'đã chọn {count} mục', { count: count });
+    });
+  }
+
   function taskKey(task) {
     return [task.kind || 'job', task.project_id || 0, task.job_id || 0, task.doc || '', task.lang || ''].join('|');
   }
@@ -4712,7 +4736,9 @@
     if (!list) return;
     list.textContent = '';
     var tasks = state.nas.tasks || [];
-    if (count) count.textContent = tasks.length ? trFormat('task.count', '{count} 个任务', { count: tasks.length }) : '';
+    if (count) count.textContent = tasks.length
+      ? trFormat(tasks.length === 1 ? 'task.countOne' : 'task.count', '{count} 个任务', { count: tasks.length })
+      : '';
     if (empty) { empty.hidden = tasks.length > 0; empty.textContent = tr('task.empty', '暂无分配给你的任务。'); }
     var statusText = {
       new: tr('status.new', '待译'), draft: tr('status.draft', '草稿'),
@@ -4730,7 +4756,7 @@
       var caret = document.createElement('span'); caret.className = 'wps-task-caret'; caret.textContent = expanded ? '▾' : '▸';
       var main = document.createElement('div');
       main.className = 'wps-task-main';
-      var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = task.name || '未命名任务';
+      var name = document.createElement('div'); name.className = 'wps-task-name'; name.textContent = localizedTaskName(task.name) || tr('task.unnamed', '未命名任务');
       var meta = document.createElement('div'); meta.className = 'wps-task-meta';
       meta.textContent = (task.project_name || '') + ' · ' + (task.lang || '') +
         (task.kind === 'segments' ? ' · ' + tr('task.selectedItems', '选中条目') : '') +
@@ -4887,8 +4913,10 @@
         return n + (base ? base.terms.length : 0);
       }, 0);
       hint.textContent = state.nas.termbasesLoading
-        ? '正在同步全部术语表…'
-        : ('已同步 ' + projects.length + ' 个项目 · ' + total + ' 条术语');
+        ? tr('term.syncLoading', '正在同步全部术语表…')
+        : trFormat('term.syncSummary', '已同步 {projects} 个项目 · {terms} 条术语', {
+          projects: projects.length, terms: total
+        });
     }
   }
 
