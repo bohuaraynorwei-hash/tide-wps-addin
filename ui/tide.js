@@ -1862,6 +1862,22 @@
     saveProject();
   }
 
+  function recordSourceRevision(sheet, row, column, before, after) {
+    if (String(before == null ? '' : before) === String(after == null ? '' : after)) return;
+    var record = segmentRecord(sheet, row, after, undefined, state.settings.targetCol);
+    if (!record.sourceRevisions) record.sourceRevisions = [];
+    record.sourceRevisions.push({
+      id: 's' + Date.now() + Math.floor(Math.random() * 1000),
+      ts: new Date().toISOString(),
+      author: authorName(),
+      column: column || state.settings.sourceCol,
+      before: before == null ? '' : String(before),
+      after: String(after)
+    });
+    record.source = String(after);
+    saveProject();
+  }
+
   // Common prefix/suffix trimming: cheaper and clearer than a full diff for
   // short UI strings, and it reads correctly for both Chinese and English.
   function diffParts(before, after) {
@@ -1936,24 +1952,34 @@
     return { sheet: m[1], column: m[2], row: Number(m[3]), address: m[2] + m[3] };
   }
 
-  function versionEntryModels(query) {
+  function versionKind() {
+    return $('versionKind') && $('versionKind').value === 'source' ? 'source' : 'target';
+  }
+
+  function versionEntryModels(query, kind) {
     reconcileReview();
     var project = ensureProject();
     var q = String(query || '').trim().toLowerCase();
+    var sourceMode = kind === 'source';
     var out = [];
     Object.keys(project.segments || {}).forEach(function (key) {
       var record = project.segments[key] || {};
-      var revs = (record.revisions || []).slice().sort(function (a, b) {
+      var revs = (sourceMode ? (record.sourceRevisions || []) : (record.revisions || [])).slice().sort(function (a, b) {
         return String(a.ts || '').localeCompare(String(b.ts || ''));
       });
       if (!revs.length) return;
       var pos = parseSegKey(key);
       if (!pos) return;
+      if (sourceMode) {
+        pos = { sheet: pos.sheet, column: revs[0].column || state.settings.sourceCol, row: pos.row,
+          address: (revs[0].column || state.settings.sourceCol) + pos.row };
+      }
       if (q) {
-        var hay = (pos.address + ' ' + (record.source || '')).toLowerCase();
+        var hay = (pos.address + ' ' + (record.source || '') + ' ' + (record.target || '')).toLowerCase();
         if (hay.indexOf(q) < 0) return;
       }
-      out.push({ key: key, pos: pos, record: record, revisions: revs });
+      out.push({ key: key, pos: pos, record: record, revisions: revs, kind: kind,
+        current: sourceMode ? (record.source || '') : (record.target || '') });
     });
     out.sort(function (a, b) {
       var ta = a.revisions.length ? a.revisions[a.revisions.length - 1].ts : '';
@@ -1967,9 +1993,14 @@
     var box = $('versionEntries');
     if (!box) return;
     var query = $('versionQuery') ? $('versionQuery').value : '';
-    var models = versionEntryModels(query);
-    $('versionEntryCount').textContent = models.length + ' 个词条有版本';
+    var kind = versionKind();
+    var label = kind === 'source' ? '原文' : '译文';
+    var models = versionEntryModels(query, kind);
+    $('versionEntryCount').textContent = models.length + ' 个词条有' + label + '版本';
     $('versionEmpty').hidden = models.length > 0;
+    $('versionEmpty').textContent = kind === 'source'
+      ? '还没有原文版本。原文通常不改；通过「写回原文」修改后，这里会记录。'
+      : '还没有译文版本。通过插件写入译文后，这里会按词条记录。';
     box.textContent = '';
     models.slice(0, 300).forEach(function (model) {
       var details = document.createElement('details');
@@ -1979,19 +2010,18 @@
       summary.style.cssText = 'cursor:pointer;padding:2px 0';
       var head = document.createElement('span');
       head.style.cssText = 'font-size:12px;font-weight:600';
-      head.textContent = model.pos.address + ' · ' + (model.record.source || '（无原文）');
+      head.textContent = model.pos.address + ' · ' + (kind === 'source' ? '原文' : (model.record.source || '（无原文）'));
       var meta = document.createElement('span');
       meta.className = 'hint';
       meta.style.marginLeft = '8px';
-      meta.textContent = model.revisions.length + ' 个版本 · 当前：' + (model.record.target || '空');
+      meta.textContent = model.revisions.length + ' 个' + label + '版本 · 当前：' + (model.current || '空');
       summary.append(head, meta);
       details.appendChild(summary);
       var body = document.createElement('div');
       body.style.cssText = 'margin-top:8px;border-top:1px solid var(--hair);padding-top:6px';
-      var first = model.revisions[0].before;
-      body.appendChild(versionRow(model, '初始值', '—', first, true));
+      body.appendChild(versionRow(model, '初始值', '—', model.revisions[0].before, true, kind, model.pos.column));
       model.revisions.forEach(function (rev) {
-        body.appendChild(versionRow(model, localStamp(rev.ts), rev.author || '', rev.after, false));
+        body.appendChild(versionRow(model, localStamp(rev.ts), rev.author || '', rev.after, false, kind, model.pos.column));
       });
       details.appendChild(body);
       box.appendChild(details);
@@ -2003,7 +2033,7 @@
     }
   }
 
-  function versionRow(model, label, author, value, initial) {
+  function versionRow(model, label, author, value, initial, kind, column) {
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--hair)';
     var text = document.createElement('div');
@@ -2015,34 +2045,43 @@
     var btn = document.createElement('button');
     btn.className = 'act ghost'; btn.textContent = '回滚';
     btn.addEventListener('click', function () {
-      if (!window.confirm('只回滚词条 ' + model.pos.address + ' 到「' + label + '」？其他词条不会改变。')) return;
-      restoreEntryVersion(model.key, value, label);
+      var typeLabel = kind === 'source' ? '原文' : '译文';
+      if (!window.confirm('只回滚词条 ' + model.pos.address + ' 的' + typeLabel + '到「' + label + '」？其他词条和另一列不会改变。')) return;
+      restoreEntryVersion(model.key, value, label, kind, column);
     });
     row.append(text, btn);
     return row;
   }
 
-  function restoreEntryVersion(key, value, label) {
-    var pos = parseSegKey(key);
-    if (!pos) return;
-    var sheet = sheetByName(pos.sheet);
-    if (!sheet) { showToast('找不到工作表 ' + pos.sheet); return; }
+  function restoreEntryVersion(key, value, label, kind, column) {
+    var base = parseSegKey(key);
+    if (!base) return;
+    var sourceMode = kind === 'source';
+    var col = column || (sourceMode ? state.settings.sourceCol : base.column);
+    var address = col + base.row;
+    var sheet = sheetByName(base.sheet);
+    if (!sheet) { showToast('找不到工作表 ' + base.sheet); return; }
     var current = '';
-    try { current = String(sheet.Range(pos.address).Value2 == null ? '' : sheet.Range(pos.address).Value2); }
+    try { current = String(sheet.Range(address).Value2 == null ? '' : sheet.Range(address).Value2); }
     catch (err) { showToast('读取单元格失败'); return; }
     var target = value == null ? '' : String(value);
-    try { sheet.Range(pos.address).Value2 = target; }
+    try { sheet.Range(address).Value2 = target; }
     catch (err) { showToast('回滚失败：' + err.message); return; }
     var project = ensureProject();
     var record = project.segments[key];
     if (record) {
-      record.target = target;
-      recordRevision(pos.sheet, pos.row, record.source || '', current, target, pos.column);
+      if (sourceMode) {
+        record.source = target;
+        recordSourceRevision(base.sheet, base.row, col, current, target);
+      } else {
+        record.target = target;
+        recordRevision(base.sheet, base.row, record.source || '', current, target, col);
+      }
       saveProject();
     }
     renderVersionsTab();
     try { loadEntries(); renderEntry(); } catch (err) { /* ignore */ }
-    showToast('已回滚 ' + pos.address + ' 到「' + label + '」');
+    showToast('已回滚 ' + address + ' 的' + (sourceMode ? '原文' : '译文') + '到「' + label + '」');
   }
 
   function renderReview() {
@@ -3472,6 +3511,7 @@
     var before = cell.Value2;
     cell.Value2 = text;
     trackSessionEdit('原文', sheet.Name, entry.row, state.settings.sourceCol, text, before, text);
+    recordSourceRevision(sheet.Name, entry.row, state.settings.sourceCol, before, text);
     if (state.unlocked) {
       state.archive.history.push({
         ts: new Date().toISOString(),
@@ -5274,6 +5314,7 @@
     $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
     if ($('btnVersionsRefresh')) $('btnVersionsRefresh').addEventListener('click', renderVersionsTab);
     if ($('versionQuery')) $('versionQuery').addEventListener('input', renderVersionsTab);
+    if ($('versionKind')) $('versionKind').addEventListener('change', renderVersionsTab);
     $('btnAddComment').addEventListener('click', addComment);
     decorateFields(['freeSource', 'freeDraft', 'findInput', 'repFind', 'repWith', 'commentInput',
       'tmQuery', 'keyQuery', 'termSearch']);

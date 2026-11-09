@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '8';   // bump to re-show the tour after a big UI change
+  var VERSION = '9';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -22,7 +22,7 @@
     ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
     ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
     ['review', '审校', '修订的接受/拒绝、条目评论，以及质检与 CSV 导出都在这里。'],
-    ['versions', '版本', '按词条归档和显示版本；展开词条可单独回滚该词条，不影响其他词条。'],
+    ['versions', '版本', '按词条归档；原文和译文分开选择，展开词条可单独回滚该词条，不影响其他词条。'],
     ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率；「导出修改记忆」只导出当前文档中由插件产生的修改。'],
     ['grid', '网格', '表格式的逐条编辑，可按「未译 / 有 QA / 有修订」筛选，就地改译文。'],
     ['history', '记录', '加密归档与历史，可导出留档；口令只存在本机。'],
