@@ -4903,7 +4903,8 @@
       var base = state.nas.termbases[String(project.id)];
       var option = document.createElement('option');
       option.value = String(project.id);
-      option.textContent = project.name + ' · ' + (base ? base.terms.length : 0) + ' 条';
+      var n = base ? base.terms.length : 0;
+      option.textContent = project.name + ' · ' + n + ' ' + (n === 1 ? tr('term.itemOne', '条') : tr('term.items', '条'));
       option.selected = String(project.id) === current;
       sel.appendChild(option);
     });
