@@ -957,7 +957,7 @@
     state.nas.cacheProject = String(entry.id);
     setTerms(entry.terms, {
       projectId: entry.id,
-      source: 'NAS 缓存 · ' + (entry.name || ('项目 ' + entry.id)),
+      source: tr('term.nasCache', 'NAS 缓存') + ' · ' + (entry.name || ('项目 ' + entry.id)),
       count: entry.terms.length,
       cached: true,
       cachedAt: entry.fetchedAt,
@@ -1129,7 +1129,7 @@
       if (meta.cached) {
         mode = 'nas';
         title = tr('term.nasCache', 'NAS 缓存');
-        note = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + count + ' ' + tr('term.items', '条') +
+        note = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + count + ' ' + (count === 1 ? tr('term.itemOne', '条') : tr('term.items', '条')) +
           (meta.cachedAt ? ' · ' + tr('term.cachedAt', '缓存于') + ' ' + localStamp(meta.cachedAt) : '');
       } else {
         mode = 'nas';
@@ -1160,7 +1160,7 @@
       var held = state.terms.length - state.matchTerms.length;
       if (meta.projectId) {
         if (meta.cached) {
-          el.textContent = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + meta.count + ' ' + tr('term.items', '条') +
+          el.textContent = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + meta.count + ' ' + (meta.count === 1 ? tr('term.itemOne', '条') : tr('term.items', '条')) +
             (meta.cachedAt ? ' · ' + tr('term.cachedAt', '缓存于') + ' ' + localStamp(meta.cachedAt) : '');
         } else {
           el.textContent = tr('term.nasProject', 'NAS 项目术语表') + ': ' + (meta.source || '') + ' · ' + meta.count + ' ' + tr('term.items', '条') + ' · ' + tr('term.synced', '已同步');
