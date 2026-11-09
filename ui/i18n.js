@@ -483,6 +483,8 @@
     var map = maps[state.lang] || {};
     var nodes = document.querySelectorAll('button:not([data-i18n]), label:not([data-i18n]), option:not([data-i18n]), th, h2, h3, .hint:not([data-i18n]), .empty:not([data-i18n]), .note:not([data-i18n]), .count, .status');
     nodes.forEach(function (el) {
+      // The language picker always uses each language's own endonym.
+      if (el.closest && (el.closest('.lang-menu') || el.closest('#uiLang'))) return;
       if (el.children.length) return;
       var current = String(el.textContent || '').trim();
       if (!current) return;
