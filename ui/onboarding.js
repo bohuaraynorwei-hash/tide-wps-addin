@@ -121,6 +121,7 @@
   var menu = null;
   var page = null;
   var index = 0;
+  var autoMode = false;
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -180,6 +181,7 @@
   }
 
   function openMenu() {
+    autoMode = false;
     buildMenu();
     if (layer) layer.style.display = 'none';
     menu.classList.add('on');
@@ -224,8 +226,15 @@
     var next = el('button', 'tour-btn primary', '下一步');
     next.type = 'button';
     next.addEventListener('click', function () {
-      if (index >= GUIDES[page].steps.length - 1) finish();
-      else go(index + 1);
+      if (index < GUIDES[page].steps.length - 1) { go(index + 1); return; }
+      if (autoMode) {
+        var pos = ORDER.indexOf(page);
+        if (pos >= 0 && pos < ORDER.length - 1) {
+          selectPage(ORDER[pos + 1], true);
+          return;
+        }
+      }
+      finish();
     });
     foot.appendChild(next);
     bubble.appendChild(foot);
@@ -242,8 +251,9 @@
     });
   }
 
-  function selectPage(key) {
+  function selectPage(key, auto) {
     if (!GUIDES[key]) return;
+    autoMode = !!auto;
     page = key;
     index = 0;
     if (menu) menu.classList.remove('on');
@@ -299,7 +309,10 @@
     for (var i = 0; i < guide.steps.length; i += 1) dots.appendChild(el('i', i === index ? 'on' : ''));
     var buttons = bubble.querySelectorAll('.tour-btn');
     buttons[0].style.visibility = index === 0 ? 'hidden' : 'visible';
-    buttons[1].textContent = index === guide.steps.length - 1 ? '完成' : '下一步';
+    var lastPage = ORDER.indexOf(page) === ORDER.length - 1;
+    buttons[1].textContent = index === guide.steps.length - 1
+      ? (autoMode && !lastPage ? '下一页' : '完成')
+      : '下一步';
     place(step);
     requestAnimationFrame(function () { place(step); });
   }
@@ -317,12 +330,16 @@
     markSeen();
   }
 
+  function startFirstRun() {
+    selectPage(ORDER[0], true);
+  }
+
   function boot() {
     var open = document.getElementById('btnTour');
     if (open) open.addEventListener('click', openMenu);
     var seen = null;
     try { seen = window.localStorage.getItem(SEEN_KEY); } catch (err) { seen = null; }
-    if (seen !== VERSION) window.setTimeout(openMenu, 900);
+    if (seen !== VERSION) window.setTimeout(startFirstRun, 900);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
