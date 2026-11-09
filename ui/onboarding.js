@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '7';   // bump to re-show the tour after a big UI change
+  var VERSION = '8';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -22,6 +22,7 @@
     ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
     ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
     ['review', '审校', '修订的接受/拒绝、条目评论，以及质检与 CSV 导出都在这里。'],
+    ['versions', '版本', '按词条归档和显示版本；展开词条可单独回滚该词条，不影响其他词条。'],
     ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率；「导出修改记忆」只导出当前文档中由插件产生的修改。'],
     ['grid', '网格', '表格式的逐条编辑，可按「未译 / 有 QA / 有修订」筛选，就地改译文。'],
     ['history', '记录', '加密归档与历史，可导出留档；口令只存在本机。'],
@@ -52,11 +53,6 @@
       target: '#btnExportSessionEdits',
       place: 'top',
       zh: '底部「一键导出本次编辑」复制原工作簿，保留全部工作表、UID/Key、列宽和布局，只保留本次修改过的数据行；「导出修改记录」另存修改前后明细。'
-    }, {
-      before: 'translate',
-      target: '#btnVersionHistory',
-      place: 'top',
-      zh: '「保存版本」把本次插件修改保存为本地版本；「版本历史」可选择任意版本回滚。版本只覆盖插件改过的单元格，不复制整份工作簿。'
     }],
     find: [{
       before: 'find',

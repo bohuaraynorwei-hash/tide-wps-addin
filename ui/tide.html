@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052005">
+  <link rel="stylesheet" href="tide.css?b=202611052006">
 </head>
 <body>
   <header class="bar">
@@ -55,6 +55,7 @@
     <button data-tab="free" hidden>自由</button>
     <button data-tab="find">搜索</button>
     <button data-tab="review">审校</button>
+    <button data-tab="versions">版本</button>
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">表格编辑</button>
     <button data-tab="project" hidden>项目</button>
@@ -177,15 +178,18 @@
         <button class="act ghost" id="btnExportSessionLog" title="导出本次编辑的修改前后明细">导出修改记录</button>
         <span class="count" id="sessionEditCount">0 条</span>
       </div>
+
+    </section>
+
+    <section id="panel-versions" hidden>
       <div class="toolbar">
-        <button class="act ghost" id="btnSaveVersion" title="把本次插件修改保存为可回滚的本地版本">保存版本</button>
-        <button class="act ghost" id="btnVersionHistory" title="查看本地版本并选择回滚">版本历史</button>
-        <span class="count" id="versionCount">0 个版本</span>
+        <button class="act ghost" id="btnVersionsRefresh">刷新</button>
+        <input id="versionQuery" type="search" placeholder="筛选原文 / 行号 / 单元格" style="flex:1;min-width:120px">
+        <span class="count" id="versionEntryCount"></span>
       </div>
-      <div class="field" id="pluginVersionPanel" hidden>
-        <div class="hint" id="pluginVersionHint">版本只保存通过插件修改过的单元格；选择版本可恢复当时的原文/译文。</div>
-        <div id="pluginVersionList" style="max-height:250px;overflow:auto"></div>
-      </div>
+      <div class="hint" id="versionHint">按词条归档。每个版本只回滚当前词条，不影响其他词条。</div>
+      <div id="versionEntries"></div>
+      <div class="empty" id="versionEmpty">还没有词条版本。通过插件写入译文或原文后，这里会按词条记录。</div>
     </section>
 
     <section id="panel-free" hidden>
@@ -501,7 +505,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052005</span>
+        <span class="nas-build" id="nasBuild">构建 202611052006</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -634,9 +638,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611052005"></script>
+  <script src="i18n.js?b=202611052006"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052005"></script>
-  <script src="onboarding.js?b=202611052005"></script>
+  <script src="tide.js?b=202611052006"></script>
+  <script src="onboarding.js?b=202611052006"></script>
 </body>
 </html>

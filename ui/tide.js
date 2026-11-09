@@ -1930,6 +1930,121 @@
     return changed;
   }
 
+  function parseSegKey(key) {
+    var m = /^(.*)!([A-Z]+)(\d+)$/.exec(String(key || ''));
+    if (!m) return null;
+    return { sheet: m[1], column: m[2], row: Number(m[3]), address: m[2] + m[3] };
+  }
+
+  function versionEntryModels(query) {
+    reconcileReview();
+    var project = ensureProject();
+    var q = String(query || '').trim().toLowerCase();
+    var out = [];
+    Object.keys(project.segments || {}).forEach(function (key) {
+      var record = project.segments[key] || {};
+      var revs = (record.revisions || []).slice().sort(function (a, b) {
+        return String(a.ts || '').localeCompare(String(b.ts || ''));
+      });
+      if (!revs.length) return;
+      var pos = parseSegKey(key);
+      if (!pos) return;
+      if (q) {
+        var hay = (pos.address + ' ' + (record.source || '')).toLowerCase();
+        if (hay.indexOf(q) < 0) return;
+      }
+      out.push({ key: key, pos: pos, record: record, revisions: revs });
+    });
+    out.sort(function (a, b) {
+      var ta = a.revisions.length ? a.revisions[a.revisions.length - 1].ts : '';
+      var tb = b.revisions.length ? b.revisions[b.revisions.length - 1].ts : '';
+      return String(tb).localeCompare(String(ta));
+    });
+    return out;
+  }
+
+  function renderVersionsTab() {
+    var box = $('versionEntries');
+    if (!box) return;
+    var query = $('versionQuery') ? $('versionQuery').value : '';
+    var models = versionEntryModels(query);
+    $('versionEntryCount').textContent = models.length + ' 个词条有版本';
+    $('versionEmpty').hidden = models.length > 0;
+    box.textContent = '';
+    models.slice(0, 300).forEach(function (model) {
+      var details = document.createElement('details');
+      details.className = 'card';
+      details.style.cssText = 'margin:8px 0;padding:8px 10px';
+      var summary = document.createElement('summary');
+      summary.style.cssText = 'cursor:pointer;padding:2px 0';
+      var head = document.createElement('span');
+      head.style.cssText = 'font-size:12px;font-weight:600';
+      head.textContent = model.pos.address + ' · ' + (model.record.source || '（无原文）');
+      var meta = document.createElement('span');
+      meta.className = 'hint';
+      meta.style.marginLeft = '8px';
+      meta.textContent = model.revisions.length + ' 个版本 · 当前：' + (model.record.target || '空');
+      summary.append(head, meta);
+      details.appendChild(summary);
+      var body = document.createElement('div');
+      body.style.cssText = 'margin-top:8px;border-top:1px solid var(--hair);padding-top:6px';
+      var first = model.revisions[0].before;
+      body.appendChild(versionRow(model, '初始值', '—', first, true));
+      model.revisions.forEach(function (rev) {
+        body.appendChild(versionRow(model, localStamp(rev.ts), rev.author || '', rev.after, false));
+      });
+      details.appendChild(body);
+      box.appendChild(details);
+    });
+    if (models.length > 300) {
+      var more = document.createElement('div'); more.className = 'hint';
+      more.textContent = '仅显示最近 300 个有版本的词条。';
+      box.appendChild(more);
+    }
+  }
+
+  function versionRow(model, label, author, value, initial) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--hair)';
+    var text = document.createElement('div');
+    text.style.cssText = 'flex:1;min-width:0';
+    var title = document.createElement('div'); title.textContent = label + (author ? ' · ' + author : '');
+    var val = document.createElement('div'); val.className = 'hint';
+    val.textContent = initial ? ('修改前：' + (value || '空')) : ('值：' + (value || '空'));
+    text.append(title, val);
+    var btn = document.createElement('button');
+    btn.className = 'act ghost'; btn.textContent = '回滚';
+    btn.addEventListener('click', function () {
+      if (!window.confirm('只回滚词条 ' + model.pos.address + ' 到「' + label + '」？其他词条不会改变。')) return;
+      restoreEntryVersion(model.key, value, label);
+    });
+    row.append(text, btn);
+    return row;
+  }
+
+  function restoreEntryVersion(key, value, label) {
+    var pos = parseSegKey(key);
+    if (!pos) return;
+    var sheet = sheetByName(pos.sheet);
+    if (!sheet) { showToast('找不到工作表 ' + pos.sheet); return; }
+    var current = '';
+    try { current = String(sheet.Range(pos.address).Value2 == null ? '' : sheet.Range(pos.address).Value2); }
+    catch (err) { showToast('读取单元格失败'); return; }
+    var target = value == null ? '' : String(value);
+    try { sheet.Range(pos.address).Value2 = target; }
+    catch (err) { showToast('回滚失败：' + err.message); return; }
+    var project = ensureProject();
+    var record = project.segments[key];
+    if (record) {
+      record.target = target;
+      recordRevision(pos.sheet, pos.row, record.source || '', current, target, pos.column);
+      saveProject();
+    }
+    renderVersionsTab();
+    try { loadEntries(); renderEntry(); } catch (err) { /* ignore */ }
+    showToast('已回滚 ' + pos.address + ' 到「' + label + '」');
+  }
+
   function renderReview() {
     reconcileReview();
     var project = ensureProject();
@@ -4837,7 +4952,7 @@
     var buttons = $('tabs').querySelectorAll('button');
     for (var i = 0; i < buttons.length; i += 1) buttons[i].classList.toggle('on', buttons[i].dataset.tab === name);
     if ($('topNas')) $('topNas').classList.toggle('on', name === 'nas');
-    ['tasks', 'matches', 'translate', 'keys', 'free', 'find', 'review', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
+    ['tasks', 'matches', 'translate', 'keys', 'free', 'find', 'review', 'versions', 'tm', 'grid', 'project', 'nas', 'terms', 'history', 'sync', 'settings'].forEach(function (tab) {
       $('panel-' + tab).hidden = tab !== name;
     });
     if (state.lastTab && state.lastTab !== name) state.prevTab = state.lastTab;
@@ -4862,6 +4977,7 @@
       if (state.nas.token) syncNasTermbases();
     }
     if (name === 'review') renderReview();
+    if (name === 'versions') renderVersionsTab();
     if (name === 'tm') renderTM();
     if (name === 'grid') renderGrid();
     if (name === 'project') renderProject();
@@ -5156,6 +5272,8 @@
       }
     }, { passive: false });
     $('btnReviewRefresh').addEventListener('click', function () { loadProject().then(renderReview); });
+    if ($('btnVersionsRefresh')) $('btnVersionsRefresh').addEventListener('click', renderVersionsTab);
+    if ($('versionQuery')) $('versionQuery').addEventListener('input', renderVersionsTab);
     $('btnAddComment').addEventListener('click', addComment);
     decorateFields(['freeSource', 'freeDraft', 'findInput', 'repFind', 'repWith', 'commentInput',
       'tmQuery', 'keyQuery', 'termSearch']);
