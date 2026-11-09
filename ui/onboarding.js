@@ -1,135 +1,125 @@
 /**
- * Tide onboarding — a five-step chat bubble walkthrough.
- *
- * Deliberately decoupled from tide.js: it drives the pane the same way a user
- * would (clicking tabs), so a refactor inside the app cannot break the tour.
- * The bubble is positioned from the target's rect and clamped to the viewport;
- * the target gets a ring so the eye lands on the right control.
+ * Tide page guide: the ? button opens a page picker, then a short walkthrough
+ * scoped to that page. Each page only teaches its primary controls.
  */
 (function () {
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '11';   // bump to re-show the tour after a big UI change
+  var VERSION = '12';
 
-  // One step per visible tab: the guide follows the tab strip, so every
-  // function is introduced in the place it lives.
-  var TAB_TIPS = [
-    ['tasks', '我的任务', '登录 NAS 后，这里按项目列出分配给你的任务。点条目会跳到原文，并在翻译页同步选中它；展开后可以逐条定位或提交。'],
-    ['translate', '翻译', '逐条处理的主场：原文下方自动标出命中术语，点击术语即可填入草稿；粘贴新原文后，「上一条/下一条」会按原文定位并跳到相邻已有译文。底部可一键导出本次编辑。'],
-    ['terms', '术语', '登录 NAS 后，NAS 项目术语表优先并缓存到本机；离线时默认使用 24 小时缓存。未登录时可导入本地术语，并用「切换」在缓存与本地术语表之间切换。'],
-    ['matches', '命中', '扫描当前表，列出所有含术语的行。点任意一行，会跳回它所在的原文单元格。'],
-    ['keys', 'Key 定位', '按表头里的「完整Key」找词条，支持精确与模糊匹配，点结果直接跳转。'],
-    ['find', '搜索', '跨工作表搜原文或译文，支持正则；结果同样可以点击定位。'],
-    ['review', '审校', '修订的接受/拒绝、条目评论，以及质检与 CSV 导出都在这里。'],
-    ['versions', '版本', '按词条归档；原文和译文分开选择，展开词条可单独回滚该词条，不影响其他词条。'],
-    ['tm', '记忆库', '导入 TMX 或 Excel 作为记忆，看复用率；「导出修改记忆」只导出当前文档中由插件产生的修改。'],
-    ['grid', '网格', '表格式的逐条编辑，可按「未译 / 有 QA / 有修订」筛选，就地改译文。'],
-    ['history', '记录', '加密归档与历史，可导出留档；口令只存在本机。'],
-    ['sync', '同步', '术语表的拉取与推送，需要在本机运行同步 helper。'],
-    ['settings', '设置', '目标语言、列映射、项目档案与术语表导入，都集中在这一页。']
-  ];
+  var ORDER = ['tasks', 'translate', 'terms', 'matches', 'keys', 'find', 'review', 'versions', 'tm', 'grid', 'history', 'sync', 'settings', 'nas'];
 
-  // Feature steps are attached to the tab that owns them, so the tour still
-  // follows the navigation instead of dumping every new button at the end.
-  var FEATURE_STEPS = {
-    translate: [{
-      before: 'translate',
-      target: '#entrySource',
-      place: 'bottom',
-      zh: '当前原文中的命中术语会显示在下方高亮区和术语标签中；点标签即可把术语译文填入草稿。'
-    }, {
-      before: 'translate',
-      target: '#btnNextEntry',
-      place: 'bottom',
-      zh: '把新原文粘贴到原文框后，点「上一条/下一条」会先按原文定位，再跳到相邻已有译文的条目。'
-    }, {
-      before: 'translate',
-      target: '#btnWriteDraft',
-      place: 'left',
-      zh: '「写入」只把当前草稿写进译文单元格，不跳到下一条；需要连续处理时用下面的「写入并下一条」。'
-    }, {
-      before: 'translate',
-      target: '#btnExportSessionEdits',
-      place: 'top',
-      zh: '底部「一键导出本次编辑」复制原工作簿，保留全部工作表、UID/Key、列宽和布局，只保留本次修改过的数据行；「导出修改记录」另存修改前后明细。'
-    }],
-    find: [{
-      before: 'find',
-      target: '#findScopeTabs',
-      place: 'bottom',
-      zh: '搜索页新增定位范围：选项卡 1 选择工作表，选项卡 2 输入行号；两项同时满足才限定搜索。「跳转到原文」直接定位到对应行的原文列，点「清除定位范围」恢复整本工作簿。'
-    }, {
-
-      before: 'find',
-      target: '#btnRepPreview',
-      place: 'top',
-      zh: '下面的「批量替换」只改译文列：预览里不会出现原文，执行后源文一个字都不会动。'
-    }],
-    terms: [{
-      before: 'terms',
-      target: '#termProject',
-      place: 'bottom',
-      zh: '这里选择要查看的项目术语表；切换项目会立即换库，不需要重新登录。'
-    }, {
-      before: 'terms',
-      target: '#btnSwitchTermSource',
-      place: 'top',
-      zh: '未登录 NAS 时显示「切换」：默认使用缓存的 NAS 术语表，也可以切到本地导入的术语表；登录 NAS 后本地入口自动隐藏。'
-    }],
-    tm: [{
-      before: 'tm',
-      target: '#btnTmExportChanges',
-      place: 'bottom',
-      zh: '「导出修改记忆」把当前文档中由插件改过的条目导出为 TMX，换设备后可重新导入。'
-    }],
-    review: [{
-      before: 'review',
-      target: '#btnPunctQA',
-      place: 'top',
-      zh: '质检分三个按钮：全部、标点符号、占位符。占位符（{0}、颜色代码、换行符）只有点「占位符」时才检查。'
-    }]
+  var GUIDES = {
+    tasks: {
+      name: '我的任务',
+      steps: [
+        { target: '#taskList', place: 'bottom', text: '登录 NAS 后，这里列出分配给你的任务。' },
+        { target: '#btnTasksRefresh', place: 'bottom', text: '任务有变化时点刷新；点条目会跳到原文并同步翻译页。' }
+      ]
+    },
+    translate: {
+      name: '翻译',
+      steps: [
+        { target: '#entrySource', place: 'bottom', text: '原文和术语提示都在这里；点术语标签可填入草稿。' },
+        { target: '#btnColumnChoice', place: 'bottom', text: '识别不准时点这里，手工指定源语列和目标语列。' },
+        { target: '#btnWriteDraft', place: 'left', text: '「写入」只写当前条；连续处理用「写入并下一条」。' },
+        { target: '#btnExportSessionEdits', place: 'top', text: '底部导出完整表格或修改记录；只保留本次修改行。' }
+      ]
+    },
+    terms: {
+      name: '术语',
+      steps: [
+        { target: '#termSourceBox', place: 'bottom', text: '先看当前术语来源：NAS 项目、缓存、本地或内置。' },
+        { target: '#btnSwitchTermSource', place: 'top', text: '未登录时可切换 NAS 缓存和本地术语；登录后 NAS 优先。' },
+        { target: '#termSearch', place: 'bottom', text: '按中文或英文片段查术语，可直接定位到命中行。' }
+      ]
+    },
+    matches: {
+      name: '命中',
+      steps: [
+        { target: '#btnScan', place: 'bottom', text: '扫描当前表，找出包含术语的行。' },
+        { target: '#matchTable', place: 'bottom', text: '点任意命中行，直接跳回原文单元格。' }
+      ]
+    },
+    keys: {
+      name: 'Key 定位',
+      steps: [
+        { target: '#keyQuery', place: 'bottom', text: '输入完整 Key 或编号，支持精确和模糊匹配。' },
+        { target: '#btnKeySearch', place: 'bottom', text: '点结果即可跳到对应词条。' }
+      ]
+    },
+    find: {
+      name: '搜索',
+      steps: [
+        { target: '#findScopeTabs', place: 'bottom', text: '两个选项卡：选工作表、填行号；两项同时满足才限定范围。' },
+        { target: '#btnFindJumpSource', place: 'top', text: '跳转到原文只定位，不搜索、不替换。' },
+        { target: '#btnRepPreview', place: 'top', text: '批量替换只改译文列；先预览，再执行。' }
+      ]
+    },
+    review: {
+      name: '审校',
+      steps: [
+        { target: '#btnPunctQA', place: 'top', text: '质检按全部、标点、占位符分开检查。' },
+        { target: '#reviewTable', place: 'bottom', text: '在这里接受或拒绝修订，并查看条目评论。' }
+      ]
+    },
+    versions: {
+      name: '版本',
+      steps: [
+        { target: '#versionKind', place: 'bottom', text: '原文和译文版本分开选择，互不混淆。' },
+        { target: '#versionEntries', place: 'bottom', text: '展开词条，可把单个词条回滚到任意历史值。' }
+      ]
+    },
+    tm: {
+      name: '记忆库',
+      steps: [
+        { target: '#btnTmExportChanges', place: 'bottom', text: '导出当前文档中由插件产生的修改记忆。' },
+        { target: '#tmQuery', place: 'bottom', text: '按源文或译文片段检索旧译。' }
+      ]
+    },
+    grid: {
+      name: '表格编辑',
+      steps: [
+        { target: '#gridFilter', place: 'bottom', text: '按未译、QA 问题或未处理修订筛选条目。' },
+        { target: '#gridTable', place: 'bottom', text: '直接改译文，失焦后写回并记录修订。' }
+      ]
+    },
+    history: {
+      name: '记录',
+      steps: [
+        { target: '#btnUnlock', place: 'bottom', text: '用本机口令解锁加密归档。' },
+        { target: '#historyTable', place: 'bottom', text: '这里保留每次扫描的旧值和新值，可导出留档。' }
+      ]
+    },
+    sync: {
+      name: '同步',
+      steps: [
+        { target: '#btnPull', place: 'bottom', text: '拉取需要本机同步 helper；默认关闭上传。' },
+        { target: '#btnPush', place: 'bottom', text: '上传会把本机数据发到 GitHub，启用前确认授权范围。' }
+      ]
+    },
+    settings: {
+      name: '设置',
+      steps: [
+        { target: '#targetLang', place: 'bottom', text: '先设目标语言，它影响列识别和术语筛选。' },
+        { target: '#colSource', place: 'bottom', text: '列映射可手工改；「识别/选择列」可重新检测。' },
+        { target: '#btnSave', place: 'top', text: '改完点保存；列映射会用于当前表。' }
+      ]
+    },
+    nas: {
+      name: 'NAS',
+      steps: [
+        { target: '#btnNasConsole', place: 'bottom', text: '打开 NAS 操作台，项目、成员、术语和历史都在平台完成。' }
+      ]
+    }
   };
 
-  var STEPS = [{
-    target: '.brand',
-    place: 'bottom',
-    zh: '欢迎使用 Tide。这里把 WPS 插件和 NAS 平台串起来：登录、接任务、翻译、术语和提交都在一条流程里。随时点右上角 ? 重看。'
-  }, {
-    target: '#topNas',
-    place: 'bottom',
-    zh: '顶部 NAS 是常驻入口：随时回到登录页，或打开 NAS 操作台。账号登录状态会保存在本设备。'
-  }, {
-    before: 'nas',
-    target: '#btnNasConsole',
-    place: 'bottom',
-    zh: 'NAS 页面只保留登录和网页跳转。打开操作台后，项目、成员、术语、历史与账号管理都在 NAS 平台完成。'
-  }];
-
-  TAB_TIPS.forEach(function (row) {
-    STEPS.push({
-      before: row[0],
-      target: 'button[data-tab="' + row[0] + '"]',
-      place: 'bottom',
-      zh: row[1] + '：' + row[2]
-    });
-    (FEATURE_STEPS[row[0]] || []).forEach(function (step) { STEPS.push(step); });
-  });
-
-  STEPS.push({
-    before: 'settings',
-    target: '#btnLang',
-    place: 'bottom',
-    zh: '标题栏的地球按钮切换界面语言：中文 / Tiếng Việt / Русский / Português (Brasil)。目标语言仍在「设置」里选。'
-  });
-  STEPS.push({
-    close: true,
-    zh: '就这些。建议顺序：先在 NAS 建项目/指派任务，再回 WPS 登录，从「我的任务」开始；术语表会自动同步。点右上角 ? 可以再看一次。'
-  });
-
   var layer = null;
-  var bubble = null;
   var ring = null;
+  var bubble = null;
+  var menu = null;
+  var page = null;
   var index = 0;
 
   function el(tag, cls, text) {
@@ -149,12 +139,62 @@
     if (button && !button.classList.contains('on')) button.click();
   }
 
-  function build() {
+  function markSeen() {
+    try { window.localStorage.setItem(SEEN_KEY, VERSION); } catch (err) { /* storage blocked */ }
+  }
+
+  function buildMenu() {
+    if (menu) return;
+    menu = el('div', 'guide-menu');
+    var panel = el('div', 'guide-panel');
+    var head = el('div', 'guide-head');
+    head.appendChild(el('b', '', '页面引导'));
+    var close = el('button', 'guide-close', '×');
+    close.type = 'button';
+    close.addEventListener('click', closeMenu);
+    head.appendChild(close);
+    panel.appendChild(head);
+    panel.appendChild(el('p', 'guide-intro', '选择一个页面，查看该页主要操作。'));
+    var grid = el('div', 'guide-grid');
+    ORDER.forEach(function (key) {
+      var guide = GUIDES[key];
+      if (!guide) return;
+      var btn = el('button', 'guide-item', guide.name);
+      btn.type = 'button';
+      btn.addEventListener('click', function () { selectPage(key); });
+      grid.appendChild(btn);
+    });
+    panel.appendChild(grid);
+    var foot = el('div', 'guide-foot');
+    foot.appendChild(el('span', '', '首次使用建议先看「我的任务」和「翻译」。'));
+    var done = el('button', 'guide-done', '关闭');
+    done.type = 'button';
+    done.addEventListener('click', closeMenu);
+    foot.appendChild(done);
+    panel.appendChild(foot);
+    menu.appendChild(panel);
+    menu.addEventListener('click', function (event) {
+      if (event.target === menu) closeMenu();
+    });
+    document.body.appendChild(menu);
+  }
+
+  function openMenu() {
+    buildMenu();
+    if (layer) layer.style.display = 'none';
+    menu.classList.add('on');
+  }
+
+  function closeMenu() {
+    if (menu) menu.classList.remove('on');
+    markSeen();
+  }
+
+  function buildTour() {
     if (layer) return;
     layer = el('div', 'tour-layer');
     ring = el('div', 'tour-ring');
     bubble = el('div', 'tour-bubble');
-
     var head = el('div', 'tour-head');
     var avatar = el('div', 'tour-avatar');
     avatar.innerHTML = '<svg viewBox="0 0 24 24"><defs><linearGradient id="av" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3366ff"/><stop offset=".52" stop-color="#7a5cff"/><stop offset="1" stop-color="#ff5c9e"/></linearGradient></defs>' +
@@ -165,40 +205,52 @@
     head.appendChild(avatar);
     head.appendChild(el('b', '', 'Tide 引导'));
     head.appendChild(el('span', 'tour-count', ''));
+    var switchPage = el('button', 'tour-link', '换页');
+    switchPage.type = 'button';
+    switchPage.addEventListener('click', openMenu);
+    head.appendChild(switchPage);
     bubble.appendChild(head);
-
     bubble.appendChild(el('p', 'tour-text', ''));
-
     var foot = el('div', 'tour-foot');
-    var skip = el('button', 'skip', 'Skip');
-    skip.addEventListener('click', function () { finish(); });
-    foot.appendChild(skip);
+    var close = el('button', 'skip', '关闭');
+    close.type = 'button';
+    close.addEventListener('click', finish);
+    foot.appendChild(close);
     foot.appendChild(el('div', 'tour-dots', ''));
-
-    var prev = el('button', 'tour-btn ghost', 'Back');
+    var prev = el('button', 'tour-btn ghost', '上一步');
+    prev.type = 'button';
     prev.addEventListener('click', function () { go(index - 1); });
     foot.appendChild(prev);
-
-    var next = el('button', 'tour-btn primary', 'Next');
+    var next = el('button', 'tour-btn primary', '下一步');
+    next.type = 'button';
     next.addEventListener('click', function () {
-      if (index >= STEPS.length - 1) finish();
+      if (index >= GUIDES[page].steps.length - 1) finish();
       else go(index + 1);
     });
     foot.appendChild(next);
     bubble.appendChild(foot);
-
     bubble.appendChild(el('div', 'tail'));
     layer.appendChild(ring);
     layer.appendChild(bubble);
     document.body.appendChild(layer);
-
     document.addEventListener('keydown', function (event) {
-      if (!layer || layer.hidden) return;
+      if (!layer || layer.style.display === 'none') return;
       if (event.key === 'Escape') finish();
-      if (event.key === 'ArrowRight') next.click();
-      if (event.key === 'ArrowLeft' && index > 0) go(index - 1);
     });
-    window.addEventListener('resize', function () { if (layer && !layer.hidden) place(STEPS[index]); });
+    window.addEventListener('resize', function () {
+      if (layer && layer.style.display !== 'none') place(GUIDES[page].steps[index]);
+    });
+  }
+
+  function selectPage(key) {
+    if (!GUIDES[key]) return;
+    page = key;
+    index = 0;
+    if (menu) menu.classList.remove('on');
+    buildTour();
+    layer.style.display = 'block';
+    showTab(key);
+    window.setTimeout(render, 80);
   }
 
   function place(step) {
@@ -207,7 +259,6 @@
     var vh = window.innerHeight;
     var bw = 266;
     var bh = bubble.offsetHeight || 150;
-
     if (!target) {
       ring.style.display = 'none';
       bubble.style.left = Math.max(12, (vw - bw) / 2) + 'px';
@@ -216,22 +267,18 @@
       if (tail) tail.style.display = 'none';
       return;
     }
-
     var rect = target.getBoundingClientRect();
     ring.style.display = 'block';
     ring.style.left = (rect.left - 4) + 'px';
     ring.style.top = (rect.top - 4) + 'px';
     ring.style.width = (rect.width + 8) + 'px';
     ring.style.height = (rect.height + 8) + 'px';
-
     var left = Math.min(Math.max(8, rect.left + rect.width / 2 - bw / 2), vw - bw - 8);
     var below = rect.bottom + 12;
     var above = rect.top - bh - 12;
     var top = step.place === 'top' && above > 8 ? above : (below + bh < vh ? below : Math.max(8, above));
-
     bubble.style.left = left + 'px';
     bubble.style.top = top + 'px';
-
     var tail = bubble.querySelector('.tail');
     if (tail) {
       tail.style.display = 'block';
@@ -243,65 +290,39 @@
   }
 
   function render() {
-    var step = STEPS[index];
-    bubble.querySelector('.tour-text').textContent = step.zh;
-    bubble.querySelector('.tour-count').textContent = step.close ? '' : (index + 1) + ' / ' + STEPS.length;
-
+    var guide = GUIDES[page];
+    var step = guide.steps[index];
+    bubble.querySelector('.tour-text').textContent = step.text;
+    bubble.querySelector('.tour-count').textContent = guide.name + ' ' + (index + 1) + '/' + guide.steps.length;
     var dots = bubble.querySelector('.tour-dots');
     dots.textContent = '';
-    if (STEPS.length > 9) dots.classList.add('dense');
-    for (var i = 0; i < STEPS.length; i += 1) {
-      var dot = el('i', i === index ? 'on' : '');
-      dots.appendChild(dot);
-    }
-
+    for (var i = 0; i < guide.steps.length; i += 1) dots.appendChild(el('i', i === index ? 'on' : ''));
     var buttons = bubble.querySelectorAll('.tour-btn');
     buttons[0].style.visibility = index === 0 ? 'hidden' : 'visible';
-    // Short, language-neutral labels: they fit one line at any bubble width.
-    buttons[1].textContent = index === STEPS.length - 1 ? 'Done' : 'Next';
-
+    buttons[1].textContent = index === guide.steps.length - 1 ? '完成' : '下一步';
     place(step);
     requestAnimationFrame(function () { place(step); });
   }
 
   function go(next) {
-    if (!layer) return;
-    if (next < 0 || next >= STEPS.length) return;
+    if (!page) return;
+    var steps = GUIDES[page].steps;
+    if (next < 0 || next >= steps.length) return;
     index = next;
-    var step = STEPS[index];
-    if (step.before) {
-      showTab(step.before);
-      // The strip scrolls; make sure the tab this step points at is visible.
-      var button = document.querySelector('button[data-tab="' + step.before + '"]');
-      if (button && button.scrollIntoView) {
-        try { button.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
-      }
-    }
-    // Let the tab switch settle before measuring the new target.
-    window.setTimeout(render, 60);
+    render();
   }
 
   function finish() {
-    if (!layer) return;
-    layer.style.display = 'none';
-    try { window.localStorage.setItem(SEEN_KEY, VERSION); } catch (err) { /* storage may be blocked */ }
-  }
-
-  function start(force) {
-    build();
-    index = 0;
-    layer.style.display = 'block';
-    if (STEPS[0].before) showTab(STEPS[0].before);
-    window.setTimeout(render, 80);
-    if (force) { /* replay is explicit, nothing else to do */ }
+    if (layer) layer.style.display = 'none';
+    markSeen();
   }
 
   function boot() {
     var open = document.getElementById('btnTour');
-    if (open) open.addEventListener('click', function () { start(true); });
+    if (open) open.addEventListener('click', openMenu);
     var seen = null;
     try { seen = window.localStorage.getItem(SEEN_KEY); } catch (err) { seen = null; }
-    if (seen !== VERSION) window.setTimeout(function () { start(false); }, 900);
+    if (seen !== VERSION) window.setTimeout(openMenu, 900);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
