@@ -894,7 +894,7 @@
     } else {
       var meta = state.termsMeta;
       if (meta && !meta.projectId) {
-        status.textContent = (meta.count || state.terms.length) + ' 条 · 仅存本机';
+        status.textContent = (meta.count || state.terms.length) + ' 条 · 本机';
       } else {
         status.textContent = state.terms.length ? (state.terms.length + ' 条 · 本地术语') : '未导入本地术语';
       }
@@ -979,7 +979,7 @@
       mode = 'local';
       title = '本地术语表';
       note = (state.terms.length || meta.count || 0) + ' 条 · ' + (meta.source || '本机导入') +
-        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · 仅存本机';
+        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · 本机';
     } else if (state.bundledMeta) {
       mode = 'bundled';
       title = '内置术语表';
@@ -1008,7 +1008,7 @@
       }
       el.textContent = '已保存导入：' + meta.count + ' 条 · ' + (meta.source || '本机') +
         (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') +
-        ' · 仅存本机' + (held ? ' · ' + held + ' 条待确认' : '');
+        ' · 本机' + (held ? ' · ' + held + ' 条待确认' : '');
       return;
     }
     if (state.bundledMeta) {
