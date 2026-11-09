@@ -805,7 +805,7 @@
     var rows = result.rows.slice(0, 300);
     $('termCount').textContent = (query
       ? trFormat('term.filteredCount', '{shown} / {total} 条', { shown: rows.length, total: total }) + (result.fuzzy ? ' · ' + tr('term.fuzzy', '近似匹配') : '')
-      : trFormat('term.totalCount', '{count} 条术语', { count: total })) + (langName ? ' · ' + langName : '');
+      : trFormat(total === 1 ? 'term.totalCountOne' : 'term.totalCount', '{count} 条术语', { count: total })) + (langName ? ' · ' + langName : '');
     table.hidden = rows.length === 0;
     $('termEmpty').hidden = rows.length > 0;
     $('termEmpty').textContent = query ? tr('term.noMatch', '没有匹配的术语，换个词试试。') : tr('term.isEmpty', '术语表为空。');
