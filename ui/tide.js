@@ -1118,22 +1118,22 @@
       if (meta.cached) {
         mode = 'nas';
         title = tr('term.nasCache', 'NAS 缓存');
-        note = (meta.source || 'NAS 缓存') + ' · ' + count + ' 条' +
-          (meta.cachedAt ? ' · 缓存于 ' + localStamp(meta.cachedAt) : '');
+        note = (meta.source || tr('term.nasCache', 'NAS 缓存')) + ' · ' + count + ' ' + tr('term.items', '条') +
+          (meta.cachedAt ? ' · ' + tr('term.cachedAt', '缓存于') + ' ' + localStamp(meta.cachedAt) : '');
       } else {
         mode = 'nas';
         title = tr('term.nasProject', 'NAS 项目术语表');
-        note = (meta.source || '项目术语表') + ' · ' + count + ' 条 · 已同步';
+        note = (meta.source || tr('term.projectGlossary', '项目术语表')) + ' · ' + count + ' ' + tr('term.items', '条') + ' · ' + tr('term.synced', '已同步');
       }
     } else if (meta) {
       mode = 'local';
       title = tr('term.local', '本地术语表');
-      note = (state.terms.length || meta.count || 0) + ' 条 · ' + (meta.source || '本机导入') +
-        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · 本机';
+      note = (state.terms.length || meta.count || 0) + ' ' + tr('term.items', '条') + ' · ' + (meta.source || tr('term.imported', '本机导入')) +
+        (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · ' + tr('term.onDevice', '本机');
     } else if (state.bundledMeta) {
       mode = 'bundled';
       title = tr('term.bundled', '内置术语表');
-      note = (state.terms.length || state.bundledMeta.count || 0) + ' 条 · 随插件提供';
+      note = (state.terms.length || state.bundledMeta.count || 0) + ' ' + tr('term.items', '条') + ' · ' + tr('term.bundledNote', '随插件提供');
     }
     box.className = 'term-source-box ' + mode;
     value.textContent = title;

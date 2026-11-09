@@ -107,6 +107,8 @@
       'version.emptySource': 'Chưa có phiên bản bản gốc. Chỉ ghi khi dùng “Ghi lại nguồn”.',
       'version.meta': '{count} phiên bản · hiện tại: {value}', 'version.emptyValue': 'trống',
       'version.before': 'Trước: ', 'version.value': 'Giá trị: ',
+      'term.items': 'mục', 'term.cachedAt': 'lưu lúc', 'term.synced': 'đã đồng bộ',
+      'term.projectGlossary': 'Thuật ngữ dự án', 'term.imported': 'nhập trên máy',
       'find.scopeNeedBoth': 'Cần chọn trang tính và nhập dòng',
     },
     ru: {
@@ -199,6 +201,8 @@
       'version.emptySource': 'Версий оригинала нет. Они появляются только после «Записать оригинал».',
       'version.meta': '{count} версий · текущая: {value}', 'version.emptyValue': 'пусто',
       'version.before': 'До: ', 'version.value': 'Значение: ',
+      'term.items': 'зап.', 'term.cachedAt': 'кэш', 'term.synced': 'синхронизировано',
+      'term.projectGlossary': 'Глоссарий проекта', 'term.imported': 'локальный импорт',
       'find.scopeNeedBoth': 'Выберите лист и введите строку',
     },
     'pt-BR': {
@@ -291,6 +295,8 @@
       'version.emptySource': 'Ainda não há versões de original. Só são criadas ao usar “Gravar original”.',
       'version.meta': '{count} versões · atual: {value}', 'version.emptyValue': 'vazio',
       'version.before': 'Antes: ', 'version.value': 'Valor: ',
+      'term.items': 'itens', 'term.cachedAt': 'cache em', 'term.synced': 'sincronizado',
+      'term.projectGlossary': 'Glossário do projeto', 'term.imported': 'importado localmente',
       'find.scopeNeedBoth': 'Selecione a planilha e informe a linha',
     }
   };
