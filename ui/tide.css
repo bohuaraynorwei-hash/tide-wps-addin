@@ -564,3 +564,9 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .column-map-panel .colfield{min-width:0}
 .column-map-panel .colfield > label{white-space:nowrap;font-size:11px}
 .column-map-panel .colfield > input{min-width:0;width:100%}
+
+/* Keep the compact column-panel actions on one line. */
+.column-map-panel .field-head{min-width:0;flex-wrap:nowrap}
+.column-map-panel .field-head > label{min-width:0;flex:1 1 auto}
+.column-map-panel .head-actions{flex:0 0 auto;flex-wrap:nowrap}
+.column-map-panel .head-actions .act{white-space:nowrap;flex:0 0 auto}
