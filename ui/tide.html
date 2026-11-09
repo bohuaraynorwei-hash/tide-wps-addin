@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052012">
+  <link rel="stylesheet" href="tide.css?b=202611052013">
 </head>
 <body>
   <header class="bar">
@@ -97,6 +97,26 @@
         <button class="act ghost" id="btnRefreshEntries">刷新条目</button>
         <button class="act ghost" id="btnColumnChoice" title="检测当前表的源语/目标语列；多组时手动选择">识别/选择列</button>
         <span class="count" id="entryPos">0 / 0</span>
+      </div>
+      <div class="field column-map-panel" id="columnMapPanel" hidden>
+        <div class="field-head">
+          <label>手工指定当前表的源语 / 目标语列</label>
+          <span class="head-actions">
+            <button class="act ghost mini" type="button" id="btnColumnMapDetect">重新识别</button>
+            <button class="act ghost mini" type="button" id="btnColumnMapCancel">关闭</button>
+          </span>
+        </div>
+        <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="colfield"><label>源语列</label><input id="columnMapSource" maxlength="3" placeholder="C" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label>目标语列</label><input id="columnMapTarget" maxlength="3" placeholder="F" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label>旧译文列（可选）</label><input id="columnMapOld" maxlength="3" placeholder="E" style="width:100%;text-transform:uppercase"></div>
+        </div>
+        <div class="hint" id="columnMapHint">可直接输入列字母；识别候选只用于填入，不会自动覆盖。</div>
+        <div class="column-map-candidates" id="columnMapCandidates"></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="act" type="button" id="btnColumnMapApply">应用列映射</button>
+          <span class="hint" id="columnMapStatus"></span>
+        </div>
       </div>
       <div class="field">
         <div class="field-head">
@@ -538,7 +558,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052012</span>
+        <span class="nas-build" id="nasBuild">构建 202611052013</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -671,9 +691,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611052012"></script>
+  <script src="i18n.js?b=202611052013"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052012"></script>
-  <script src="onboarding.js?b=202611052012"></script>
+  <script src="tide.js?b=202611052013"></script>
+  <script src="onboarding.js?b=202611052013"></script>
 </body>
 </html>

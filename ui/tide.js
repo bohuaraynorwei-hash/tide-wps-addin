@@ -442,6 +442,80 @@
     writeJSON(K.perSheetCols, state.perSheetCols);
   }
 
+  function renderColumnMapCandidates() {
+    var box = $('columnMapCandidates');
+    var hint = $('columnMapHint');
+    if (!box) return;
+    box.textContent = '';
+    var sheet = currentSheet();
+    if (!sheet) { if (hint) hint.textContent = '未连接工作表。'; return; }
+    var used = null, grid = [];
+    try { used = sheet.UsedRange; if (used) grid = toGrid(used.Value2); } catch (err) { grid = []; }
+    var groups = used ? detectColumnGroups(grid, Number(used.Column) || 1) : null;
+    if (!groups || !groups.length) {
+      if (hint) hint.textContent = '未识别到表头。请直接输入源语/目标语列字母后应用。';
+      return;
+    }
+    if (hint) hint.textContent = '识别到 ' + groups.length + ' 组候选；点一组填入，或直接改上面的列字母。候选不会自动应用。';
+    groups.forEach(function (group) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'act ghost';
+      btn.textContent = '原文 ' + group.sourceCol + ' / 译文 ' + group.targetCol;
+      btn.addEventListener('click', function () {
+        $('columnMapSource').value = group.sourceCol;
+        $('columnMapTarget').value = group.targetCol;
+        $('columnMapOld').value = group.oldCol || '';
+        Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) { b.classList.remove('on'); });
+        btn.classList.add('on');
+        $('columnMapStatus').textContent = '已填入候选，确认无误后点「应用列映射」。';
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  function openColumnMapPanel() {
+    var panel = $('columnMapPanel');
+    if (!panel) return;
+    panel.hidden = false;
+    $('columnMapSource').value = state.settings.sourceCol || 'C';
+    $('columnMapTarget').value = state.settings.targetCol || 'F';
+    $('columnMapOld').value = state.settings.oldCol || '';
+    $('columnMapStatus').textContent = '';
+    renderColumnMapCandidates();
+    $('columnMapSource').focus();
+  }
+
+  function closeColumnMapPanel() {
+    var panel = $('columnMapPanel');
+    if (panel) panel.hidden = true;
+  }
+
+  function applyManualColumnMap() {
+    var sheet = currentSheet();
+    if (!sheet) { showToast('未连接工作表'); return; }
+    var source = String($('columnMapSource').value || '').trim().toUpperCase();
+    var target = String($('columnMapTarget').value || '').trim().toUpperCase();
+    var old = String($('columnMapOld').value || '').trim().toUpperCase();
+    if (!/^[A-Z]{1,3}$/.test(source) || !/^[A-Z]{1,3}$/.test(target)) {
+      $('columnMapStatus').textContent = '列字母无效，例如 C、F、AA。';
+      return;
+    }
+    if (source === target) {
+      $('columnMapStatus').textContent = '源语列和目标语列不能相同。';
+      return;
+    }
+    if (old && !/^[A-Z]{1,3}$/.test(old)) {
+      $('columnMapStatus').textContent = '旧译文列字母无效。';
+      return;
+    }
+    applyColumnGroup(sheet.Name, { sourceCol: source, targetCol: target, oldCol: old || '' });
+    $('columnMapStatus').textContent = '已应用：原文 ' + source + ' / 译文 ' + target;
+    closeColumnMapPanel();
+    loadEntries(); renderEntry();
+    showToast('已应用列映射：原文 ' + source + ' / 译文 ' + target);
+  }
+
   function buildRows(sheetOverride, silent) {
     var sheet = sheetOverride || currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
@@ -5606,22 +5680,14 @@
       renderEntry();
       $('entryCheck').textContent = '已刷新到 ' + activeSheetName() + '，正在重建整簿记忆…';
     });
-    if ($('btnColumnChoice')) $('btnColumnChoice').addEventListener('click', function () {
-      var sheet = currentSheet();
-      if (!sheet) { showToast('未连接工作表'); return; }
-      var used = sheet.UsedRange;
-      if (!used) { showToast('当前表没有数据'); return; }
-      var grid = toGrid(used.Value2);
-      var groups = detectColumnGroups(grid, Number(used.Column) || 1);
-      if (!groups || !groups.length) { showToast('未识别到 Source Text / EN 表头，请在设置页手动填写列'); return; }
-      if (groups.length === 1) { applyColumnGroup(sheet.Name, groups[0]); showToast('已识别：原文 ' + groups[0].sourceCol + ' / 译文 ' + groups[0].targetCol); }
-      else {
-        var selected = askColumnGroup(sheet.Name, groups, true);
-        if (!selected) return;
-        applyColumnGroup(sheet.Name, selected);
-        showToast('已选择：原文 ' + selected.sourceCol + ' / 译文 ' + selected.targetCol);
-      }
-      loadEntries(); renderEntry();
+    if ($('btnColumnChoice')) $('btnColumnChoice').addEventListener('click', openColumnMapPanel);
+    if ($('btnColumnMapApply')) $('btnColumnMapApply').addEventListener('click', applyManualColumnMap);
+    if ($('btnColumnMapCancel')) $('btnColumnMapCancel').addEventListener('click', closeColumnMapPanel);
+    if ($('btnColumnMapDetect')) $('btnColumnMapDetect').addEventListener('click', renderColumnMapCandidates);
+    ['columnMapSource', 'columnMapTarget', 'columnMapOld'].forEach(function (id) {
+      if ($(id)) $(id).addEventListener('input', function () {
+        this.value = String(this.value || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+      });
     });
     $('btnPrevEntry').addEventListener('click', function () { navigateEntry(-1); });
     $('btnNextEntry').addEventListener('click', function () { navigateEntry(1); });

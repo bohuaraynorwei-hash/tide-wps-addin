@@ -551,3 +551,10 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .term-source-box.local{border-left-color:#b35c00;background:#fff8ed}
 .term-source-box.local .term-source-value{color:#9a4f00}
 .term-source-box.bundled{border-left-color:var(--label-2)}
+
+/* Manual source/target column correction. */
+.column-map-panel{border:1px solid var(--hair-strong);background:var(--card);border-radius:10px;padding:10px 11px}
+.column-map-panel .colrow{margin-top:6px}
+.column-map-candidates{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.column-map-candidates .act{font-size:11px;padding:5px 8px}
+.column-map-candidates .act.on{background:var(--accent);color:#fff;border-color:var(--accent)}
