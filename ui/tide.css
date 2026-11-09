@@ -537,3 +537,5 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .term-chip:hover{background:rgba(0,102,204,.13)}
 .term-chip b{font-weight:600}
 .term-chip span{color:var(--label-2)}
+
+#findScopeTabs button.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}

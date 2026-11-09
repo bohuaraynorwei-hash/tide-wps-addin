@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052007">
+  <link rel="stylesheet" href="tide.css?b=202611052008">
 </head>
 <body>
   <header class="bar">
@@ -229,6 +229,26 @@
     </section>
 
     <section id="panel-find" hidden>
+      <div class="field">
+        <label>定位范围（工作表 + 行号同时满足）</label>
+        <div class="toolbar" id="findScopeTabs" style="margin-bottom:6px">
+          <button class="act ghost on" type="button" data-find-tab="sheet">1 工作表</button>
+          <button class="act ghost" type="button" data-find-tab="row">2 行号</button>
+        </div>
+        <div id="findSheetPane">
+          <select id="findSheet" class="mini" style="width:100%">
+            <option value="">全部工作表</option>
+          </select>
+        </div>
+        <div id="findRowPane" hidden>
+          <input id="findRow" type="number" min="1" step="1" placeholder="输入具体行号，例如 128" style="width:100%">
+        </div>
+        <div class="toolbar" style="margin-top:6px">
+          <button class="act ghost" type="button" id="btnFindClearScope">清除定位范围</button>
+          <span class="hint" id="findScopeSummary">未限定：搜索整本工作簿</span>
+        </div>
+        <div class="hint">两个选项卡里的条件会同时生效；只填一个时不会开始搜索。</div>
+      </div>
       <div class="field">
         <label>全表模糊搜索（包含即命中）</label>
         <input id="findInput" type="search" placeholder="输入片段，如：宝箱" title="Ctrl+V 粘贴 · Esc 清空">
@@ -509,7 +529,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052007</span>
+        <span class="nas-build" id="nasBuild">构建 202611052008</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -642,9 +662,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611052007"></script>
+  <script src="i18n.js?b=202611052008"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052007"></script>
-  <script src="onboarding.js?b=202611052007"></script>
+  <script src="tide.js?b=202611052008"></script>
+  <script src="onboarding.js?b=202611052008"></script>
 </body>
 </html>

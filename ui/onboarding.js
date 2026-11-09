@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '9';   // bump to re-show the tour after a big UI change
+  var VERSION = '10';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -55,6 +55,12 @@
       zh: '底部「一键导出本次编辑」复制原工作簿，保留全部工作表、UID/Key、列宽和布局，只保留本次修改过的数据行；「导出修改记录」另存修改前后明细。'
     }],
     find: [{
+      before: 'find',
+      target: '#findScopeTabs',
+      place: 'bottom',
+      zh: '搜索页新增定位范围：选项卡 1 选择工作表，选项卡 2 输入行号；两项同时满足才限定搜索，点「清除定位范围」恢复整本工作簿。'
+    }, {
+
       before: 'find',
       target: '#btnRepPreview',
       place: 'top',

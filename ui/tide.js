@@ -1554,7 +1554,7 @@
 
   // ---------- workbook-wide substring search ----------
 
-  function scanSheetFor(sheet, needle) {
+  function scanSheetFor(sheet, needle, onlyRow) {
     var hits = [];
     var used;
     try { used = sheet.UsedRange; } catch (err) { return hits; }
@@ -1565,7 +1565,13 @@
     var startCol = Number(used.Column) || 1;
     var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
-    for (var i = 0; i < grid.length; i += 1) {
+    var first = 0, last = grid.length;
+    if (onlyRow) {
+      first = Number(onlyRow) - startRow;
+      if (first < 0 || first >= grid.length) return hits;
+      last = first + 1;
+    }
+    for (var i = first; i < last; i += 1) {
       var source = srcIdx >= 0 ? cellText(grid, i, srcIdx) : '';
       if (source && source.toLowerCase().indexOf(needle) > -1) {
         hits.push({ sheet: sheet.Name, row: startRow + i, column: 'source', text: source });
@@ -1578,7 +1584,64 @@
     return hits;
   }
 
+  function readFindScope() {
+    var sheet = $('findSheet') ? $('findSheet').value : '';
+    var raw = $('findRow') ? String($('findRow').value || '').trim() : '';
+    if (!sheet && !raw) return { active: false, invalid: false };
+    var row = parseInt(raw, 10);
+    if (!sheet || !raw || !isFinite(row) || row < 1) return { active: false, invalid: true };
+    return { active: true, invalid: false, sheet: sheet, row: row };
+  }
+
+  function updateFindScopeSummary() {
+    var scope = readFindScope();
+    var el = $('findScopeSummary');
+    if (!el) return;
+    if (scope.invalid) el.textContent = '需同时选择工作表和输入行号';
+    else if (scope.active) el.textContent = '定位：' + scope.sheet + ' · 第 ' + scope.row + ' 行';
+    else el.textContent = '未限定：搜索整本工作簿';
+    if ($('btnFindAll')) $('btnFindAll').textContent = scope.active ? '搜索指定位置' : '搜索整本工作簿';
+  }
+
+  function refreshFindSheets() {
+    var sel = $('findSheet');
+    if (!sel) return;
+    var current = sel.value;
+    var names = [];
+    try {
+      var book = sheetApp() && sheetApp().ActiveWorkbook;
+      var sheets = book && book.Worksheets;
+      var count = sheets ? Number(sheets.Count) || 0 : 0;
+      for (var i = 1; i <= count; i += 1) {
+        var sheet = sheets.Item(i);
+        if (sheet && sheet.Name) names.push(String(sheet.Name));
+      }
+    } catch (err) { names = []; }
+    sel.textContent = '';
+    var all = document.createElement('option');
+    all.value = ''; all.textContent = '全部工作表'; sel.appendChild(all);
+    names.forEach(function (name) {
+      var option = document.createElement('option');
+      option.value = name; option.textContent = name; sel.appendChild(option);
+    });
+    if (current && names.indexOf(current) > -1) sel.value = current;
+    else sel.value = '';
+    updateFindScopeSummary();
+  }
+
+  function setFindScopeTab(name) {
+    var buttons = $('findScopeTabs') ? $('findScopeTabs').querySelectorAll('button') : [];
+    for (var i = 0; i < buttons.length; i += 1) {
+      buttons[i].classList.toggle('on', buttons[i].dataset.findTab === name);
+    }
+    $('findSheetPane').hidden = name !== 'sheet';
+    $('findRowPane').hidden = name !== 'row';
+    var focus = name === 'row' ? $('findRow') : $('findSheet');
+    if (focus && focus.focus) focus.focus();
+  }
+
   function renderFind() {
+    refreshFindSheets();
     var table = $('findTable');
     var body = table.tBodies[0];
     body.textContent = '';
@@ -1608,13 +1671,27 @@
   function runFind() {
     var term = $('findInput').value.trim();
     if (!term) { $('findStatus').textContent = '先输入要搜索的片段。'; return; }
+    var scope = readFindScope();
+    if (scope.invalid) {
+      $('findStatus').textContent = '工作表和行号需要同时填写，或点「清除定位范围」搜索整本工作簿。';
+      return;
+    }
     var app = sheetApp();
     var book = app && app.ActiveWorkbook;
     if (!book || !book.Worksheets) { $('findStatus').textContent = '未连接工作簿。'; return; }
+    var needle = term.toLowerCase();
+    if (scope.active) {
+      var onlySheet = sheetByName(scope.sheet);
+      if (!onlySheet) { $('findStatus').textContent = '找不到工作表：' + scope.sheet; return; }
+      var scoped = scanSheetFor(onlySheet, needle, scope.row);
+      state.findResults = scoped;
+      renderFind();
+      $('findStatus').textContent = '在 ' + scope.sheet + ' 第 ' + scope.row + ' 行找到 ' + scoped.length + ' 处。';
+      return;
+    }
     var sheets = book.Worksheets;
     var count = 0;
     try { count = sheets.Count; } catch (err) { count = 0; }
-    var needle = term.toLowerCase();
     var results = [];
     var index = 1;
     state.findResults = [];
@@ -5245,6 +5322,23 @@
       });
     }
     $('btnFindAll').addEventListener('click', runFind);
+    if ($('findScopeTabs')) {
+      $('findScopeTabs').addEventListener('click', function (event) {
+        var btn = event.target.closest('button[data-find-tab]');
+        if (btn) setFindScopeTab(btn.dataset.findTab);
+      });
+    }
+    if ($('findSheet')) $('findSheet').addEventListener('change', updateFindScopeSummary);
+    if ($('findRow')) {
+      $('findRow').addEventListener('input', updateFindScopeSummary);
+      $('findRow').addEventListener('keydown', function (event) { if (event.key === 'Enter') runFind(); });
+    }
+    if ($('btnFindClearScope')) $('btnFindClearScope').addEventListener('click', function () {
+      if ($('findSheet')) $('findSheet').value = '';
+      if ($('findRow')) $('findRow').value = '';
+      updateFindScopeSummary();
+      $('findStatus').textContent = '已清除定位范围。';
+    });
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
     $('btnProjectScan').addEventListener('click', analyzeWorkbook);
