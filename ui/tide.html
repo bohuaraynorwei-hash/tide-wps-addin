@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052017">
+  <link rel="stylesheet" href="tide.css?b=202611052018">
 </head>
 <body>
   <header class="bar">
@@ -55,7 +55,7 @@
     <button data-tab="free" hidden>自由</button>
     <button data-tab="find">搜索</button>
     <button data-tab="review">审校</button>
-    <button data-tab="versions">版本</button>
+    <button data-tab="versions" data-i18n="tab.versions">版本</button>
     <button data-tab="tm">记忆库</button>
     <button data-tab="grid">表格编辑</button>
     <button data-tab="project" hidden>项目</button>
@@ -95,26 +95,26 @@
         <button class="act ghost" id="btnPrevEntry">上一条</button>
         <button class="act ghost" id="btnNextEntry">下一条</button>
         <button class="act ghost" id="btnRefreshEntries">刷新条目</button>
-        <button class="act ghost" id="btnColumnChoice" title="检测当前表的源语/目标语列；多组时手动选择">识别/选择列</button>
+        <button class="act ghost" id="btnColumnChoice" title="检测当前表的源语/目标语列；多组时手动选择" data-i18n="btn.columnChoice">识别/选择列</button>
         <span class="count" id="entryPos">0 / 0</span>
       </div>
       <div class="field column-map-panel" id="columnMapPanel" hidden>
         <div class="field-head">
-          <label>手工指定当前表的源语 / 目标语列</label>
+          <label data-i18n="label.columnManual">手工指定当前表的源语 / 目标语列</label>
           <span class="head-actions">
-            <button class="act ghost mini" type="button" id="btnColumnMapDetect">识别</button>
-            <button class="act ghost mini" type="button" id="btnColumnMapCancel">关闭</button>
+            <button class="act ghost mini" type="button" id="btnColumnMapDetect" data-i18n="btn.columnDetect">识别</button>
+            <button class="act ghost mini" type="button" id="btnColumnMapCancel" data-i18n="btn.close">关闭</button>
           </span>
         </div>
         <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
-          <div class="colfield"><label>源语列</label><input id="columnMapSource" maxlength="3" placeholder="C" style="width:100%;text-transform:uppercase"></div>
-          <div class="colfield"><label>目标语列</label><input id="columnMapTarget" maxlength="3" placeholder="F" style="width:100%;text-transform:uppercase"></div>
-          <div class="colfield"><label>旧译（可选）</label><input id="columnMapOld" maxlength="3" placeholder="E" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label data-i18n="label.sourceCol">源语列</label><input id="columnMapSource" maxlength="3" placeholder="C" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label data-i18n="label.targetCol">目标语列</label><input id="columnMapTarget" maxlength="3" placeholder="F" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label data-i18n="label.oldColShort">旧译（可选）</label><input id="columnMapOld" maxlength="3" placeholder="E" style="width:100%;text-transform:uppercase"></div>
         </div>
-        <div class="hint" id="columnMapHint">可直接输入列字母；识别候选只用于填入，不会自动覆盖。</div>
+        <div class="hint" id="columnMapHint" data-i18n="hint.columnManual">可直接输入列字母；识别候选只用于填入，不会自动覆盖。</div>
         <div class="column-map-candidates" id="columnMapCandidates"></div>
         <div class="toolbar" style="margin-top:8px">
-          <button class="act" type="button" id="btnColumnMapApply">应用列映射</button>
+          <button class="act" type="button" id="btnColumnMapApply" data-i18n="btn.columnApply">应用列映射</button>
           <span class="hint" id="columnMapStatus"></span>
         </div>
       </div>
@@ -195,8 +195,8 @@
         <tbody></tbody>
       </table>
       <div class="toolbar">
-        <button class="act" id="btnExportSessionEdits" title="复制原工作簿的全部工作表和布局，仅保留本次修改过的数据行">一键导出本次编辑（完整表格）</button>
-        <button class="act ghost" id="btnExportSessionLog" title="导出本次编辑的修改前后明细">导出修改记录</button>
+        <button class="act" id="btnExportSessionEdits" title="复制原工作簿的全部工作表和布局，仅保留本次修改过的数据行" data-i18n="btn.exportFull">一键导出本次编辑（完整表格）</button>
+        <button class="act ghost" id="btnExportSessionLog" title="导出本次编辑的修改前后明细" data-i18n="btn.exportLog">导出修改记录</button>
         <span class="count" id="sessionEditCount">0 条</span>
       </div>
 
@@ -206,13 +206,13 @@
       <div class="toolbar">
         <button class="act ghost" id="btnVersionsRefresh">刷新</button>
         <select id="versionKind" class="mini" aria-label="版本类型">
-          <option value="target">译文版本</option>
-          <option value="source">原文版本</option>
+          <option value="target" data-i18n="version.target">译文版本</option>
+          <option value="source" data-i18n="version.source">原文版本</option>
         </select>
-        <input id="versionQuery" type="search" placeholder="筛选原文 / 行号 / 单元格" style="flex:1;min-width:120px">
+        <input id="versionQuery" type="search" placeholder="筛选原文 / 行号 / 单元格" data-i18n-ph="version.filter" style="flex:1;min-width:120px">
         <span class="count" id="versionEntryCount"></span>
       </div>
-      <div class="hint" id="versionHint">原文和译文分开归档；每个版本只回滚当前词条，不影响其他词条。</div>
+      <div class="hint" id="versionHint" data-i18n="hint.version">原文和译文分开归档；每个版本只回滚当前词条，不影响其他词条。</div>
       <div id="versionEntries"></div>
       <div class="empty" id="versionEmpty">还没有词条版本。通过插件写入译文或原文后，这里会按词条记录。</div>
     </section>
@@ -251,10 +251,10 @@
 
     <section id="panel-find" hidden>
       <div class="field">
-        <label>定位范围（工作表 + 行号同时满足）</label>
+        <label data-i18n="label.findScope">定位范围（工作表 + 行号同时满足）</label>
         <div class="toolbar" id="findScopeTabs" style="margin-bottom:6px">
-          <button class="act ghost on" type="button" data-find-tab="sheet">1 工作表</button>
-          <button class="act ghost" type="button" data-find-tab="row">2 行号</button>
+          <button class="act ghost on" type="button" data-find-tab="sheet" data-i18n="find.tabSheet">1 工作表</button>
+          <button class="act ghost" type="button" data-find-tab="row" data-i18n="find.tabRow">2 行号</button>
         </div>
         <div id="findSheetPane">
           <select id="findSheet" class="mini" style="width:100%">
@@ -262,14 +262,14 @@
           </select>
         </div>
         <div id="findRowPane" hidden>
-          <input id="findRow" type="number" min="1" step="1" placeholder="输入具体行号，例如 128" style="width:100%">
+          <input id="findRow" type="number" min="1" step="1" placeholder="输入具体行号，例如 128" data-i18n-ph="find.rowPlaceholder" style="width:100%">
         </div>
         <div class="toolbar" style="margin-top:6px">
-          <button class="act" type="button" id="btnFindJumpSource">跳转到原文</button>
-          <button class="act ghost" type="button" id="btnFindClearScope">清除定位范围</button>
+          <button class="act" type="button" id="btnFindJumpSource" data-i18n="btn.findJump">跳转到原文</button>
+          <button class="act ghost" type="button" id="btnFindClearScope" data-i18n="btn.findClear">清除定位范围</button>
           <span class="hint" id="findScopeSummary">未限定：搜索整本工作簿</span>
         </div>
-        <div class="hint">两个选项卡里的条件会同时生效；只填一个时不会开始搜索。</div>
+        <div class="hint" data-i18n="hint.findScope">两个选项卡里的条件会同时生效；只填一个时不会开始搜索。</div>
       </div>
       <div class="field">
         <label>全表模糊搜索（包含即命中）</label>
@@ -440,7 +440,7 @@
     <section id="panel-terms" hidden>
       <div class="term-source-box none" id="termSourceBox">
         <div class="term-source-head">
-          <span class="term-source-label">当前术语来源</span>
+          <span class="term-source-label" data-i18n="term.currentSource">当前术语来源</span>
         </div>
         <div class="term-source-value" id="termSourceValue">尚未加载</div>
         <div class="term-source-detail" id="termSourceDetail">打开术语页后自动识别 NAS 项目、缓存或本地术语。</div>
@@ -558,7 +558,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052017</span>
+        <span class="nas-build" id="nasBuild">构建 202611052018</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -691,9 +691,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611052017"></script>
+  <script src="i18n.js?b=202611052018"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052017"></script>
-  <script src="onboarding.js?b=202611052017"></script>
+  <script src="tide.js?b=202611052018"></script>
+  <script src="onboarding.js?b=202611052018"></script>
 </body>
 </html>

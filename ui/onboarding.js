@@ -130,6 +130,15 @@
     return node;
   }
 
+  function tr(key, fallback) {
+    var value = window.TideI18n && window.TideI18n.t ? window.TideI18n.t(key) : '';
+    return value || fallback;
+  }
+
+  function guideName(key) {
+    return tr('guide.page.' + key, GUIDES[key].name);
+  }
+
   function showTab(name) {
     if (name === 'nas') {
       var top = document.getElementById('topNas');
@@ -149,26 +158,26 @@
     menu = el('div', 'guide-menu');
     var panel = el('div', 'guide-panel');
     var head = el('div', 'guide-head');
-    head.appendChild(el('b', '', '页面引导'));
+    head.appendChild(el('b', '', tr('guide.menuTitle', '页面引导')));
     var close = el('button', 'guide-close', '×');
     close.type = 'button';
     close.addEventListener('click', closeMenu);
     head.appendChild(close);
     panel.appendChild(head);
-    panel.appendChild(el('p', 'guide-intro', '选择一个页面，查看该页主要操作。'));
+    panel.appendChild(el('p', 'guide-intro', tr('guide.intro', '选择一个页面，查看该页主要操作。')));
     var grid = el('div', 'guide-grid');
     ORDER.forEach(function (key) {
       var guide = GUIDES[key];
       if (!guide) return;
-      var btn = el('button', 'guide-item', guide.name);
+      var btn = el('button', 'guide-item', guideName(key));
       btn.type = 'button';
       btn.addEventListener('click', function () { selectPage(key); });
       grid.appendChild(btn);
     });
     panel.appendChild(grid);
     var foot = el('div', 'guide-foot');
-    foot.appendChild(el('span', '', '首次使用建议先看「我的任务」和「翻译」。'));
-    var done = el('button', 'guide-done', '关闭');
+    foot.appendChild(el('span', '', tr('guide.foot', '首次使用建议先看「我的任务」和「翻译」。')));
+    var done = el('button', 'guide-done', tr('guide.close', '关闭'));
     done.type = 'button';
     done.addEventListener('click', closeMenu);
     foot.appendChild(done);
@@ -207,23 +216,23 @@
     head.appendChild(avatar);
     head.appendChild(el('b', '', 'Tide 引导'));
     head.appendChild(el('span', 'tour-count', ''));
-    var switchPage = el('button', 'tour-link', '换页');
+    var switchPage = el('button', 'tour-link', tr('guide.switch', '换页'));
     switchPage.type = 'button';
     switchPage.addEventListener('click', openMenu);
     head.appendChild(switchPage);
     bubble.appendChild(head);
     bubble.appendChild(el('p', 'tour-text', ''));
     var foot = el('div', 'tour-foot');
-    var close = el('button', 'skip', '关闭');
+    var close = el('button', 'skip', tr('guide.tourClose', '关闭'));
     close.type = 'button';
     close.addEventListener('click', finish);
     foot.appendChild(close);
     foot.appendChild(el('div', 'tour-dots', ''));
-    var prev = el('button', 'tour-btn ghost', '上一步');
+    var prev = el('button', 'tour-btn ghost', tr('guide.back', '上一步'));
     prev.type = 'button';
     prev.addEventListener('click', function () { go(index - 1); });
     foot.appendChild(prev);
-    var next = el('button', 'tour-btn primary', '下一步');
+    var next = el('button', 'tour-btn primary', tr('guide.next', '下一步'));
     next.type = 'button';
     next.addEventListener('click', function () {
       if (index < GUIDES[page].steps.length - 1) { go(index + 1); return; }
@@ -302,8 +311,8 @@
   function render() {
     var guide = GUIDES[page];
     var step = guide.steps[index];
-    bubble.querySelector('.tour-text').textContent = step.text;
-    bubble.querySelector('.tour-count').textContent = guide.name + ' ' + (index + 1) + '/' + guide.steps.length;
+    bubble.querySelector('.tour-text').textContent = tr('guide.' + page + '.' + index, step.text);
+    bubble.querySelector('.tour-count').textContent = guideName(page) + ' ' + (index + 1) + '/' + guide.steps.length;
     var dots = bubble.querySelector('.tour-dots');
     dots.textContent = '';
     for (var i = 0; i < guide.steps.length; i += 1) dots.appendChild(el('i', i === index ? 'on' : ''));
@@ -311,8 +320,8 @@
     buttons[0].style.visibility = index === 0 ? 'hidden' : 'visible';
     var lastPage = ORDER.indexOf(page) === ORDER.length - 1;
     buttons[1].textContent = index === guide.steps.length - 1
-      ? (autoMode && !lastPage ? '下一页' : '完成')
-      : '下一步';
+      ? (autoMode && !lastPage ? tr('guide.nextPage', '下一页') : tr('guide.finish', '完成'))
+      : tr('guide.next', '下一步');
     place(step);
     requestAnimationFrame(function () { place(step); });
   }

@@ -1085,6 +1085,19 @@
     renderEntry();
   }
 
+  function tr(key, fallback) {
+    var value = window.TideI18n && window.TideI18n.t ? window.TideI18n.t(key) : '';
+    return value || fallback;
+  }
+
+  function trFormat(key, fallback, values) {
+    var text = tr(key, fallback);
+    Object.keys(values || {}).forEach(function (name) {
+      text = text.split('{' + name + '}').join(String(values[name]));
+    });
+    return text;
+  }
+
   function localStamp(iso) {
     var d = new Date(iso);
     if (isNaN(d.getTime())) return '';
@@ -1098,28 +1111,28 @@
     if (!box || !value || !detail) return;
     var meta = state.termsMeta;
     var mode = 'none';
-    var title = '尚未加载';
+    var title = tr('term.notLoaded', '尚未加载');
     var note = '打开术语页后自动识别 NAS 项目、缓存或本地术语。';
     if (meta && meta.projectId) {
       var count = Number(meta.count || state.terms.length || 0);
       if (meta.cached) {
         mode = 'nas';
-        title = 'NAS 缓存';
+        title = tr('term.nasCache', 'NAS 缓存');
         note = (meta.source || 'NAS 缓存') + ' · ' + count + ' 条' +
           (meta.cachedAt ? ' · 缓存于 ' + localStamp(meta.cachedAt) : '');
       } else {
         mode = 'nas';
-        title = 'NAS 项目术语表';
+        title = tr('term.nasProject', 'NAS 项目术语表');
         note = (meta.source || '项目术语表') + ' · ' + count + ' 条 · 已同步';
       }
     } else if (meta) {
       mode = 'local';
-      title = '本地术语表';
+      title = tr('term.local', '本地术语表');
       note = (state.terms.length || meta.count || 0) + ' 条 · ' + (meta.source || '本机导入') +
         (meta.importedAt ? ' · ' + localStamp(meta.importedAt) : '') + ' · 本机';
     } else if (state.bundledMeta) {
       mode = 'bundled';
-      title = '内置术语表';
+      title = tr('term.bundled', '内置术语表');
       note = (state.terms.length || state.bundledMeta.count || 0) + ' 条 · 随插件提供';
     }
     box.className = 'term-source-box ' + mode;
@@ -1769,10 +1782,10 @@
     var scope = readFindScope();
     var el = $('findScopeSummary');
     if (!el) return;
-    if (scope.invalid) el.textContent = '需同时选择工作表和输入行号';
-    else if (scope.active) el.textContent = '定位：' + scope.sheet + ' · 第 ' + scope.row + ' 行';
-    else el.textContent = '未限定：搜索整本工作簿';
-    if ($('btnFindAll')) $('btnFindAll').textContent = scope.active ? '搜索指定位置' : '搜索整本工作簿';
+    if (scope.invalid) el.textContent = tr('find.scopeNeedBoth', '需同时选择工作表和输入行号');
+    else if (scope.active) el.textContent = trFormat('find.scopeActive', '定位：{sheet} · 第 {row} 行', { sheet: scope.sheet, row: scope.row });
+    else el.textContent = tr('find.scopeNone', '未限定：搜索整本工作簿');
+    if ($('btnFindAll')) $('btnFindAll').textContent = scope.active ? tr('find.searchScoped', '搜索指定位置') : tr('find.searchAll', '搜索整本工作簿');
     if ($('btnFindJumpSource')) $('btnFindJumpSource').disabled = !scope.active;
   }
 
@@ -1792,7 +1805,7 @@
     } catch (err) { names = []; }
     sel.textContent = '';
     var all = document.createElement('option');
-    all.value = ''; all.textContent = '全部工作表'; sel.appendChild(all);
+    all.value = ''; all.textContent = tr('find.allSheets', '全部工作表'); sel.appendChild(all);
     names.forEach(function (name) {
       var option = document.createElement('option');
       option.value = name; option.textContent = name; sel.appendChild(option);
@@ -2244,13 +2257,14 @@
     if (!box) return;
     var query = $('versionQuery') ? $('versionQuery').value : '';
     var kind = versionKind();
-    var label = kind === 'source' ? '原文' : '译文';
+    var label = kind === 'source' ? tr('version.source', '原文') : tr('version.target', '译文');
     var models = versionEntryModels(query, kind);
-    $('versionEntryCount').textContent = models.length + ' 个词条有' + label + '版本';
+    $('versionEntryCount').textContent = models.length + ' ' +
+      tr(kind === 'source' ? 'version.entriesSource' : 'version.entriesTarget', '个词条有' + label + '版本');
     $('versionEmpty').hidden = models.length > 0;
     $('versionEmpty').textContent = kind === 'source'
-      ? '还没有原文版本。原文通常不改；通过「写回原文」修改后，这里会记录。'
-      : '还没有译文版本。通过插件写入译文后，这里会按词条记录。';
+      ? tr('version.emptySource', '还没有原文版本。原文通常不改；通过「写回原文」修改后，这里会记录。')
+      : tr('version.emptyTarget', '还没有译文版本。通过插件写入译文后，这里会按词条记录。');
     box.textContent = '';
     models.slice(0, 300).forEach(function (model) {
       var details = document.createElement('details');
@@ -2260,16 +2274,18 @@
       summary.style.cssText = 'cursor:pointer;padding:2px 0';
       var head = document.createElement('span');
       head.style.cssText = 'font-size:12px;font-weight:600';
-      head.textContent = model.pos.address + ' · ' + (kind === 'source' ? '原文' : (model.record.source || '（无原文）'));
+      head.textContent = model.pos.address + ' · ' + (kind === 'source' ? tr('version.source', '原文') : (model.record.source || '（无原文）'));
       var meta = document.createElement('span');
       meta.className = 'hint';
       meta.style.marginLeft = '8px';
-      meta.textContent = model.revisions.length + ' 个' + label + '版本 · 当前：' + (model.current || '空');
+      meta.textContent = trFormat('version.meta', '{count} 个版本 · 当前：{value}', {
+        count: model.revisions.length, value: model.current || tr('version.emptyValue', '空')
+      });
       summary.append(head, meta);
       details.appendChild(summary);
       var body = document.createElement('div');
       body.style.cssText = 'margin-top:8px;border-top:1px solid var(--hair);padding-top:6px';
-      body.appendChild(versionRow(model, '初始值', '—', model.revisions[0].before, true, kind, model.pos.column));
+      body.appendChild(versionRow(model, tr('version.initial', '初始值'), '—', model.revisions[0].before, true, kind, model.pos.column));
       model.revisions.forEach(function (rev) {
         body.appendChild(versionRow(model, localStamp(rev.ts), rev.author || '', rev.after, false, kind, model.pos.column));
       });
@@ -2290,10 +2306,12 @@
     text.style.cssText = 'flex:1;min-width:0';
     var title = document.createElement('div'); title.textContent = label + (author ? ' · ' + author : '');
     var val = document.createElement('div'); val.className = 'hint';
-    val.textContent = initial ? ('修改前：' + (value || '空')) : ('值：' + (value || '空'));
+    val.textContent = initial
+      ? tr('version.before', '修改前：') + (value || tr('version.emptyValue', '空'))
+      : tr('version.value', '值：') + (value || tr('version.emptyValue', '空'));
     text.append(title, val);
     var btn = document.createElement('button');
-    btn.className = 'act ghost'; btn.textContent = '回滚';
+    btn.className = 'act ghost'; btn.textContent = tr('version.rollback', '回滚');
     btn.addEventListener('click', function () {
       var typeLabel = kind === 'source' ? '原文' : '译文';
       if (!window.confirm('只回滚词条 ' + model.pos.address + ' 的' + typeLabel + '到「' + label + '」？其他词条和另一列不会改变。')) return;
