@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052004">
+  <link rel="stylesheet" href="tide.css?b=202611052005">
 </head>
 <body>
   <header class="bar">
@@ -176,6 +176,15 @@
         <button class="act" id="btnExportSessionEdits" title="复制原工作簿的全部工作表和布局，仅保留本次修改过的数据行">一键导出本次编辑（完整表格）</button>
         <button class="act ghost" id="btnExportSessionLog" title="导出本次编辑的修改前后明细">导出修改记录</button>
         <span class="count" id="sessionEditCount">0 条</span>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnSaveVersion" title="把本次插件修改保存为可回滚的本地版本">保存版本</button>
+        <button class="act ghost" id="btnVersionHistory" title="查看本地版本并选择回滚">版本历史</button>
+        <span class="count" id="versionCount">0 个版本</span>
+      </div>
+      <div class="field" id="pluginVersionPanel" hidden>
+        <div class="hint" id="pluginVersionHint">版本只保存通过插件修改过的单元格；选择版本可恢复当时的原文/译文。</div>
+        <div id="pluginVersionList" style="max-height:250px;overflow:auto"></div>
       </div>
     </section>
 
@@ -492,7 +501,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052004</span>
+        <span class="nas-build" id="nasBuild">构建 202611052005</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -625,9 +634,9 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n.js?b=202611052004"></script>
+  <script src="i18n.js?b=202611052005"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052004"></script>
-  <script src="onboarding.js?b=202611052004"></script>
+  <script src="tide.js?b=202611052005"></script>
+  <script src="onboarding.js?b=202611052005"></script>
 </body>
 </html>

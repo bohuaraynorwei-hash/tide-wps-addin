@@ -10,7 +10,7 @@
   'use strict';
 
   var SEEN_KEY = 'tide.tourSeen';
-  var VERSION = '6';   // bump to re-show the tour after a big UI change
+  var VERSION = '7';   // bump to re-show the tour after a big UI change
 
   // One step per visible tab: the guide follows the tab strip, so every
   // function is introduced in the place it lives.
@@ -52,6 +52,11 @@
       target: '#btnExportSessionEdits',
       place: 'top',
       zh: '底部「一键导出本次编辑」复制原工作簿，保留全部工作表、UID/Key、列宽和布局，只保留本次修改过的数据行；「导出修改记录」另存修改前后明细。'
+    }, {
+      before: 'translate',
+      target: '#btnVersionHistory',
+      place: 'top',
+      zh: '「保存版本」把本次插件修改保存为本地版本；「版本历史」可选择任意版本回滚。版本只覆盖插件改过的单元格，不复制整份工作簿。'
     }],
     find: [{
       before: 'find',

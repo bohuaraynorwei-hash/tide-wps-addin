@@ -20,7 +20,8 @@
     nas: 'tide.nas',
     nasAuth: 'tide.nas.auth',
     nasTermCache: 'tide.nas.termcache.v1',
-    termMode: 'tide.terms.mode'
+    termMode: 'tide.terms.mode',
+    pluginVersions: 'tide.plugin.versions.v1'
   };
   var HISTORY_LIMIT = 3000;
   var NAS_TERM_CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -1302,6 +1303,111 @@
     document.body.removeChild(link);
     window.setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
     $('entryCheck').textContent = '已导出本次编辑 ' + rows.length + ' 条：' + name;
+  }
+
+  function pluginVersionStoreKey() {
+    return K.pluginVersions + ':' + workbookKey();
+  }
+
+  function loadPluginVersions() {
+    var rows = readJSON(pluginVersionStoreKey(), []);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  function persistPluginVersions(rows) {
+    try { writeJSON(pluginVersionStoreKey(), rows.slice(-30)); } catch (err) { /* quota */ }
+    renderPluginVersionCount(rows);
+  }
+
+  function renderPluginVersionCount(rows) {
+    var el = $('versionCount');
+    if (el) el.textContent = (rows ? rows.length : loadPluginVersions().length) + ' 个版本';
+  }
+
+  function capturePluginVersionCells() {
+    var prior = loadPluginVersions();
+    var base = prior.length ? (prior[prior.length - 1].cells || {}) : {};
+    var cells = {};
+    Object.keys(base).forEach(function (key) { cells[key] = base[key]; });
+    Object.keys(state.sessionEdits).forEach(function (key) {
+      var edit = state.sessionEdits[key];
+      if (!edit) return;
+      var value = edit.after;
+      try {
+        var sheet = sheetByName(edit.sheet);
+        if (sheet) value = sheet.Range(edit.column + edit.row).Value2;
+      } catch (err) { /* use known value */ }
+      cells[key] = { sheet: edit.sheet, row: edit.row, column: edit.column,
+        kind: edit.kind, source: edit.source, value: value == null ? '' : String(value) };
+    });
+    return cells;
+  }
+
+  function savePluginVersion() {
+    if (!Object.keys(state.sessionEdits).length) {
+      $('entryCheck').textContent = '本次还没有编辑，先写入一些内容再保存版本。';
+      return;
+    }
+    var name = window.prompt('版本名称（可留空）', '');
+    if (name === null) return;
+    var rows = loadPluginVersions();
+    rows.push({ id: 'v' + Date.now(), name: String(name || '').trim() || ('版本 ' + (rows.length + 1)),
+      created: new Date().toISOString(), cells: capturePluginVersionCells() });
+    persistPluginVersions(rows);
+    renderPluginVersions();
+    var last = rows[rows.length - 1];
+    $('entryCheck').textContent = '已保存本地版本：' + last.name + '（' + Object.keys(last.cells).length + ' 个单元格）';
+  }
+
+  function renderPluginVersions() {
+    var box = $('pluginVersionList');
+    if (!box) return;
+    var rows = loadPluginVersions();
+    renderPluginVersionCount(rows);
+    box.textContent = '';
+    if (!rows.length) {
+      var empty = document.createElement('div'); empty.className = 'hint'; empty.textContent = '还没有保存版本。';
+      box.appendChild(empty); return;
+    }
+    rows.slice().reverse().forEach(function (v) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--hair)';
+      var label = document.createElement('div'); label.style.cssText = 'flex:1;min-width:0';
+      var title = document.createElement('div'); title.style.cssText = 'font-size:12px;font-weight:600';
+      title.textContent = v.name || '未命名版本';
+      var meta = document.createElement('div'); meta.className = 'hint';
+      meta.textContent = localStamp(v.created) + ' · ' + Object.keys(v.cells || {}).length + ' 个单元格';
+      label.append(title, meta);
+      var btn = document.createElement('button'); btn.className = 'act ghost'; btn.textContent = '回滚';
+      btn.addEventListener('click', function () { rollbackPluginVersion(v.id); });
+      row.append(label, btn); box.appendChild(row);
+    });
+  }
+
+  function rollbackPluginVersion(id) {
+    var rows = loadPluginVersions(), version = null;
+    for (var i = 0; i < rows.length; i += 1) if (rows[i].id === id) { version = rows[i]; break; }
+    if (!version) return;
+    if (!window.confirm('回滚到「' + (version.name || '未命名版本') + '」？本次之后的插件修改会被恢复。')) return;
+    var cells = version.cells || {}, keys = {};
+    Object.keys(cells).forEach(function (key) { keys[key] = 1; });
+    Object.keys(state.sessionEdits).forEach(function (key) { keys[key] = 1; });
+    var changed = 0, failed = 0;
+    Object.keys(keys).forEach(function (key) {
+      var target = cells[key], edit = state.sessionEdits[key];
+      var sheetName = target ? target.sheet : (edit && edit.sheet);
+      var row = target ? target.row : (edit && edit.row);
+      var column = target ? target.column : (edit && edit.column);
+      var value = target ? target.value : (edit ? edit.before : '');
+      var sheet = sheetByName(sheetName);
+      if (!sheet || !row || !column) { failed += 1; return; }
+      try { sheet.Range(column + row).Value2 = value; if (edit) edit.after = value; changed += 1; }
+      catch (err) { failed += 1; }
+    });
+    renderSessionEditCount();
+    try { loadEntries(); renderEntry(); } catch (err) { /* ignore */ }
+    $('entryCheck').textContent = '已回滚到「' + (version.name || '未命名版本') + '」：恢复 ' + changed + ' 个单元格' +
+      (failed ? '，失败 ' + failed + ' 个' : '') + '。';
   }
 
   function writeCell(entry, value) {
@@ -4998,6 +5104,12 @@
     $('btnExportQA').addEventListener('click', exportQA);
     if ($('btnExportSessionEdits')) $('btnExportSessionEdits').addEventListener('click', exportSessionWorkbook);
     if ($('btnExportSessionLog')) $('btnExportSessionLog').addEventListener('click', exportSessionEdits);
+    if ($('btnSaveVersion')) $('btnSaveVersion').addEventListener('click', savePluginVersion);
+    if ($('btnVersionHistory')) $('btnVersionHistory').addEventListener('click', function () {
+      var panel = $('pluginVersionPanel');
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) renderPluginVersions();
+    });
     $('btnTmImport').addEventListener('click', function () { $('tmFile').click(); });
     $('tmFile').addEventListener('change', function (event) {
       var file = event.target.files && event.target.files[0];
@@ -5344,6 +5456,7 @@
     bootUiLanguage();
     bind();
     loadSettings();
+    renderPluginVersionCount();
     startJumpWatch();
     installSaveSync();
     var app = sheetApp();
