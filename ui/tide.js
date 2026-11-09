@@ -21,6 +21,7 @@
     nasAuth: 'tide.nas.auth',
     nasTermCache: 'tide.nas.termcache.v1',
     termMode: 'tide.terms.mode',
+    perSheetCols: 'tide.perSheetCols',
     pluginVersions: 'tide.plugin.versions.v1'
   };
   var HISTORY_LIMIT = 3000;
@@ -296,6 +297,25 @@
     return last;
   }
 
+  function isSourceHeader(text) {
+    return /^(source(\s*text)?(\s*\(old\))?|原文|源文|中文|zh|chinese)$/i.test(String(text || '').trim());
+  }
+
+  function isTargetHeader(text) {
+    var value = String(text || '').trim();
+    if (/^(en|english|英文|译文|target|final|approved)$/i.test(value)) return true;
+    var code = state.settings.targetLang || 'en';
+    var names = window.TideLangs ? window.TideLangs.headersFor(code) : [];
+    for (var i = 0; i < names.length; i += 1) {
+      if (value.toLowerCase() === String(names[i]).toLowerCase()) return true;
+    }
+    return false;
+  }
+
+  function isOldTargetHeader(text) {
+    return /^(en\s*\(old\)|英文\s*\(旧\)|旧译文)$/i.test(String(text || '').trim());
+  }
+
   // Read the header row and report where "Source Text" and "EN" actually are,
   // so a mismatched column mapping can be corrected instead of silently
   // producing nonsense.
@@ -308,9 +328,9 @@
       var oldIdx = -1;
       for (var c = 0; c < line.length; c += 1) {
         var text = String(line[c] == null ? '' : line[c]).trim();
-        if (srcIdx < 0 && /^source(\s*text)?(\s*\(old\))?$/i.test(text)) srcIdx = c;
-        if (tgtIdx < 0 && /^en$/i.test(text)) tgtIdx = c;
-        if (oldIdx < 0 && /^en\s*\(old\)$/i.test(text)) oldIdx = c;
+        if (srcIdx < 0 && isSourceHeader(text)) srcIdx = c;
+        if (tgtIdx < 0 && isTargetHeader(text)) tgtIdx = c;
+        if (oldIdx < 0 && isOldTargetHeader(text)) oldIdx = c;
       }
       if (srcIdx > -1 && tgtIdx > -1 && tgtIdx > srcIdx) {
         return {
@@ -334,12 +354,12 @@
       for (var c = 0; c < line.length; c += 1) {
         var text = String(line[c] == null ? '' : line[c]).trim();
         if (!text) continue;
-        if (/^source(\s*text)?(\s*\(old\))?$/i.test(text)) {
+        if (isSourceHeader(text)) {
           current = { sourceIdx: c, targetIdx: -1, oldIdx: -1 };
           groups.push(current);
-        } else if (current && /^en\s*\(old\)$/i.test(text) && current.oldIdx < 0) {
+        } else if (current && isOldTargetHeader(text) && current.oldIdx < 0) {
           current.oldIdx = c;
-        } else if (current && /^en$/i.test(text) && current.targetIdx < 0) {
+        } else if (current && isTargetHeader(text) && current.targetIdx < 0) {
           current.targetIdx = c;
         }
       }
@@ -378,6 +398,50 @@
     return false;
   }
 
+  function sameColumnGroup(a, b) {
+    return !!(a && b && String(a.sourceCol) === String(b.sourceCol) &&
+      String(a.targetCol) === String(b.targetCol));
+  }
+
+  function askColumnGroup(sheetName, groups, force) {
+    if (!groups || !groups.length) return null;
+    if (!force && groups.length < 2) return groups[0];
+    var current = state.perSheetCols[sheetName];
+    var currentIndex = 0;
+    for (var i = 0; i < groups.length; i += 1) {
+      if (sameColumnGroup(current, groups[i])) { currentIndex = i; break; }
+    }
+    var lines = groups.map(function (g, idx) {
+      return (idx + 1) + '. 原文 ' + g.sourceCol + ' / 译文 ' + g.targetCol +
+        (g.missingTarget ? '（无译文列）' : '') + (g.blocked ? '（目标格不可写）' : '');
+    });
+    var answer = window.prompt('检测到当前表有多组源语/目标语列，请选择作为标准的一组：\n\n' +
+      lines.join('\n') + '\n\n输入序号 1-' + groups.length + '。', String(currentIndex + 1));
+    if (answer === null) {
+      showToast('已取消列选择；本次先使用第 1 组，可随时点「识别/选择列」重选。');
+      return groups[0];
+    }
+    var n = parseInt(answer, 10);
+    if (!isFinite(n) || n < 1 || n > groups.length) {
+      showToast('序号无效；本次先使用第 1 组，可随时点「识别/选择列」重选。');
+      return groups[0];
+    }
+    return groups[n - 1];
+  }
+
+  function applyColumnGroup(sheetName, group) {
+    if (!sheetName || !group) return;
+    state.perSheetCols[sheetName] = group;
+    state.settings.sourceCol = group.sourceCol;
+    state.settings.targetCol = group.targetCol;
+    state.settings.oldCol = group.oldCol;
+    if ($('colSource')) $('colSource').value = group.sourceCol;
+    if ($('colTarget')) $('colTarget').value = group.targetCol;
+    if ($('colOld')) $('colOld').value = group.oldCol;
+    writeJSON(K.settings, state.settings);
+    writeJSON(K.perSheetCols, state.perSheetCols);
+  }
+
   function buildRows(sheetOverride, silent) {
     var sheet = sheetOverride || currentSheet();
     if (!sheet) return { error: 'not-in-wps' };
@@ -395,16 +459,15 @@
     // group. Sheets without those labels keep the manual mapping.
     var groups = detectColumnGroups(grid, startCol);
     if (groups && groups.length) {
-      if (!silent) {
-        state.settings.sourceCol = groups[0].sourceCol;
-        state.settings.targetCol = groups[0].targetCol;
-        state.settings.oldCol = groups[0].oldCol;
-        state.perSheetCols[sheet.Name] = groups[0];
-        if ($('colSource')) $('colSource').value = groups[0].sourceCol;
-        if ($('colTarget')) $('colTarget').value = groups[0].targetCol;
-        if ($('colOld')) $('colOld').value = groups[0].oldCol;
-        writeJSON(K.settings, state.settings);
+      var chosen = null;
+      for (var gi = 0; gi < groups.length; gi += 1) {
+        if (sameColumnGroup(state.perSheetCols[sheet.Name], groups[gi])) { chosen = groups[gi]; break; }
       }
+      if (!chosen && groups.length > 1) chosen = askColumnGroup(sheet.Name, groups, false);
+      if (!chosen) chosen = groups[0];
+      groups = [chosen];
+      if (!silent) applyColumnGroup(sheet.Name, chosen);
+      state.perSheetCols[sheet.Name] = chosen;
     } else {
       groups = [{ sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol, oldCol: state.settings.oldCol }];
     }
@@ -3957,6 +4020,47 @@
 
   // ---- workbook import (SheetJS) ----
 
+  function termColumnGroups(header) {
+    var src = [], tgt = [];
+    (header || []).forEach(function (cell, index) {
+      var text = String(cell == null ? '' : cell).trim();
+      if (!text) return;
+      if (/中文|源文|原文|source|^zh$/i.test(text)) src.push(index);
+      else if (/最终英文|确认英文|approved|final|现有英文|英文|current|target|^en$/i.test(text)) tgt.push(index);
+    });
+    var groups = [];
+    src.forEach(function (s) {
+      tgt.forEach(function (t) {
+        if (t <= s) return;
+        groups.push({ source: s, target: t, approved: /最终英文|确认英文|approved|final/i.test(String(header[t] || '')) });
+      });
+    });
+    return groups;
+  }
+
+  function pickTermColumnMap(header, sheetName) {
+    var groups = termColumnGroups(header);
+    var fallback = mapSheetColumns(header);
+    if (!groups.length) return fallback;
+    if (groups.length === 1) {
+      var one = groups[0];
+      var m = { zh: one.source, note: fallback.note };
+      if (one.approved) m.approved = one.target; else m.working = one.target;
+      return m;
+    }
+    var lines = groups.map(function (g, i) {
+      return (i + 1) + '. 原文列 ' + numberToCol(g.source + 1) + ' / 译文列 ' + numberToCol(g.target + 1) +
+        (g.approved ? '（最终译法）' : '');
+    });
+    var answer = window.prompt('术语表「' + sheetName + '」检测到多组原文/译文列，请选择一组：\n\n' +
+      lines.join('\n') + '\n\n输入序号 1-' + groups.length + '。', '1');
+    var n = parseInt(answer, 10);
+    var pick = groups[(isFinite(n) && n >= 1 && n <= groups.length) ? n - 1 : 0];
+    var map = { zh: pick.source, note: fallback.note };
+    if (pick.approved) map.approved = pick.target; else map.working = pick.target;
+    return map;
+  }
+
   function mapSheetColumns(header) {
     var map = {};
     (header || []).forEach(function (cell, index) {
@@ -3980,7 +4084,7 @@
     workbook.SheetNames.forEach(function (name) {
       var rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, blankrows: false, defval: '' });
       if (!rows.length) return;
-      var map = mapSheetColumns(rows[0]);
+      var map = pickTermColumnMap(rows[0], name);
       for (var i = 1; i < rows.length; i += 1) {
         var row = rows[i] || [];
         var zh = String(row[map.zh] == null ? '' : row[map.zh]).trim();
@@ -5502,6 +5606,23 @@
       renderEntry();
       $('entryCheck').textContent = '已刷新到 ' + activeSheetName() + '，正在重建整簿记忆…';
     });
+    if ($('btnColumnChoice')) $('btnColumnChoice').addEventListener('click', function () {
+      var sheet = currentSheet();
+      if (!sheet) { showToast('未连接工作表'); return; }
+      var used = sheet.UsedRange;
+      if (!used) { showToast('当前表没有数据'); return; }
+      var grid = toGrid(used.Value2);
+      var groups = detectColumnGroups(grid, Number(used.Column) || 1);
+      if (!groups || !groups.length) { showToast('未识别到 Source Text / EN 表头，请在设置页手动填写列'); return; }
+      if (groups.length === 1) { applyColumnGroup(sheet.Name, groups[0]); showToast('已识别：原文 ' + groups[0].sourceCol + ' / 译文 ' + groups[0].targetCol); }
+      else {
+        var selected = askColumnGroup(sheet.Name, groups, true);
+        if (!selected) return;
+        applyColumnGroup(sheet.Name, selected);
+        showToast('已选择：原文 ' + selected.sourceCol + ' / 译文 ' + selected.targetCol);
+      }
+      loadEntries(); renderEntry();
+    });
     $('btnPrevEntry').addEventListener('click', function () { navigateEntry(-1); });
     $('btnNextEntry').addEventListener('click', function () { navigateEntry(1); });
     $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
@@ -5758,6 +5879,7 @@
     bootUiLanguage();
     bind();
     loadSettings();
+    state.perSheetCols = readJSON(K.perSheetCols, {}) || {};
     renderPluginVersionCount();
     startJumpWatch();
     installSaveSync();
