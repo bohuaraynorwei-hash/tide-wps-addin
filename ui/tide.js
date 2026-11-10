@@ -476,9 +476,28 @@
     var panel = $('columnMapPanel');
     if (!panel) return;
     panel.hidden = false;
-    $('columnMapSource').value = state.settings.sourceCol || 'C';
-    $('columnMapTarget').value = state.settings.targetCol || 'F';
-    $('columnMapOld').value = state.settings.oldCol || '';
+    var source = state.settings.sourceCol || 'C';
+    var target = state.settings.targetCol || 'F';
+    var old = state.settings.oldCol || '';
+    var sheet = currentSheet();
+    var saved = sheet ? state.perSheetCols[sheet.Name] : null;
+    if (sheet && !(saved && saved.manual)) {
+      var used = null, grid = [];
+      try { used = sheet.UsedRange; if (used) grid = toGrid(used.Value2); } catch (err) { grid = []; }
+      var groups = used ? detectColumnGroups(grid, Number(used.Column) || 1) : null;
+      if (groups && groups.length) {
+        var chosen = groups[0];
+        for (var i = 0; i < groups.length; i += 1) {
+          if (sameColumnGroup(saved, groups[i])) { chosen = groups[i]; break; }
+        }
+        source = chosen.sourceCol;
+        target = chosen.targetCol;
+        old = chosen.oldCol || '';
+      }
+    }
+    $('columnMapSource').value = source;
+    $('columnMapTarget').value = target;
+    $('columnMapOld').value = old;
     $('columnMapStatus').textContent = '';
     renderColumnMapCandidates();
     $('columnMapSource').focus();
@@ -528,6 +547,8 @@
       return;
     }
     applyColumnGroup(sheet.Name, { sourceCol: source, targetCol: target, oldCol: old || '' });
+    state.perSheetCols[sheet.Name] = { sourceCol: source, targetCol: target, oldCol: old || '', manual: true };
+    writeJSON(K.perSheetCols, state.perSheetCols);
     $('columnMapStatus').textContent = '已应用：原文 ' + source + ' / 译文 ' + target;
     closeColumnMapPanel();
     loadEntries(); renderEntry();
@@ -547,9 +568,15 @@
     var uidIdx = colToNumber(state.settings.uidCol) - startCol;
     var headerAt = detectHeaderEnd(grid);
 
-    // The header is the source of truth: every Source Text / EN pair becomes a
-    // group. Sheets without those labels keep the manual mapping.
-    var groups = detectColumnGroups(grid, startCol);
+    // Explicit user mapping wins. Otherwise the header is the source of truth:
+    // every Source Text / EN pair becomes a group.
+    var saved = state.perSheetCols[sheet.Name];
+    var groups = null;
+    if (saved && saved.manual && saved.sourceCol && saved.targetCol) {
+      groups = [saved];
+    } else {
+      groups = detectColumnGroups(grid, startCol);
+    }
     if (groups && groups.length) {
       var chosen = null;
       for (var gi = 0; gi < groups.length; gi += 1) {
