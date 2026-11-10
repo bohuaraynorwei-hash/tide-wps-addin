@@ -454,7 +454,7 @@
       if (hint) hint.textContent = '未识别到表头。请直接输入源语/目标语列字母后应用。';
       return;
     }
-    if (hint) hint.textContent = '识别到 ' + groups.length + ' 组候选；点一组填入，或直接改上面的列字母。候选不会自动应用。';
+    if (hint) hint.textContent = '人工设置优先；识别到 ' + groups.length + ' 组候选。点一组填入，或直接改上面的列字母，再点「应用列映射」。';
     groups.forEach(function (group) {
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -549,7 +549,7 @@
     applyColumnGroup(sheet.Name, { sourceCol: source, targetCol: target, oldCol: old || '' });
     state.perSheetCols[sheet.Name] = { sourceCol: source, targetCol: target, oldCol: old || '', manual: true };
     writeJSON(K.perSheetCols, state.perSheetCols);
-    $('columnMapStatus').textContent = '已应用：原文 ' + source + ' / 译文 ' + target;
+    $('columnMapStatus').textContent = '已应用（人工优先）：原文 ' + source + ' / 译文 ' + target;
     closeColumnMapPanel();
     loadEntries(); renderEntry();
     showToast('已应用列映射：原文 ' + source + ' / 译文 ' + target);
@@ -5190,7 +5190,10 @@
     if (!grid.length) return [];
     var startRow = Number(used.Row) || 1;
     var startCol = Number(used.Column) || 1;
-    var groups = detectColumnGroups(grid, startCol);
+    var saved = state.perSheetCols[sheet.Name];
+    var groups = (saved && saved.manual && saved.sourceCol && saved.targetCol)
+      ? [saved]
+      : detectColumnGroups(grid, startCol);
     if (!groups || !groups.length) {
       var detected = detectColumns(grid, startCol);
       groups = detected ? [detected] : [{ sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol }];
