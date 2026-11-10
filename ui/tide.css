@@ -595,3 +595,19 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .term-lang-title{font:600 11px/1.2 var(--font);color:var(--label);white-space:nowrap}
 .term-lang-hint{font:400 10px/1.35 var(--font);color:var(--label3)}
 .term-lang-select{width:100%;margin:0 0 10px;padding:7px 9px}
+
+/* Native select popups can keep a light system surface while inheriting the
+   dark-mode text color, making options white on white. Force a matching pair. */
+@media (prefers-color-scheme: dark){
+  select{color-scheme:dark}
+  select option,select optgroup{background:#1c1c1e;color:#f5f5f7}
+  select option:disabled{color:#8e8e93}
+}
+
+/* Dark-mode inline highlights: pale yellow with inherited white text made
+   placeholder/newline tokens unreadable. Use dark text on the highlight. */
+@media (prefers-color-scheme: dark){
+  mark, mark.qa-mark, .term-preview mark{background:#ffd60a;color:#1d1d1f;font-weight:600}
+  del{background:rgba(255,69,58,.22);color:#ffb4ab}
+  ins{background:rgba(52,199,89,.20);color:#9ef0b4}
+}

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052037">
+  <link rel="stylesheet" href="tide.css?b=20261110184602">
 </head>
 <body>
   <header class="bar">
@@ -356,6 +356,10 @@
         <button class="act ghost" id="btnExportQA">导出 CSV</button>
         <button class="act ghost" id="btnPunctQA" title="只检查标点符号与空格规则">标点符号</button>
         <button class="act ghost" id="btnPlaceholderQA" title="只检查颜色代码、换行符、{n}、%s 等占位符">占位符</button>
+        <select id="qaScope" class="mini" title="检测范围">
+          <option value="sheet" data-i18n="qa.scopeSheet">当前</option>
+          <option value="workbook" data-i18n="qa.scopeWorkbook">全表</option>
+        </select>
         <span class="count" id="qaCount"></span>
       </div>
       <div class="hint" id="qaSummary"></div>
@@ -694,9 +698,9 @@
   <script src="../js/crypto.js"></script>
   <script src="i18n-static.js?b=202611052037"></script>
   <script src="i18n-patch.js?b=202611052037"></script>
-  <script src="i18n.js?b=202611052037"></script>
+  <script src="i18n.js?b=20261110184602"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052037"></script>
-  <script src="onboarding.js?b=202611052037"></script>
+  <script src="tide.js?b=20261110184602"></script>
+  <script src="onboarding.js?b=20261110184602"></script>
 </body>
 </html>

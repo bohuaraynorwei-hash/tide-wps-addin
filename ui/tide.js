@@ -1756,15 +1756,21 @@
   function writeCell(entry, value) {
     var sheet = entrySheet(entry);
     if (!sheet) return false;
-    var cell = sheet.Range(entryAddress(entry.row));
-    var before = cell.Value2;
-    cell.Value2 = value;
-    state.lastWrite = {
-      row: entry.row, sheet: entry.sheet, before: before, after: value, address: entryAddress(entry.row)
-    };
-    trackSessionEdit('译文', entry.sheet || (sheet && sheet.Name), entry.row,
-      entry.targetCol || state.settings.targetCol, entry.source, before, value);
-    return true;
+    var address = entryAddress(entry);
+    try {
+      var cell = sheet.Range(address);
+      var before = cell.Value2;
+      cell.Value2 = value;
+      state.lastWrite = {
+        row: entry.row, sheet: entry.sheet, before: before, after: value, address: address
+      };
+      trackSessionEdit('译文', entry.sheet || (sheet && sheet.Name), entry.row,
+        entry.targetCol || state.settings.targetCol, entry.source, before, value);
+      return true;
+    } catch (err) {
+      $('entryCheck').textContent = '写入失败：' + address + ' · ' + (err && err.message ? err.message : err);
+      return false;
+    }
   }
 
   function recordWrite(entry, before, after) {
@@ -2881,11 +2887,8 @@
     return sev === 'high' ? '高' : (sev === 'medium' ? '中' : '低');
   }
 
-  function runQA(mode) {
-    var result = buildRows();
-    if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
-    var lang = state.settings.targetLang || 'en';
-    var options = { lang: lang };
+  function qaOptionsFor(mode) {
+    var options = { lang: state.settings.targetLang || 'en' };
     var label = '全部检查';
     if (mode === 'punct') {
       options.only = ['punctuation', 'punct-format'];
@@ -2895,8 +2898,10 @@
       options.only = ['placeholder'];
       label = '占位符';
     }
-    state.qaMode = label;
-    var findings = window.TideQA.runQA(result.rows, state.matchTerms, options);
+    return { options: options, label: label };
+  }
+
+  function renderQAResult(findings, label, scopeLabel, rowCount, sheetCount) {
     state.qaFindings = findings;
     var summary = window.TideQA.summarize(findings);
     var parts = Object.keys(summary.byCategory).sort().map(function (key) {
@@ -2904,18 +2909,19 @@
     });
     $('qaCount').textContent = findings.length ? findings.length + ' 个问题' : '无问题';
     $('qaSummary').textContent = (findings.length
-      ? '「' + label + '」「' + result.sheetName + '」源文 ' + state.settings.sourceCol + ' / 译文 ' + state.settings.targetCol +
-        '，表头至第 ' + (result.headerEnd + 1) + ' 行，' + result.rows.length + ' 条：高 ' + summary.bySeverity.high +
+      ? '「' + label + '」「' + scopeLabel + '」' + (sheetCount ? sheetCount + ' 张表 · ' : '') +
+        rowCount + ' 条：高 ' + summary.bySeverity.high +
         ' · 中 ' + summary.bySeverity.medium + ' · 低 ' + summary.bySeverity.low +
         '（' + parts.join('，') + '）'
-      : '「' + label + '」「' + result.sheetName + '」' + result.rows.length + ' 条全部通过。');
+      : '「' + label + '」「' + scopeLabel + '」' + (sheetCount ? sheetCount + ' 张表 · ' : '') +
+        rowCount + ' 条全部通过。');
     var table = $('qaTable');
     var body = table.tBodies[0];
     body.textContent = '';
     table.hidden = findings.length === 0;
     findings.slice(0, 300).forEach(function (finding) {
       var tr = document.createElement('tr');
-      tr.appendChild(textNode('td', String(finding.row), 'num'));
+      tr.appendChild(textNode('td', (sheetCount ? (finding.sheet || '') + ' · ' : '') + String(finding.row), 'num'));
       var sev = textNode('td', severityLabel(finding.severity), 'num');
       sev.style.color = finding.severity === 'high' ? 'var(--red)'
         : (finding.severity === 'medium' ? 'var(--orange)' : 'var(--label-3)');
@@ -2926,11 +2932,65 @@
       tr.addEventListener('click', function () {
         var sheetName = finding.sheet || state.sheetName;
         jumpToRow(finding.row, sheetName, $('qaSummary'));
-        $('qaSummary').textContent = '第 ' + finding.row + ' 行 · ' + $('qaSummary').textContent +
-          ' · ' + finding.category + '：' + finding.message.slice(0, 40);
+        $('qaSummary').textContent = (sheetName ? sheetName + ' · ' : '') + '第 ' + finding.row + ' 行 · ' +
+          $('qaSummary').textContent + ' · ' + finding.category + '：' + finding.message.slice(0, 40);
       });
       body.appendChild(tr);
     });
+  }
+
+  function runQAWorkbook(mode) {
+    var app = sheetApp();
+    var book = app && app.ActiveWorkbook;
+    var sheets = book && book.Worksheets;
+    if (!sheets) { $('qaSummary').textContent = '未连接表格。'; return; }
+    var total = 0;
+    try { total = Number(sheets.Count) || 0; } catch (err) { total = 0; }
+    if (!total) { $('qaSummary').textContent = '当前工作簿没有工作表。'; return; }
+    var spec = qaOptionsFor(mode);
+    state.qaMode = spec.label;
+    $('qaCount').textContent = '检测中…';
+    $('qaTable').hidden = true;
+    var findings = [];
+    var rowsTotal = 0;
+    var sheetsDone = 0;
+    var sheetCount = 0;
+    var index = 1;
+    function step() {
+      if (index > total) {
+        renderQAResult(findings, spec.label, '全表', rowsTotal, sheetCount);
+        return;
+      }
+      var sheet = null;
+      try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
+      index += 1;
+      if (sheet) {
+        try {
+          var result = buildRows(sheet, true);
+          if (result && !result.error && result.rows.length) {
+            rowsTotal += result.rows.length;
+            sheetCount += 1;
+            findings = findings.concat(window.TideQA.runQA(result.rows, state.matchTerms, spec.options));
+          }
+        } catch (err) { /* skip unreadable sheet */ }
+        sheetsDone += 1;
+      }
+      $('qaSummary').textContent = '检测全表 ' + Math.min(index - 1, total) + ' / ' + total +
+        '，已检查 ' + rowsTotal + ' 条…';
+      window.setTimeout(step, 0);
+    }
+    step();
+  }
+
+  function runQA(mode) {
+    var scope = $('qaScope') ? $('qaScope').value : 'sheet';
+    if (scope === 'workbook') { runQAWorkbook(mode); return; }
+    var result = buildRows();
+    if (result.error) { $('qaSummary').textContent = '未连接表格。'; return; }
+    var spec = qaOptionsFor(mode);
+    state.qaMode = spec.label;
+    var findings = window.TideQA.runQA(result.rows, state.matchTerms, spec.options);
+    renderQAResult(findings, spec.label, result.sheetName, result.rows.length, 0);
   }
 
   function escapeRegExp(text) {
@@ -2973,10 +3033,10 @@
   function exportQA() {
     var findings = state.qaFindings || [];
     if (!findings.length) { $('qaSummary').textContent = '先运行一次质检。'; return; }
-    var header = ['row', 'severity', 'category', 'message', 'source', 'target'];
+    var header = ['sheet', 'row', 'severity', 'category', 'message', 'source', 'target'];
     var lines = [header.join(',')];
     findings.forEach(function (f) {
-      var cells = [f.row, f.severity, f.category, f.message, f.source, f.target].map(function (value) {
+      var cells = [f.sheet, f.row, f.severity, f.category, f.message, f.source, f.target].map(function (value) {
         return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
       });
       lines.push(cells.join(','));
@@ -4052,23 +4112,30 @@
       return;
     }
     var entry = currentEntry();
-    if (!entry) return;
+    if (!entry) {
+      $('entryCheck').textContent = '没有可写入的条目，请先刷新条目或点击一条原文。';
+      return;
+    }
     var sheet = currentSheet();
     if (!sheet) { $('entryCheck').textContent = '未连接 WPS，无法写入。'; return; }
     var value = $('entryDraft').value;
     if (!value.trim()) { $('entryCheck').textContent = '草稿为空，未写入。'; return; }
-    var before = entry.target;
-    archivePrevious(entrySheet(entry), entry.row, before, entry.oldCol);
-    if (!writeCell(entry, value)) return;
-    state.navColumn = 'target';
-    var address = entryAddress(entry.row);
-    entry.target = value;
-    refreshMemory();
-    recordWrite(entry, before, value);
-    rememberPair(entry.sheet, entry.row, entry.source, value);
-    recordRevision(entry.sheet, entry.row, entry.source, before, value, entry.targetCol);
-    if (advance) move(1);
-    $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
+    try {
+      var before = entry.target;
+      archivePrevious(entrySheet(entry), entry.row, before, entry.oldCol);
+      if (!writeCell(entry, value)) return;
+      state.navColumn = 'target';
+      var address = entryAddress(entry);
+      entry.target = value;
+      refreshMemory();
+      recordWrite(entry, before, value);
+      rememberPair(entry.sheet, entry.row, entry.source, value);
+      recordRevision(entry.sheet, entry.row, entry.source, before, value, entry.targetCol);
+      if (advance) move(1);
+      $('entryCheck').textContent = '已写入 ' + address + ' · ' + $('entryCheck').textContent;
+    } catch (err) {
+      $('entryCheck').textContent = '写入失败：' + (err && err.message ? err.message : err);
+    }
   }
 
   function writeAndNext() {
