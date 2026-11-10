@@ -832,6 +832,7 @@
     var total = currentTerms().length;
     var langProfile = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en') : null;
     var langName = langProfile ? (langProfile.native || langProfile.name) : '';
+    if ($('termTargetHeader')) $('termTargetHeader').textContent = langName || '译文';
     if (!total) {
       $('termCount').textContent = tr('term.notImported', '术语表未导入');
       $('termEmpty').hidden = false;
@@ -1138,22 +1139,21 @@
     else reader.readAsText(file, 'utf-8');
   }
 
-  function renderTermLangTabs() {
-    var box = $('termLangTabs');
-    if (!box || !window.TideLangs) return;
-    box.textContent = '';
+  function renderTermLangSelect() {
+    var select = $('termLangSelect');
+    if (!select || !window.TideLangs) return;
+    select.textContent = '';
     window.TideLangs.list.forEach(function (lang) {
       if (lang.code === 'zh') return;
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'term-lang-tab' + (lang.code === (state.settings.targetLang || 'en') ? ' on' : '');
-      button.textContent = lang.native || lang.name;
-      button.title = lang.name;
-      button.setAttribute('role', 'tab');
-      button.setAttribute('aria-selected', lang.code === (state.settings.targetLang || 'en') ? 'true' : 'false');
-      button.addEventListener('click', function () { setTargetLanguage(lang.code); });
-      box.appendChild(button);
+      var option = document.createElement('option');
+      option.value = lang.code;
+      option.textContent = lang.native || lang.name;
+      option.title = lang.name;
+      option.selected = lang.code === (state.settings.targetLang || 'en');
+      select.appendChild(option);
     });
+    select.value = state.settings.targetLang || 'en';
+    select.onchange = function () { setTargetLanguage(select.value); };
   }
 
   function setTargetLanguage(code) {
@@ -1164,7 +1164,7 @@
     if ($('targetLang')) $('targetLang').value = lang.code;
     saveColumnsToProfile();
     refreshTermLanguage();
-    renderTermLangTabs();
+    renderTermLangSelect();
     if ($('termRefreshStatus')) {
       $('termRefreshStatus').textContent = trFormat('term.langSet', '目标语言：{lang}', { lang: lang.native || lang.name });
     }
@@ -6013,7 +6013,7 @@
     renderNasAuthUI();
     if (saved) state.settings = saved;
     if (!loadSavedTerms()) setTerms([]);
-    renderTermLangTabs();
+    renderTermLangSelect();
     // The saved termbase may have been parsed before settings were restored, so
     // re-filter it against the project's language now that the settings exist.
     setTerms(state.terms, state.termsMeta);
