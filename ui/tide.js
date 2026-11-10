@@ -1138,6 +1138,38 @@
     else reader.readAsText(file, 'utf-8');
   }
 
+  function renderTermLangTabs() {
+    var box = $('termLangTabs');
+    if (!box || !window.TideLangs) return;
+    box.textContent = '';
+    window.TideLangs.list.forEach(function (lang) {
+      if (lang.code === 'zh') return;
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'term-lang-tab' + (lang.code === (state.settings.targetLang || 'en') ? ' on' : '');
+      button.textContent = lang.native || lang.name;
+      button.title = lang.name;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', lang.code === (state.settings.targetLang || 'en') ? 'true' : 'false');
+      button.addEventListener('click', function () { setTargetLanguage(lang.code); });
+      box.appendChild(button);
+    });
+  }
+
+  function setTargetLanguage(code) {
+    if (!window.TideLangs || !code) return;
+    var lang = window.TideLangs.get(code);
+    state.settings.targetLang = lang.code;
+    writeJSON(K.settings, state.settings);
+    if ($('targetLang')) $('targetLang').value = lang.code;
+    saveColumnsToProfile();
+    refreshTermLanguage();
+    renderTermLangTabs();
+    if ($('termRefreshStatus')) {
+      $('termRefreshStatus').textContent = trFormat('term.langSet', '目标语言：{lang}', { lang: lang.native || lang.name });
+    }
+  }
+
   function refreshTermLanguage() {
     setTerms(state.terms, state.termsMeta);
     renderTerms();
@@ -5900,10 +5932,7 @@
     });
     if ($('targetLang')) {
       $('targetLang').addEventListener('change', function () {
-        state.settings.targetLang = $('targetLang').value;
-        writeJSON(K.settings, state.settings);
-        saveColumnsToProfile();
-        refreshTermLanguage();
+        setTargetLanguage($('targetLang').value);
         $('entryCheck').textContent = '目标语言已切换为 ' + window.TideLangs.get(state.settings.targetLang).name;
       });
     }
@@ -5984,6 +6013,7 @@
     renderNasAuthUI();
     if (saved) state.settings = saved;
     if (!loadSavedTerms()) setTerms([]);
+    renderTermLangTabs();
     // The saved termbase may have been parsed before settings were restored, so
     // re-filter it against the project's language now that the settings exist.
     setTerms(state.terms, state.termsMeta);

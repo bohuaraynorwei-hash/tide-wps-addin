@@ -588,3 +588,13 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
 .tour-count.tour-link{border:0;background:none;color:var(--accent);font:500 10px/1 var(--mono);cursor:pointer;padding:0;margin-left:auto}
 @media (max-width:360px){.guide-grid{grid-template-columns:1fr}}
 .tour-head .tour-link{margin-left:4px;font:500 10px/1 var(--font);color:var(--accent);border:0;background:none;padding:2px 0;cursor:pointer;white-space:nowrap}
+
+
+/* Term import language tabs: native names, horizontal scroll on narrow pane. */
+.term-lang-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.term-lang-title{font:600 11px/1.2 var(--font);color:var(--label);white-space:nowrap}
+.term-lang-hint{font:400 10px/1.35 var(--font);color:var(--label3)}
+.term-lang-strip{display:flex;gap:5px;overflow-x:auto;padding:0 0 7px;margin:0 0 8px;border-bottom:1px solid var(--hair);scrollbar-width:thin}
+.term-lang-tab{flex:0 0 auto;padding:5px 9px;border:1px solid var(--hair-strong);border-radius:999px;background:var(--card);color:var(--label2);font:500 11px/1.2 var(--font);cursor:pointer}
+.term-lang-tab:hover{color:var(--label);border-color:var(--label3)}
+.term-lang-tab.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
