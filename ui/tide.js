@@ -275,7 +275,7 @@
 
   // Real export sheets often carry 2-3 header rows ("导出标记", "标记字段",
   // "字段解释") before data. Treat every leading header-ish row as header.
-  var HEADER_RX = /^(source(\s*text)?(\s*\(old\))?|title|desc|weight|en(\s*\(old\))?|字段解释|标记字段|导出标记|中文|原文|备注|uid|ui)$/i;
+  var HEADER_RX = /^(source(\s*text)?(\s*\(old\))?|name|title|desc|weight|en(\s*\(old\))?|字段解释|标记字段|导出标记|中文|原文|备注|uid|ui)$/i;
 
   function detectHeaderEnd(grid) {
     var last = -1;
@@ -298,7 +298,7 @@
   }
 
   function isSourceHeader(text) {
-    return /^(source(\s*text)?(\s*\(old\))?|原文|源文|中文|zh|chinese)$/i.test(String(text || '').trim());
+    return /^(source(\s*text)?|name|原文|源文|中文|zh|chinese)$/i.test(String(text || '').trim());
   }
 
   function isTargetHeader(text) {
@@ -313,79 +313,77 @@
   }
 
   function isOldTargetHeader(text) {
-    return /^(en\s*\(old\)|英文\s*\(旧\)|旧译文)$/i.test(String(text || '').trim());
+    var value = String(text || '').trim();
+    return /^en\s*\(old\)$/i.test(value) ||
+      /^[a-z]{2,3}\s*\((old|alt)\)$/i.test(value) ||
+      /^[a-z]{2,3}\s*\(旧\)$/i.test(value) ||
+      /^(英文\s*\(旧\)|旧译文|old)$/i.test(value);
+  }
+
+  // The header can span several leading rows (export marker, field labels,
+  // explanation). Analyze each column across those rows, not just one row.
+  function headerColumnInfo(grid, startCol) {
+    var limit = Math.min(grid.length, 12);
+    var info = {};
+    for (var r = 0; r < limit; r += 1) {
+      var line = grid[r] || [];
+      for (var c = 0; c < line.length; c += 1) {
+        var text = String(line[c] == null ? '' : line[c]).trim();
+        if (!text) continue;
+        if (!info[c]) info[c] = { source: false, target: false, old: false, any: false };
+        info[c].any = true;
+        if (isSourceHeader(text)) info[c].source = true;
+        else if (isOldTargetHeader(text)) info[c].old = true;
+        else if (isTargetHeader(text)) info[c].target = true;
+      }
+    }
+    return info;
   }
 
   // Read the header row and report where "Source Text" and "EN" actually are,
   // so a mismatched column mapping can be corrected instead of silently
   // producing nonsense.
   function detectColumns(grid, startCol) {
-    var limit = Math.min(grid.length, 12);
-    for (var r = 0; r < limit; r += 1) {
-      var line = grid[r] || [];
-      var srcIdx = -1;
-      var tgtIdx = -1;
-      var oldIdx = -1;
-      for (var c = 0; c < line.length; c += 1) {
-        var text = String(line[c] == null ? '' : line[c]).trim();
-        if (srcIdx < 0 && isSourceHeader(text)) srcIdx = c;
-        if (tgtIdx < 0 && isTargetHeader(text)) tgtIdx = c;
-        if (oldIdx < 0 && isOldTargetHeader(text)) oldIdx = c;
-      }
-      if (srcIdx > -1 && tgtIdx > -1 && tgtIdx > srcIdx) {
-        return {
-          sourceCol: numberToCol(startCol + srcIdx),
-          targetCol: numberToCol(startCol + tgtIdx),
-          oldCol: oldIdx > -1 ? numberToCol(startCol + oldIdx) : numberToCol(startCol + tgtIdx - 1)
-        };
-      }
-    }
-    return null;
+    var groups = detectColumnGroups(grid, startCol);
+    return groups && groups.length ? groups[0] : null;
   }
 
   // Repeated "Source Text / EN" blocks in one sheet are separate segment
   // groups: B–F, G–K, L–P … Each becomes its own set of segments.
   function detectColumnGroups(grid, startCol) {
-    var limit = Math.min(grid.length, 12);
-    for (var r = 0; r < limit; r += 1) {
-      var line = grid[r] || [];
-      var groups = [];
-      var current = null;
-      for (var c = 0; c < line.length; c += 1) {
-        var text = String(line[c] == null ? '' : line[c]).trim();
-        if (!text) continue;
-        if (isSourceHeader(text)) {
-          current = { sourceIdx: c, targetIdx: -1, oldIdx: -1 };
-          groups.push(current);
-        } else if (current && isOldTargetHeader(text) && current.oldIdx < 0) {
-          current.oldIdx = c;
-        } else if (current && isTargetHeader(text) && current.targetIdx < 0) {
-          current.targetIdx = c;
-        }
-      }
-      var valid = groups.filter(function (group) {
-        return group.sourceIdx > -1 && (group.targetIdx > group.sourceIdx || group.oldIdx > group.sourceIdx);
-      });
-      if (valid.length) {
-        return valid.map(function (group) {
-          // A block with EN (old) but no EN still exists: the target is blank,
-          // and writing creates the EN column where it belongs (right of old).
-          var hasTarget = group.targetIdx > group.sourceIdx;
-          var targetIdx = hasTarget ? group.targetIdx : (group.oldIdx + 1);
-          // If the slot right of EN (old) belongs to the next block's header,
-          // the target is blank but must never be written.
-          var occupied = !hasTarget && String(line[targetIdx] == null ? '' : line[targetIdx]).trim() !== '';
-          return {
-            sourceCol: numberToCol(startCol + group.sourceIdx),
-            targetCol: numberToCol(startCol + targetIdx),
-            oldCol: group.oldIdx > -1 ? numberToCol(startCol + group.oldIdx) : numberToCol(startCol + targetIdx - 1),
-            missingTarget: !hasTarget,
-            blocked: occupied
-          };
-        });
+    var info = headerColumnInfo(grid, startCol);
+    var groups = [];
+    var current = null;
+    var maxCol = 0;
+    Object.keys(info).forEach(function (key) { maxCol = Math.max(maxCol, Number(key)); });
+    for (var c = 0; c <= maxCol; c += 1) {
+      var col = info[c];
+      if (!col) continue;
+      if (col.source) {
+        current = { sourceIdx: c, targetIdx: -1, oldIdx: -1 };
+        groups.push(current);
+      } else if (current && col.old && current.oldIdx < 0) {
+        current.oldIdx = c;
+      } else if (current && col.target && current.targetIdx < 0) {
+        current.targetIdx = c;
       }
     }
-    return null;
+    var valid = groups.filter(function (group) {
+      return group.sourceIdx > -1 && (group.targetIdx > group.sourceIdx || group.oldIdx > group.sourceIdx);
+    });
+    if (!valid.length) return null;
+    return valid.map(function (group) {
+      var hasTarget = group.targetIdx > group.sourceIdx;
+      var targetIdx = hasTarget ? group.targetIdx : (group.oldIdx + 1);
+      var occupied = !hasTarget && !!(info[targetIdx] && info[targetIdx].any);
+      return {
+        sourceCol: numberToCol(startCol + group.sourceIdx),
+        targetCol: numberToCol(startCol + targetIdx),
+        oldCol: group.oldIdx > -1 ? numberToCol(startCol + group.oldIdx) : numberToCol(startCol + targetIdx - 1),
+        missingTarget: !hasTarget,
+        blocked: occupied
+      };
+    });
   }
 
   function isTargetHeader(text) {
