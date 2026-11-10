@@ -35,6 +35,12 @@
       wrong: null
     },
     {
+      code: 'de', name: '德语', native: 'Deutsch', tmx: 'de-DE', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
+      headers: ['DE', 'Deutsch', '德语', 'German'],
+      final: /[.!?]$/,
+      wrong: /[。，、；：？！]/
+    },
+    {
       code: 'ru', name: '俄语', native: 'Русский', tmx: 'ru-RU', spaceAfter: true, spaceBefore: false, asciiInCJK: false, cjk: false,
       headers: ['RU', 'Русский', '俄语', 'Russian'],
       final: /[.!?]$/,

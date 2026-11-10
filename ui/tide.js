@@ -885,9 +885,47 @@
     });
   }
 
+  var TERM_DB = 'tide.terms';
+  var TERM_DB_STORE = 'payload';
+
+  function openTermDb() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('indexedDB unavailable')); return; }
+      var request = window.indexedDB.open(TERM_DB, 1);
+      request.onupgradeneeded = function () {
+        if (!request.result.objectStoreNames.contains(TERM_DB_STORE)) {
+          request.result.createObjectStore(TERM_DB_STORE);
+        }
+      };
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = function () { reject(request.error || new Error('indexedDB open failed')); };
+    });
+  }
+
+  function persistTermStoreIdb(payload) {
+    openTermDb().then(function (db) {
+      var tx = db.transaction(TERM_DB_STORE, 'readwrite');
+      tx.objectStore(TERM_DB_STORE).put(payload, 'active');
+      tx.oncomplete = function () { db.close(); };
+      tx.onerror = function () { db.close(); };
+    }).catch(function () { /* localStorage remains the primary store */ });
+  }
+
+  function readTermStoreIdb() {
+    return openTermDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(TERM_DB_STORE, 'readonly');
+        var request = tx.objectStore(TERM_DB_STORE).get('active');
+        request.onsuccess = function () { resolve(request.result || null); };
+        request.onerror = function () { reject(request.error); };
+        tx.oncomplete = function () { db.close(); };
+      });
+    });
+  }
+
   function persistTerms(meta) {
-    // Full localization workbooks can carry 30k terms. Keep the persisted
-    // payload compact so it fits the WPS/CEF localStorage quota.
+    // Full localization workbooks can carry 70k+ terms. Keep the persisted
+    // payload compact; if localStorage quota is exceeded, use IndexedDB.
     var compact = (state.terms || []).map(function (term) {
       var item = { zh: term.zh, en: term.en, lang: term.lang || 'en', status: term.status || 'approved' };
       if (term.uid) item.uid = term.uid;
@@ -899,8 +937,30 @@
       window.localStorage.setItem(K.termStore, JSON.stringify(payload));
       return true;
     } catch (err) {
+      persistTermStoreIdb(payload);
       return false;
     }
+  }
+
+  function loadTermStoreFromIdb() {
+    if (!window.indexedDB || state.terms.length) return;
+    readTermStoreIdb().then(function (payload) {
+      if (!payload || !Array.isArray(payload.terms) || state.nas.token) return;
+      // The bundled fallback can finish loading before IndexedDB. Replace it
+      // only when the current terms are just that fallback, not a real import.
+      var onlyBundled = !state.terms.length || (!state.termsMeta && state.bundledMeta);
+      if (!onlyBundled) return;
+      var terms = window.TideEngine.parseTermbase(payload.terms);
+      if (!terms.length) return;
+      state.preNasTerms = terms.slice();
+      state.preNasMeta = payload.meta || { count: terms.length, source: '本机保存' };
+      writeJSON(K.termMode, 'local');
+      setTerms(terms, state.preNasMeta);
+      renderTermSource();
+      renderTerms();
+      loadEntries();
+      renderEntry();
+    }).catch(function () { /* no IndexedDB fallback available */ });
   }
 
   function loadSavedTerms() {
@@ -6017,6 +6077,7 @@
     // The saved termbase may have been parsed before settings were restored, so
     // re-filter it against the project's language now that the settings exist.
     setTerms(state.terms, state.termsMeta);
+    loadTermStoreFromIdb();
     captureLocalTerms();
     if (state.nas.token) {
       suspendLocalTermsForNas();
