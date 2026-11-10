@@ -491,12 +491,32 @@
     if (panel) panel.hidden = true;
   }
 
+  function normalizeColumnLetter(value) {
+    var text = String(value == null ? '' : value);
+    try { text = text.normalize('NFKC'); } catch (err) { /* older CEF */ }
+    text = text.replace(/[\u200B-\u200D\uFEFF]/g, '').toUpperCase();
+    // Cyrillic/Greek homoglyphs look identical to Latin letters in the pane.
+    var homoglyphs = {
+      'А': 'A', 'В': 'B', 'С': 'C', 'Е': 'E', 'Н': 'H', 'К': 'K',
+      'М': 'M', 'О': 'O', 'Р': 'P', 'Т': 'T', 'У': 'Y', 'Х': 'X',
+      'І': 'I', 'Ј': 'J', 'Ѕ': 'S', 'Ԛ': 'Q', 'Ѵ': 'V',
+      'Α': 'A', 'Β': 'B', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'H', 'Ι': 'I',
+      'Κ': 'K', 'Μ': 'M', 'Ν': 'N', 'Ο': 'O', 'Ρ': 'P', 'Τ': 'T',
+      'Υ': 'Y', 'Χ': 'X'
+    };
+    text = text.split('').map(function (ch) { return homoglyphs[ch] || ch; }).join('');
+    return text.replace(/[^A-Z]/g, '').slice(0, 3);
+  }
+
   function applyManualColumnMap() {
     var sheet = currentSheet();
     if (!sheet) { showToast('未连接工作表'); return; }
-    var source = String($('columnMapSource').value || '').trim().toUpperCase();
-    var target = String($('columnMapTarget').value || '').trim().toUpperCase();
-    var old = String($('columnMapOld').value || '').trim().toUpperCase();
+    var source = normalizeColumnLetter($('columnMapSource').value);
+    var target = normalizeColumnLetter($('columnMapTarget').value);
+    var old = normalizeColumnLetter($('columnMapOld').value);
+    $('columnMapSource').value = source;
+    $('columnMapTarget').value = target;
+    $('columnMapOld').value = old;
     if (!/^[A-Z]{1,3}$/.test(source) || !/^[A-Z]{1,3}$/.test(target)) {
       $('columnMapStatus').textContent = '列字母无效，例如 C、F、AA。';
       return;
@@ -5745,7 +5765,7 @@
     if ($('btnColumnMapDetect')) $('btnColumnMapDetect').addEventListener('click', renderColumnMapCandidates);
     ['columnMapSource', 'columnMapTarget', 'columnMapOld'].forEach(function (id) {
       if ($(id)) $(id).addEventListener('input', function () {
-        this.value = String(this.value || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+        this.value = normalizeColumnLetter(this.value);
       });
     });
     $('btnPrevEntry').addEventListener('click', function () { navigateEntry(-1); });
