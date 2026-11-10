@@ -885,7 +885,15 @@
   }
 
   function persistTerms(meta) {
-    var payload = { meta: meta || null, terms: state.terms, savedAt: new Date().toISOString() };
+    // Full localization workbooks can carry 30k terms. Keep the persisted
+    // payload compact so it fits the WPS/CEF localStorage quota.
+    var compact = (state.terms || []).map(function (term) {
+      var item = { zh: term.zh, en: term.en, lang: term.lang || 'en', status: term.status || 'approved' };
+      if (term.uid) item.uid = term.uid;
+      if (term.variants && term.variants.length) item.variants = term.variants;
+      return item;
+    });
+    var payload = { meta: meta || null, terms: compact, savedAt: new Date().toISOString() };
     try {
       window.localStorage.setItem(K.termStore, JSON.stringify(payload));
       return true;
@@ -4232,36 +4240,94 @@
     return map;
   }
 
+  function termTargetHeaders() {
+    var code = state.settings.targetLang || 'en';
+    var names = window.TideLangs ? window.TideLangs.headersFor(code) : ['EN'];
+    return names.map(function (name) { return String(name).toLowerCase(); });
+  }
+
+  function isTermTargetHeader(text, headers) {
+    var value = String(text == null ? '' : text).trim().toLowerCase();
+    if (!value) return false;
+    for (var i = 0; i < headers.length; i += 1) if (value === headers[i]) return true;
+    return false;
+  }
+
   function parseWorkbook(buffer) {
     if (typeof XLSX === 'undefined') throw new Error('xlsx 解析库未加载');
     var workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
     var terms = [];
     var seen = {};
+    var langCode = state.settings.targetLang || 'en';
+    var targetHeaders = termTargetHeaders();
+
+    function addTerm(zh, target, sheetName) {
+      zh = String(zh == null ? '' : zh).trim();
+      target = String(target == null ? '' : target).trim();
+      if (!zh || !target) return;
+      var key = zh + '\u0000' + target.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = 1;
+      terms.push({ zh: zh, en: target, status: 'approved', lang: langCode, sheet: sheetName, note: '' });
+    }
+
     workbook.SheetNames.forEach(function (name) {
       var rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, blankrows: false, defval: '' });
       if (!rows.length) return;
-      var map = pickTermColumnMap(rows[0], name);
-      for (var i = 1; i < rows.length; i += 1) {
-        var row = rows[i] || [];
-        var zh = String(row[map.zh] == null ? '' : row[map.zh]).trim();
-        var en = '';
-        var status = 'working';
-        if (map.approved !== undefined && String(row[map.approved] == null ? '' : row[map.approved]).trim()) {
-          en = String(row[map.approved]).trim();
-          status = 'approved';
-        } else if (map.working !== undefined) {
-          en = String(row[map.working] == null ? '' : row[map.working]).trim();
+
+      // Localization patches put several source/target blocks on one sheet.
+      // Find the header row that owns the current target language, then pair
+      // each target column with the source column immediately left of EN.
+      var headerAt = -1;
+      var groups = [];
+      var limit = Math.min(rows.length, 8);
+      for (var h = 0; h < limit; h += 1) {
+        var line = rows[h] || [];
+        var targets = [];
+        for (var c = 0; c < line.length; c += 1) {
+          if (isTermTargetHeader(line[c], targetHeaders)) targets.push(c);
         }
-        if (!zh || !en) continue;
-        var key = zh + '\u0000' + en.toLowerCase();
-        if (seen[key]) continue;
-        seen[key] = 1;
-        var looksLikeNote = zh.indexOf('\n') > -1 || zh.length > 30 || zh.indexOf('改用') > -1 || zh.indexOf('建议') > -1;
-        if (/[\u4e00-\u9fff]/.test(en) || en.length > 60 || looksLikeNote) status = 'needs_review';
-        terms.push({ zh: zh, en: en, status: status, sheet: name, note: '' });
+        if (!targets.length) continue;
+        var found = [];
+        targets.forEach(function (targetCol) {
+          var sourceCol = -1;
+          for (var j = targetCol - 1; j >= 0; j -= 1) {
+            var value = String(line[j] == null ? '' : line[j]).trim();
+            if (/^(en|english|英文)$/i.test(value)) { sourceCol = j - 1; break; }
+            if (/^(source(\s*text)?|name|原文|源文|中文)$/i.test(value)) { sourceCol = j; break; }
+          }
+          if (sourceCol < 0) sourceCol = targetCol - 1;
+          if (sourceCol >= 0 && sourceCol !== targetCol) found.push({ source: sourceCol, target: targetCol });
+        });
+        if (found.length) { headerAt = h; groups = found; break; }
+      }
+
+      if (groups.length) {
+        for (var i = headerAt + 1; i < rows.length; i += 1) {
+          var row = rows[i] || [];
+          groups.forEach(function (group) {
+            addTerm(row[group.source], row[group.target], name);
+          });
+        }
+        return;
+      }
+
+      // Ordinary two-column termbases keep the old column map.
+      var map = pickTermColumnMap(rows[0], name);
+      for (var r = 1; r < rows.length; r += 1) {
+        var line2 = rows[r] || [];
+        var zh = String(line2[map.zh] == null ? '' : line2[map.zh]).trim();
+        var target = '';
+        if (map.approved !== undefined && String(line2[map.approved] == null ? '' : line2[map.approved]).trim()) {
+          target = String(line2[map.approved]).trim();
+        } else if (map.working !== undefined) {
+          target = String(line2[map.working] == null ? '' : line2[map.working]).trim();
+        }
+        addTerm(zh, target, name);
       }
     });
-    if (!terms.length) throw new Error('没有读到中英对照行');
+
+    if (!terms.length) throw new Error('没有读到原文/译文对照行');
     return window.TideEngine.parseTermbase(terms);
   }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=202611052033">
+  <link rel="stylesheet" href="tide.css?b=202611052034">
 </head>
 <body>
   <header class="bar">
@@ -555,7 +555,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052033</span>
+        <span class="nas-build" id="nasBuild">构建 202611052034</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.23.232:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -627,14 +627,14 @@
         <div class="hint" data-i18n="settings.projectHint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
       </div>
       <div class="field">
-        <label data-i18n="settings.importLabel">导入术语表（JSON）</label>
+        <label data-i18n="settings.importLabel">导入术语表（JSON / XLSX）</label>
         <input id="termFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="toolbar">
           <button class="act ghost" id="btnTermFile" type="button" data-i18n="file.choose">选择文件</button>
           <span class="hint" id="termFileName" data-i18n="file.none">未选择任何文件</span>
         </div>
       </div>
-      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls 与 JSON。Excel 会按表头识别中文与目标语言列；无表头时按前两列。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
+      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls 与 JSON。也支持完整本地化表：自动识别多组源文/目标列，按目标语言导入。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
       <div class="field">
         <label id="columnsLabel">列设置（用于当前表）</label>
         <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：A=UID，C=中文原文，F=目标语言译文。</div>
@@ -687,11 +687,11 @@
   <script src="../js/tm.js"></script>
   <script src="../js/qa.js"></script>
   <script src="../js/crypto.js"></script>
-  <script src="i18n-static.js?b=202611052033"></script>
-  <script src="i18n-patch.js?b=202611052033"></script>
-  <script src="i18n.js?b=202611052033"></script>
+  <script src="i18n-static.js?b=202611052034"></script>
+  <script src="i18n-patch.js?b=202611052034"></script>
+  <script src="i18n.js?b=202611052034"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=202611052033"></script>
-  <script src="onboarding.js?b=202611052033"></script>
+  <script src="tide.js?b=202611052034"></script>
+  <script src="onboarding.js?b=202611052034"></script>
 </body>
 </html>
