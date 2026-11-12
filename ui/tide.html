@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=20261110184602">
+  <link rel="stylesheet" href="tide.css?b=20261112092928">
 </head>
 <body>
   <header class="bar">
@@ -126,6 +126,7 @@
             <button class="act ghost mini" id="btnLocateSource">定位原文</button>
           </span>
         </div>
+        <div class="hint locate-status" id="locateStatus"></div>
         <div class="draft-row">
           <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
                     placeholder="可直接输入或粘贴原文；默认只影响本窗口，写回需点按钮" data-i18n-ph="entry.sourcePlaceholder"></textarea>
@@ -157,11 +158,20 @@
                     data-gramm="true" data-gramm_editor="true" data-enable-grammarly="true"></textarea>
           <div class="draft-actions">
             <button class="act" id="btnWriteDraft" title="将草稿写入当前译文单元格">写入</button>
+            <button class="act ghost" id="btnAITranslate" title="试用：调用本机 AI 生成译文草稿">AI 翻译</button>
             <button class="act" id="btnDraftPaste" title="粘贴剪贴板内容（等同 Ctrl+V）">粘贴</button>
             <button class="act ghost" id="btnDraftClear" title="清空译文草稿">清空</button>
           </div>
         </div>
         <div class="hint" id="grammarlyHint" data-i18n="entry.grammarly">Grammarly 扩展需在 WPS 中启用；此文本框已开放语法检测。</div>
+        <div class="hint" id="aiTranslateHint">AI 试用：先生成草稿，不自动写入；只发送当前原文。</div>
+        <div class="ai-quick-row" id="aiQuickRow">
+          <span class="ai-quick-label">AI 模型</span>
+          <select id="aiQuickProvider" class="mini"></select>
+          <button class="act ghost" type="button" id="btnAIDetect" title="检测本机正在运行的 AI">检测</button>
+          <button class="act ghost" type="button" id="btnAISettings">AI 设置</button>
+        </div>
+        <div class="hint" id="aiDetectStatus"></div>
       </div>
       <div class="field">
         <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
@@ -251,39 +261,55 @@
 
     <section id="panel-find" hidden>
       <div class="field">
-        <label data-i18n="label.findScope">定位范围（工作表 + 行号同时满足）</label>
-        <div class="toolbar" id="findScopeTabs" style="margin-bottom:6px">
-          <button class="act ghost on" type="button" data-find-tab="sheet" data-i18n="find.tabSheet">1 工作表</button>
-          <button class="act ghost" type="button" data-find-tab="row" data-i18n="find.tabRow">2 行号</button>
+        <label data-i18n="label.findScope">工作表（可选）</label>
+        <div class="sheet-picker" id="findSheetPicker">
+          <div class="sheet-picker-row">
+            <input id="findSheetInput" type="text" autocomplete="off" placeholder="全部工作表 / 搜索工作表" aria-label="选择工作表">
+            <button class="act" type="button" data-paste-for="findSheetInput">粘贴</button>
+          </div>
+          <div class="sheet-picker-menu" id="findSheetMenu" hidden></div>
         </div>
-        <div id="findSheetPane">
-          <select id="findSheet" class="mini" style="width:100%">
-            <option value="">全部工作表</option>
-          </select>
-        </div>
-        <div id="findRowPane" hidden>
+        <select id="findSheet" hidden>
+          <option value="">全部工作表</option>
+        </select>
+        <div class="hint" id="findScopeSummary">未指定工作表：行号使用当前页，文本搜索全表。</div>
+      </div>
+
+      <div class="find-grid">
+        <div class="find-card">
+          <h3 class="sub">按行号搜索</h3>
+          <p class="hint">未指定工作表时，查询当前页。</p>
           <input id="findRow" type="number" min="1" step="1" placeholder="输入具体行号，例如 128" data-i18n-ph="find.rowPlaceholder" style="width:100%">
+          <div class="toolbar" style="margin-top:7px">
+            <button class="act" type="button" id="btnFindJumpSource">查找该行</button>
+          </div>
+          <div class="find-inline" id="findRowStatus"></div>
         </div>
-        <div class="toolbar" style="margin-top:6px">
-          <button class="act" type="button" id="btnFindJumpSource" data-i18n="btn.findJump">跳转到原文</button>
-          <button class="act ghost" type="button" id="btnFindClearScope" data-i18n="btn.findClear">清除定位范围</button>
-          <span class="hint" id="findScopeSummary">未限定：搜索整本工作簿</span>
+
+        <div class="find-card">
+          <h3 class="sub">按文本搜索</h3>
+          <p class="hint">未指定工作表时，搜索全表。</p>
+          <input id="findInput" type="search" placeholder="输入片段，如：宝箱" data-i18n-ph="find.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
+          <div class="toolbar" style="margin-top:7px">
+            <select id="findMode" class="mini" title="匹配方式">
+              <option value="fuzzy">模糊匹配</option>
+              <option value="exact">精确匹配</option>
+            </select>
+            <button class="act" id="btnFindAll">搜索</button>
+          </div>
+          <div class="find-inline" id="findTextStatus"></div>
         </div>
-        <div class="hint" data-i18n="hint.findScope">两个选项卡里的条件会同时生效；只填一个时不会开始搜索。</div>
       </div>
-      <div class="field">
-        <label>全表模糊搜索（包含即命中）</label>
-        <input id="findInput" type="search" placeholder="输入片段，如：宝箱" data-i18n-ph="find.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
-      </div>
-      <div class="toolbar">
-        <button class="act" id="btnFindAll">搜索整本工作簿</button>
+
+      <div class="toolbar" style="margin-top:8px">
+        <button class="act ghost" type="button" id="btnFindClearScope">清除工作表</button>
         <span class="count" id="findCount"></span>
       </div>
       <table id="findTable" hidden>
         <thead><tr><th>表</th><th>单元格</th><th>列</th><th>内容</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="hint" id="findEmpty" data-i18n="find.empty">输入片段后开始搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
+      <div class="hint" id="findEmpty" data-i18n="find.empty">选择工作表后，按行号或文本搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
       <div class="hint" id="findStatus"></div>
 
       <hr class="rule">
@@ -670,6 +696,60 @@
           </div>
         </div>
       </div>
+      <div id="aiSettingsSection">
+      <hr class="rule">
+      <h3 class="sub">AI 翻译</h3>
+      <div class="field">
+        <label>AI 服务</label>
+        <select id="aiProvider" class="mini">
+          <option value="codex">Codex CLI（本机）</option>
+          <option value="openai">OpenAI</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="anthropic">Claude / Anthropic</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="workbuddy">WorkBuddy（OpenAI 兼容）</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="groq">Groq</option>
+          <option value="mistral">Mistral</option>
+          <option value="xai">xAI Grok</option>
+          <option value="qwen">Qwen / DashScope</option>
+          <option value="moonshot">Moonshot / Kimi</option>
+          <option value="local">本地 OpenAI 兼容</option>
+          <option value="custom">自定义 OpenAI 兼容</option>
+        </select>
+      </div>
+      <div class="field"><label>模型</label><input id="aiModel" placeholder="例如 deepseek-chat"></div>
+      <div class="field"><label>接口地址</label><input id="aiBaseUrl" placeholder="https://.../v1；Codex 可留空"></div>
+      <div class="field"><label>API Key</label><input id="aiApiKey" type="password" placeholder="留空保持已保存的密钥"></div>
+      <div class="toolbar">
+        <button class="act" id="btnAISaveConfig">保存到本机 AI 网关</button>
+        <button class="act ghost" id="btnAIClearKey">清除密钥</button>
+        <span class="status" id="aiConfigStatus"></span>
+      </div>
+      <div class="hint">密钥只保存在本机 <code>~/.tide-ai/config.json</code>（0600），不进入插件存储或工作表。</div>
+
+      <hr class="rule">
+      <h3 class="sub">AI 代理平台</h3>
+      <label class="chk"><input type="checkbox" id="useAIProxy"> <span>使用代理平台（其他设备共享服务）</span></label>
+      <div class="field"><label>代理地址</label><input id="aiProxyUrl" placeholder="http://192.168.1.10:8915"></div>
+      <div class="field"><label>设备令牌</label><input id="aiProxyToken" type="password" placeholder="由代理管理员生成"></div>
+      <div class="toolbar">
+        <button class="act" id="btnSaveAIProxy">保存代理设置</button>
+        <button class="act ghost" id="btnTestAIProxy">测试连接</button>
+        <span class="status" id="aiProxyStatus"></span>
+      </div>
+      <div class="hint">模型 API Key 只存在代理服务器；本机只保存设备令牌。</div>
+
+      <hr class="rule">
+      <h3 class="sub">MCP 协作</h3>
+      <div class="hint">外部 AI（Codex、Claude Desktop 等）通过 MCP 读取当前原文，并把译文写入草稿框；不会自动写入工作表。</div>
+      <textarea id="mcpConfig" rows="7" readonly style="font:10.5px/1.45 var(--mono);margin-top:6px"></textarea>
+      <div class="toolbar" style="margin-top:6px">
+        <button class="act" type="button" id="btnCopyMCP">复制 MCP 配置</button>
+        <span class="status" id="mcpStatus"></span>
+      </div>
+      </div>
+
       <div class="toolbar">
         <button class="act" id="btnSave">保存设置</button>
         <button class="act ghost" id="btnResetTerms">恢复内置术语表</button>
@@ -689,6 +769,20 @@
   <div class="scroll-rail h" id="mainRailH"><div class="scroll-thumb" id="mainThumbH"></div></div>
   </div>
 
+  <div class="update-modal" id="updateModal" hidden role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+    <div class="update-card">
+      <div class="update-kicker">TIDE UPDATE</div>
+      <h2 id="updateTitle">发现新版本</h2>
+      <div class="update-build" id="updateBuild"></div>
+      <h3>本次更新</h3>
+      <ul id="updateNotes"></ul>
+      <div class="update-actions">
+        <button class="act ghost" type="button" id="btnUpdateLater">稍后</button>
+        <button class="act" type="button" id="btnUpdateNow">立即更新</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../vendor/xlsx.full.min.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/langs.js"></script>
@@ -698,9 +792,9 @@
   <script src="../js/crypto.js"></script>
   <script src="i18n-static.js?b=202611052037"></script>
   <script src="i18n-patch.js?b=202611052037"></script>
-  <script src="i18n.js?b=20261110184602"></script>
+  <script src="i18n.js?b=20261112092928"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=20261110184602"></script>
-  <script src="onboarding.js?b=20261110184602"></script>
+  <script src="tide.js?b=20261112092928"></script>
+  <script src="onboarding.js?b=20261112092928"></script>
 </body>
 </html>

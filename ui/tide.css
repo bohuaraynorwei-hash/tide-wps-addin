@@ -611,3 +611,59 @@ mark.qa-mark{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}
   del{background:rgba(255,69,58,.22);color:#ffb4ab}
   ins{background:rgba(52,199,89,.20);color:#9ef0b4}
 }
+
+/* Search scope: searchable worksheet picker (input + list). */
+.sheet-picker{position:relative}
+.sheet-picker input{width:100%}
+.sheet-picker-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;
+  max-height:300px;overflow:auto;padding:4px;background:var(--card);border:1px solid var(--hair-strong);
+  border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.sheet-picker-menu button{display:block;width:100%;text-align:left;padding:9px 11px;border:0;border-radius:8px;
+  background:transparent;color:var(--label);font:400 13px/1.35 var(--font);cursor:pointer}
+.sheet-picker-menu button:hover{background:rgba(118,118,128,.12)}
+.sheet-picker-menu button.on{background:rgba(0,0,0,.10);font-weight:600}
+.sheet-picker-menu button.empty{padding:12px;color:var(--label-3);cursor:default}
+@media (prefers-color-scheme: dark){
+  .sheet-picker-menu button.on{background:rgba(255,255,255,.14);color:#fff}
+}
+
+.sheet-picker-row{display:flex;gap:6px;align-items:center}
+.sheet-picker-row input{flex:1 1 auto;min-width:0}
+.sheet-picker-row .act{flex:0 0 auto;padding:8px 10px;font-size:11.5px}
+
+/* Find page: sheet is the first-level choice; row and text are sibling tools. */
+.find-grid{display:grid;grid-template-columns:1fr;gap:9px;margin-bottom:8px}
+.find-card{border:1px solid var(--hair);border-radius:10px;padding:10px;background:var(--card)}
+.find-card h3{margin:0 0 4px}
+.find-card .hint{margin:0 0 7px}
+
+/* Release notes shown when the pane detects a newer build. */
+.update-modal{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;
+  padding:18px;background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.update-card{width:min(430px,100%);max-height:82vh;overflow:auto;background:var(--card);color:var(--label);
+  border:1px solid var(--hair);border-radius:16px;padding:20px 20px 16px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.update-kicker{font:600 9.5px/1 var(--mono);letter-spacing:.12em;color:var(--accent);margin-bottom:8px}
+.update-card h2{margin:0 0 4px;font:700 22px/1.2 var(--font);letter-spacing:-.02em}
+.update-build{font:400 11px/1.4 var(--mono);color:var(--label-3);margin-bottom:16px}
+.update-card h3{margin:0 0 8px;font:600 12px/1.3 var(--font);color:var(--label-2)}
+.update-card ul{margin:0 0 18px;padding:0 0 0 18px;color:var(--label);font:400 12.5px/1.65 var(--font)}
+.update-card li{margin:0 0 5px}
+.update-actions{display:flex;gap:8px;justify-content:flex-end}
+
+.find-inline{min-height:16px;margin-top:7px;font:400 11.5px/1.5 var(--font);color:var(--label-2);word-break:break-word}
+.find-inline.bad{color:var(--orange)}
+
+.ai-quick-row{display:flex;gap:7px;align-items:center;margin:7px 0 2px}
+.ai-quick-label{font:500 11px/1.2 var(--font);color:var(--label-2);white-space:nowrap}
+.ai-quick-row select{flex:1 1 auto;min-width:0;padding:6px 8px;font-size:11.5px}
+.ai-quick-row .act{flex:0 0 auto;padding:6px 9px;font-size:11px}
+
+.locate-status{min-height:16px;margin:-3px 0 6px;color:var(--label-2);font-size:11px}
+.locate-status.bad{color:var(--red)}
+
+/* AI translation is feature-gated; public builds omit it entirely. */
+body:not(.ai-enabled) #btnAITranslate,
+body:not(.ai-enabled) #aiQuickRow,
+body:not(.ai-enabled) #aiTranslateHint,
+body:not(.ai-enabled) #aiDetectStatus,
+body:not(.ai-enabled) #aiSettingsSection{display:none !important}

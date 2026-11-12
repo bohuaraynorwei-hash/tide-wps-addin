@@ -34,6 +34,7 @@
     settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A', targetLang: 'en' },
     perSheetCols: {},
     scanned: [],
+    termSheetRows: [],
     archive: { history: [], snapshot: {} },
     passphrase: null,
     unlocked: false,
@@ -100,21 +101,68 @@
     return m ? decodeURIComponent(m[1]) : '';
   })();
 
+  var updateInfo = null;
+
+  function reloadToBuild(build) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('b', build);
+    window.location.replace(url.toString());
+  }
+
+  function showUpdateDialog(data) {
+    if (!data || !data.build) return;
+    updateInfo = data;
+    var modal = $('updateModal');
+    if (!modal) return;
+    $('updateBuild').textContent = '新版本 ' + data.build;
+    var list = $('updateNotes');
+    list.textContent = '';
+    var notes = Array.isArray(data.notes) ? data.notes.slice() : [];
+    if (!notes.length) notes = ['功能与体验优化。'];
+    notes.forEach(function (note) {
+      var li = document.createElement('li');
+      li.textContent = String(note || '');
+      list.appendChild(li);
+    });
+    modal.hidden = false;
+    try { window.localStorage.setItem('tide.updateSeen', data.build); } catch (err) { /* ignore */ }
+    var later = $('btnUpdateLater');
+    var now = $('btnUpdateNow');
+    if (later) later.onclick = function () { modal.hidden = true; };
+    if (now) now.onclick = function () { reloadToBuild(data.build); };
+  }
+
+  function applyFeatureFlags(data) {
+    var enabled = !(data && data.features && data.features.ai === false);
+    if (document.body) document.body.classList.toggle('ai-enabled', enabled);
+  }
+
+  function loadFeatureFlags() {
+    if (window.location.protocol === 'file:') return;
+    fetch('../build.json', { cache: 'no-store' }).then(function (response) {
+      return response.ok ? response.json() : null;
+    }).then(applyFeatureFlags).catch(function () { applyFeatureFlags(null); });
+  }
+
   function checkForUpdate() {
     if (window.location.protocol === 'file:') return;
     fetch('../build.json', { cache: 'no-store' }).then(function (response) {
       return response.ok ? response.json() : null;
     }).then(function (data) {
+      applyFeatureFlags(data);
       // No stamp (pane opened by an older ribbon) is treated as stale, so the
       // update button still appears at least once.
       if (!data || !data.build || data.build === SELF_BUILD) return;
+      updateInfo = data;
       var bar = $('updateBar');
-      bar.hidden = false;
-      bar.onclick = function () {
-        var url = new URL(window.location.href);
-        url.searchParams.set('b', data.build);
-        window.location.replace(url.toString());
-      };
+      if (bar) {
+        bar.hidden = false;
+        bar.textContent = '有新版本 · 查看更新';
+        bar.onclick = function () { showUpdateDialog(updateInfo || data); };
+      }
+      var seen = '';
+      try { seen = window.localStorage.getItem('tide.updateSeen') || ''; } catch (err) { seen = ''; }
+      if (seen !== data.build) showUpdateDialog(data);
     }).catch(function () { /* offline: keep the current pane */ });
   }
 
@@ -135,7 +183,7 @@
     if (!sheets) return currentSheet();
     try {
       var direct = sheets.Item(name);
-      if (direct) return direct;
+      if (direct && String(direct.Name) === String(name)) return direct;
     } catch (err) { /* some hosts only accept an index */ }
     try {
       var count = sheets.Count;
@@ -803,6 +851,25 @@
     return { src: src, tgt: tgt };
   }
 
+  function markTermColumnsManual() {
+    var cols = readTermColumns();
+    var sheet = currentSheet();
+    if (!sheet) return;
+    state.perSheetCols[sheet.Name] = {
+      sourceCol: state.settings.sourceCol,
+      targetCol: state.settings.targetCol,
+      oldCol: state.settings.oldCol || '',
+      manual: true
+    };
+    writeJSON(K.perSheetCols, state.perSheetCols);
+    state.termSheetRows = [];
+    if ($('termRefreshStatus')) {
+      $('termRefreshStatus').textContent = '已启用人工列映射：源文 ' +
+        state.settings.sourceCol + ' / 译文 ' + state.settings.targetCol + '；点「刷新」重新统计。';
+    }
+    return cols;
+  }
+
   function refreshTermsFromSheet() {
     var cols = readTermColumns();
     var src = cols.src;
@@ -814,6 +881,7 @@
       renderTerms();
       return;
     }
+    state.termSheetRows = result.rows;
     state.scanned = window.TideEngine.scanRows(result.rows, state.matchTerms);
     var hitRows = state.scanned.length;
     var hitTerms = 0;
@@ -823,12 +891,77 @@
       result.rows.length + ' 条原文，' + hitRows + ' 行命中（' + src + '→' + tgt + '），共 ' + hitTerms + ' 个术语命中。';
   }
 
+  function termSheetRowsForQuery(query) {
+    var rows = state.termSheetRows;
+    if (!rows || !rows.length) {
+      var result = buildRows();
+      if (result && !result.error) {
+        rows = result.rows;
+        state.termSheetRows = rows;
+      } else {
+        return [];
+      }
+    }
+    var q = String(query || '').toLowerCase();
+    if (!q) return [];
+    return rows.filter(function (row) {
+      return String(row.source || '').toLowerCase().indexOf(q) > -1 ||
+        String(row.target || '').toLowerCase().indexOf(q) > -1;
+    }).slice(0, 300);
+  }
+
+  function renderTermSheetRows(rows, query) {
+    var table = $('termTable');
+    var body = table.tBodies[0];
+    body.textContent = '';
+    var targetCol = state.settings.targetCol || '译文';
+    if ($('termTargetHeader')) $('termTargetHeader').textContent = targetCol + ' 列';
+    $('termCount').textContent = rows.length + ' 行 · 当前表';
+    table.hidden = false;
+    $('termEmpty').hidden = true;
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(textNode('td', row.source || ''));
+      tr.appendChild(textNode('td', row.target || '—'));
+      var hits = 0;
+      (state.scanned || []).forEach(function (scan) {
+        if (scan.row !== row.row) return;
+        scan.matches.forEach(function (match) {
+          if (String(match.zh) === String(row.source)) hits += 1;
+        });
+      });
+      tr.appendChild(textNode('td', hits ? String(hits) : '—', 'num'));
+      var td = document.createElement('td');
+      if (row.target) {
+        var use = document.createElement('button');
+        use.className = 'act ghost';
+        use.textContent = '采用';
+        use.addEventListener('click', function () {
+          adoptIntoDraft(row.target, String(row.source || '').slice(0, 24) + ' → ' + row.target);
+        });
+        td.appendChild(use);
+      }
+      tr.appendChild(td);
+      tr.classList.add('rowlink');
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.tagName === 'BUTTON') return;
+        jumpToRow(row.row, row.sheet, $('termEmpty'));
+      });
+      body.appendChild(tr);
+    });
+  }
+
   function renderTerms() {
     renderLocalTermField();
     var table = $('termTable');
     if (!table) return;
     var body = table.tBodies[0];
     body.textContent = '';
+    var query = currentTermQuery();
+    if (query) {
+      var sheetRows = termSheetRowsForQuery(query);
+      if (sheetRows.length) { renderTermSheetRows(sheetRows, query); return; }
+    }
     var total = currentTerms().length;
     var langProfile = window.TideLangs ? window.TideLangs.get(state.settings.targetLang || 'en') : null;
     var langName = langProfile ? (langProfile.native || langProfile.name) : '';
@@ -839,7 +972,6 @@
       table.hidden = true;
       return;
     }
-    var query = currentTermQuery();
     var result = filterTerms(query);
     var counts = {};
     (state.scanned || []).forEach(function (row) {
@@ -1384,11 +1516,24 @@
     return sheet && sheet.Name ? String(sheet.Name) : '';
   }
 
+  var lastScopeBook = '';
+  var lastScopeSheet = '';
+  function watchFindScope() {
+    var book = sheetApp() && sheetApp().ActiveWorkbook;
+    var key = book && book.Name ? String(book.Name) : '';
+    var sheet = activeSheetName();
+    if (key === lastScopeBook && sheet === lastScopeSheet) return;
+    lastScopeBook = key;
+    lastScopeSheet = sheet;
+    if (key) refreshFindSheets();
+  }
+
   // WPS switched the visible worksheet: the batch must follow it, otherwise
   // every locate and write points at the previous sheet.
   function syncActiveSheet() {
     var name = activeSheetName();
     if (!name || name === state.sheetName) return false;
+    refreshFindSheets();
     var draft = $('entryDraft') ? $('entryDraft').value : '';
     var entry = currentEntry();
     var dirty = state.sourceDirty || (entry && draft !== (entry.target || ''));
@@ -1907,7 +2052,14 @@
 
   // ---------- workbook-wide substring search ----------
 
-  function scanSheetFor(sheet, needle, onlyRow) {
+  function matchesFindText(text, needle, mode) {
+    var value = String(text == null ? '' : text).toLowerCase();
+    var wanted = String(needle || '').toLowerCase();
+    if (mode === 'exact') return value === wanted;
+    return value.indexOf(wanted) > -1;
+  }
+
+  function scanSheetFor(sheet, needle, onlyRow, mode) {
     var hits = [];
     var used;
     try { used = sheet.UsedRange; } catch (err) { return hits; }
@@ -1926,38 +2078,31 @@
     }
     for (var i = first; i < last; i += 1) {
       var source = srcIdx >= 0 ? cellText(grid, i, srcIdx) : '';
-      if (source && source.toLowerCase().indexOf(needle) > -1) {
+      if (source && matchesFindText(source, needle, mode)) {
         hits.push({ sheet: sheet.Name, row: startRow + i, column: 'source', text: source });
       }
       var target = tgtIdx >= 0 ? cellText(grid, i, tgtIdx) : '';
-      if (target && target.toLowerCase().indexOf(needle) > -1) {
+      if (target && matchesFindText(target, needle, mode)) {
         hits.push({ sheet: sheet.Name, row: startRow + i, column: 'target', text: target });
       }
     }
     return hits;
   }
 
-  function readFindScope() {
-    var sheet = $('findSheet') ? $('findSheet').value : '';
-    var raw = $('findRow') ? String($('findRow').value || '').trim() : '';
-    if (!sheet && !raw) return { active: false, invalid: false };
-    var row = parseInt(raw, 10);
-    if (!sheet || !raw || !isFinite(row) || row < 1) return { active: false, invalid: true };
-    return { active: true, invalid: false, sheet: sheet, row: row };
+  function selectedFindSheet() {
+    return $('findSheet') ? String($('findSheet').value || '') : '';
   }
 
   function updateFindScopeSummary() {
-    var scope = readFindScope();
+    var sheet = selectedFindSheet();
     var el = $('findScopeSummary');
     if (!el) return;
-    if (scope.invalid) el.textContent = tr('find.scopeNeedBoth', '需同时选择工作表和输入行号');
-    else if (scope.active) el.textContent = trFormat('find.scopeActive', '定位：{sheet} · 第 {row} 行', { sheet: scope.sheet, row: scope.row });
-    else el.textContent = tr('find.scopeNone', '未限定：搜索整本工作簿');
-    if ($('btnFindAll')) $('btnFindAll').textContent = scope.active ? tr('find.searchScoped', '搜索指定位置') : tr('find.searchAll', '搜索整本工作簿');
-    if ($('btnFindJumpSource')) $('btnFindJumpSource').disabled = !scope.active;
+    el.textContent = sheet
+      ? '指定工作表：' + sheet + '；行号和文本都在此表内搜索。'
+      : '未指定工作表：行号使用当前页，文本搜索全表。';
   }
 
-  function refreshFindSheets() {
+  function refreshFindSheets(selectCurrent) {
     var sel = $('findSheet');
     if (!sel) return;
     var current = sel.value;
@@ -1978,23 +2123,88 @@
       var option = document.createElement('option');
       option.value = name; option.textContent = name; sel.appendChild(option);
     });
-    if (current && names.indexOf(current) > -1) sel.value = current;
+    var active = activeSheetName();
+    if (selectCurrent && active && names.indexOf(active) > -1) sel.value = active;
+    else if (current && names.indexOf(current) > -1) sel.value = current;
     else sel.value = '';
+    syncFindSheetPicker();
     updateFindScopeSummary();
   }
 
-  function setFindScopeTab(name) {
-    var buttons = $('findScopeTabs') ? $('findScopeTabs').querySelectorAll('button') : [];
-    for (var i = 0; i < buttons.length; i += 1) {
-      buttons[i].classList.toggle('on', buttons[i].dataset.findTab === name);
+  function findSheetLabel(value) {
+    var sel = $('findSheet');
+    if (!sel) return '';
+    for (var i = 0; i < sel.options.length; i += 1) {
+      if (sel.options[i].value === value) return String(sel.options[i].textContent || '');
     }
-    $('findSheetPane').hidden = name !== 'sheet';
-    $('findRowPane').hidden = name !== 'row';
-    var focus = name === 'row' ? $('findRow') : $('findSheet');
-    if (focus && focus.focus) focus.focus();
+    return '';
   }
 
-  function renderFind() {
+  function renderFindSheetMenu(filter) {
+    var menu = $('findSheetMenu');
+    var sel = $('findSheet');
+    if (!menu || !sel) return;
+    menu.textContent = '';
+    var q = String(filter || '').trim().toLowerCase();
+    var items = [];
+    for (var i = 0; i < sel.options.length; i += 1) {
+      items.push({ value: sel.options[i].value, label: String(sel.options[i].textContent || '') });
+    }
+    var shown = items;
+    if (q) {
+      var direct = items.filter(function (item) { return item.label.toLowerCase().indexOf(q) > -1; });
+      if (direct.length) {
+        shown = direct;
+      } else if (window.TideEngine && window.TideEngine.similarity) {
+        var scored = items.map(function (item) {
+          return { item: item, score: window.TideEngine.similarity(q, item.label) };
+        }).filter(function (entry) { return entry.score >= 0.34; });
+        scored.sort(function (a, b) { return b.score - a.score; });
+        shown = scored.map(function (entry) { return entry.item; });
+      } else {
+        shown = [];
+      }
+    }
+    shown.forEach(function (entry) {
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.textContent = entry.label;
+      item.className = entry.value === sel.value ? 'on' : '';
+      item.dataset.value = entry.value;
+      item.addEventListener('mousedown', function (event) { event.preventDefault(); });
+      item.addEventListener('click', function () {
+        sel.value = this.dataset.value;
+        syncFindSheetPicker();
+        updateFindScopeSummary();
+        menu.hidden = true;
+      });
+      menu.appendChild(item);
+    });
+    if (!shown.length) {
+      var empty = document.createElement('button');
+      empty.type = 'button';
+      empty.className = 'empty';
+      empty.disabled = true;
+      empty.textContent = '没有匹配的工作表';
+      menu.appendChild(empty);
+    }
+  }
+
+  function syncFindSheetPicker() {
+    var input = $('findSheetInput');
+    var sel = $('findSheet');
+    if (!input || !sel) return;
+    input.value = sel.value ? findSheetLabel(sel.value) : '';
+  }
+
+  function openFindSheetMenu() {
+    var menu = $('findSheetMenu');
+    if (!menu) return;
+    renderFindSheetMenu('');
+    menu.hidden = false;
+  }
+
+  function renderFind(emptyText) {
     refreshFindSheets();
     var table = $('findTable');
     var body = table.tBodies[0];
@@ -2003,6 +2213,7 @@
     $('findCount').textContent = results.length ? results.length + ' 处命中' : '';
     table.hidden = results.length === 0;
     $('findEmpty').hidden = results.length > 0;
+    $('findEmpty').textContent = emptyText || '选择工作表后，按行号或文本搜索；结果按工作表顺序排列，点击任意行可跳转。';
     results.forEach(function (hit) {
       var tr = document.createElement('tr');
       tr.appendChild(textNode('td', hit.sheet, 'num'));
@@ -2021,28 +2232,103 @@
     });
   }
 
-  // Scans one sheet per tick so a 93-sheet workbook does not freeze the pane.
-  function runFind() {
-    var term = $('findInput').value.trim();
-    if (!term) { $('findStatus').textContent = '先输入要搜索的片段。'; return; }
-    var scope = readFindScope();
-    if (scope.invalid) {
-      $('findStatus').textContent = '工作表和行号需要同时填写，或点「清除定位范围」搜索整本工作簿。';
+  function setFindInline(id, text, bad) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'find-inline' + (bad ? ' bad' : '');
+  }
+
+  function scrollFindResults() {
+    var table = $('findTable');
+    if (!table || table.hidden) return;
+    window.setTimeout(function () {
+      try { table.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      catch (err) { try { table.scrollIntoView(false); } catch (err2) { /* ignore */ } }
+    }, 60);
+    try { table.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    catch (err) { try { table.scrollIntoView(false); } catch (err2) { /* ignore */ } }
+  }
+
+  function runFindRow() {
+    setFindInline('findRowStatus', '查找中…', false);
+    var raw = $('findRow') ? String($('findRow').value || '').trim() : '';
+    if (!raw) {
+      setFindInline('findRowStatus', '先输入行号。', true);
+      $('findStatus').textContent = '先输入行号。';
       return;
     }
+    var row = parseInt(raw, 10);
+    if (!isFinite(row) || row < 1) {
+      setFindInline('findRowStatus', '行号无效。', true);
+      $('findStatus').textContent = '行号无效。';
+      return;
+    }
+    var selected = selectedFindSheet();
+    var sheet = selected ? sheetByName(selected) : currentSheet();
+    if (!sheet) {
+      var missing = selected ? '找不到工作表：' + selected : '未连接当前工作表。';
+      setFindInline('findRowStatus', missing, true);
+      $('findStatus').textContent = missing;
+      return;
+    }
+    try {
+      var sourceText = '';
+      var targetText = '';
+      try {
+        var sourceCell = sheet.Range(state.settings.sourceCol + row);
+        sourceText = String(sourceCell && sourceCell.Value2 != null ? sourceCell.Value2 : '').trim();
+      } catch (err) { sourceText = ''; }
+      try {
+        var targetCell = sheet.Range(state.settings.targetCol + row);
+        targetText = String(targetCell && targetCell.Value2 != null ? targetCell.Value2 : '').trim();
+      } catch (err) { targetText = ''; }
+      if (!sourceText && !targetText) {
+        renderFind('无文本');
+        setFindInline('findRowStatus', '无文本', true);
+        $('findStatus').textContent = '无文本：' + sheet.Name + ' 第 ' + row + ' 行没有原文或译文。';
+        return;
+      }
+      var address = (sourceText ? state.settings.sourceCol : state.settings.targetCol) + row;
+      var ok = revealCell(sheet, address);
+      setFindInline('findRowStatus', ok ? '已跳转到 ' + sheet.Name + ' ' + address : '跳转失败：' + sheet.Name + ' ' + address, !ok);
+      $('findStatus').textContent = ok
+        ? '已跳转到 ' + sheet.Name + ' 第 ' + row + ' 行（' + address + '）。'
+        : '跳转失败：' + sheet.Name + ' ' + address;
+    } catch (err) {
+      setFindInline('findRowStatus', '查找失败：' + (err && err.message ? err.message : err), true);
+      $('findStatus').textContent = '查找失败：' + (err && err.message ? err.message : err);
+    }
+  }
+
+  function runFindText() {
+    var term = $('findInput').value.trim();
+    setFindInline('findTextStatus', '搜索中…', false);
+    if (!term) {
+      setFindInline('findTextStatus', '先输入要搜索的片段。', true);
+      $('findStatus').textContent = '先输入要搜索的片段。';
+      return;
+    }
+    var mode = $('findMode') ? $('findMode').value : 'fuzzy';
+    var selected = selectedFindSheet();
+    var needle = term.toLowerCase();
+    if (selected) {
+      var onlySheet = sheetByName(selected);
+      if (!onlySheet) { $('findStatus').textContent = '找不到工作表：' + selected; return; }
+      var scoped = scanSheetFor(onlySheet, needle, null, mode);
+      state.findResults = scoped;
+      renderFind(scoped.length ? '' : '无匹配');
+      setFindInline('findTextStatus', scoped.length ? '找到 ' + scoped.length + ' 处' : '无匹配', !scoped.length);
+      $('findStatus').textContent = scoped.length
+        ? '指定工作表 ' + selected + ' 找到 ' + scoped.length + ' 处。'
+        : '无匹配：' + selected + ' 中没有符合条件的内容。';
+      if (scoped.length) scrollFindResults();
+      return;
+    }
+
     var app = sheetApp();
     var book = app && app.ActiveWorkbook;
     if (!book || !book.Worksheets) { $('findStatus').textContent = '未连接工作簿。'; return; }
-    var needle = term.toLowerCase();
-    if (scope.active) {
-      var onlySheet = sheetByName(scope.sheet);
-      if (!onlySheet) { $('findStatus').textContent = '找不到工作表：' + scope.sheet; return; }
-      var scoped = scanSheetFor(onlySheet, needle, scope.row);
-      state.findResults = scoped;
-      renderFind();
-      $('findStatus').textContent = '在 ' + scope.sheet + ' 第 ' + scope.row + ' 行找到 ' + scoped.length + ' 处。';
-      return;
-    }
     var sheets = book.Worksheets;
     var count = 0;
     try { count = sheets.Count; } catch (err) { count = 0; }
@@ -2055,18 +2341,22 @@
     function step() {
       if (index > count || results.length >= 200) {
         state.findResults = results;
-        renderFind();
+        renderFind(results.length ? '' : '无匹配');
         $('btnFindAll').disabled = false;
+        setFindInline('findTextStatus', results.length >= 200
+          ? '已到 200 条上限'
+          : (results.length ? '找到 ' + results.length + ' 处' : '无匹配'), !results.length);
         $('findStatus').textContent = results.length >= 200
           ? '已到 200 条上限，请把片段写长一点。'
-          : '搜索完成：' + results.length + ' 处。';
+          : (results.length ? '全表搜索完成：' + results.length + ' 处。' : '无匹配：全表没有符合条件的内容。');
+        if (results.length) scrollFindResults();
         return;
       }
       var sheet;
       try { sheet = sheets.Item(index); } catch (err) { sheet = null; }
       index += 1;
       if (sheet) {
-        try { results = results.concat(scanSheetFor(sheet, needle)); } catch (err) { /* skip sheet */ }
+        try { results = results.concat(scanSheetFor(sheet, needle, null, mode)); } catch (err) { /* skip sheet */ }
       }
       window.setTimeout(step, 0);
     }
@@ -4106,6 +4396,328 @@
     if (entry) revealCell(entrySheet(entry), navigationColumn() + entry.row);
   }
 
+  var AI_PRESETS = {
+    codex: { model: '', baseUrl: '' },
+    openai: { model: 'gpt-4.1-mini', baseUrl: 'https://api.openai.com/v1' },
+    deepseek: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+    anthropic: { model: 'claude-sonnet-4-5', baseUrl: 'https://api.anthropic.com/v1' },
+    gemini: { model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+    workbuddy: { model: '', baseUrl: '' },
+    openrouter: { model: 'openrouter/auto', baseUrl: 'https://openrouter.ai/api/v1' },
+    groq: { model: 'llama-3.3-70b-versatile', baseUrl: 'https://api.groq.com/openai/v1' },
+    mistral: { model: 'mistral-large-latest', baseUrl: 'https://api.mistral.ai/v1' },
+    xai: { model: 'grok-4', baseUrl: 'https://api.x.ai/v1' },
+    qwen: { model: 'qwen-plus', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+    moonshot: { model: 'moonshot-v1-8k', baseUrl: 'https://api.moonshot.cn/v1' },
+    local: { model: 'qwen2.5:7b', baseUrl: 'http://127.0.0.1:11434/v1' },
+    custom: { model: '', baseUrl: '' }
+  };
+
+  var AI_QUICK_LABELS = {
+    codex: 'Codex CLI（本机）', openai: 'OpenAI', deepseek: 'DeepSeek',
+    anthropic: 'Claude / Anthropic', gemini: 'Google Gemini',
+    workbuddy: 'WorkBuddy', openrouter: 'OpenRouter', groq: 'Groq',
+    mistral: 'Mistral', xai: 'xAI Grok', qwen: 'Qwen', moonshot: 'Moonshot',
+    local: '本地 OpenAI 兼容', custom: '自定义 OpenAI 兼容'
+  };
+
+  function renderAIQuickProviders() {
+    var sel = $('aiQuickProvider');
+    if (!sel) return;
+    sel.textContent = '';
+    Object.keys(AI_PRESETS).forEach(function (key) {
+      var option = document.createElement('option');
+      option.value = key;
+      option.textContent = AI_QUICK_LABELS[key] || key;
+      sel.appendChild(option);
+    });
+  }
+
+  function syncAIQuickProvider(provider) {
+    var sel = $('aiQuickProvider');
+    if (sel && provider) sel.value = provider;
+  }
+
+  var lastMCPContext = '';
+  function loadMCPConfig() {
+    fetch('http://127.0.0.1:8913/mcp-config', { cache: 'no-store' }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (config) {
+      if ($('mcpConfig')) $('mcpConfig').value = JSON.stringify(config, null, 2);
+      if ($('mcpStatus')) $('mcpStatus').textContent = '本机 MCP 服务已就绪';
+    }).catch(function () {
+      if ($('mcpStatus')) $('mcpStatus').textContent = '本机 MCP 网关未启动';
+    });
+  }
+
+  function mcpContextPayload() {
+    var source = String(currentSourceText() || '').trim().slice(0, 4000);
+    var entry = currentEntry();
+    var terms = (state.matchTerms || []).filter(function (term) {
+      return source && String(term.zh || '') && source.indexOf(term.zh) > -1;
+    }).slice(0, 30).map(function (term) { return { source: term.zh, target: term.en }; });
+    return {
+      source: source,
+      target: entry ? String(entry.target || '') : '',
+      row: entry ? entry.row : 0,
+      sheet: entry ? (entry.sheet || '') : (activeSheetName() || ''),
+      targetLang: state.settings.targetLang || 'en',
+      terms: terms
+    };
+  }
+
+  function mcpTick() {
+    if (!document.body.classList.contains('ai-enabled') || document.hidden) return;
+    var payload = mcpContextPayload();
+    var serialized = JSON.stringify(payload);
+    if (serialized !== lastMCPContext && payload.source) {
+      lastMCPContext = serialized;
+      fetch('http://127.0.0.1:8913/plugin/context', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: serialized
+      }).catch(function () { lastMCPContext = ''; });
+    }
+    fetch('http://127.0.0.1:8913/plugin/draft', { cache: 'no-store' }).then(function (response) {
+      return response.ok ? response.json() : {};
+    }).then(function (data) {
+      if (!data || !data.translation) return;
+      var draft = $('entryDraft');
+      if (!draft) return;
+      draft.value = data.translation;
+      draft.dispatchEvent(new Event('input', { bubbles: true }));
+      $('entryCheck').textContent = 'MCP 已填入译文草稿，请核对后点击「写入」。';
+      if ($('mcpStatus')) $('mcpStatus').textContent = '已收到外部 AI 草稿';
+    }).catch(function () { /* gateway not running */ });
+  }
+
+  function detectLocalAI() {
+    var status = $('aiDetectStatus');
+    if (status) status.textContent = '检测本机 AI…';
+    fetch('http://127.0.0.1:8913/detect', { cache: 'no-store' }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (data) {
+      var found = [];
+      if (data.codex && data.codex.available) found.push('Codex CLI');
+      (data.providers || []).forEach(function (provider) {
+        var models = (provider.models || []).slice(0, 3).join(', ');
+        found.push(provider.label + (models ? '（' + models + '）' : ''));
+      });
+      var text = found.length ? '检测到：' + found.join('、') : '未检测到 Ollama / LM Studio / vLLM 等本地模型。';
+      if (data.dsh && data.dsh.running) text += ' DeepSeek Harness 正在运行，但没有本地模型接口。';
+      if (status) status.textContent = text;
+      if (data.dsh && data.dsh.running && $('aiTranslateHint')) {
+        $('aiTranslateHint').textContent = 'AI 会调用当前选择的服务；DeepSeek Harness 本身没有可直连的本地模型 API。';
+      }
+    }).catch(function (err) {
+      if (status) status.textContent = '检测失败：' + (err && err.message ? err.message : err);
+    });
+  }
+
+  function applyAIQuickProvider(provider) {
+    var preset = AI_PRESETS[provider] || { model: '', baseUrl: '' };
+    if ($('aiProvider')) $('aiProvider').value = provider;
+    if ($('aiModel')) $('aiModel').value = preset.model;
+    if ($('aiBaseUrl')) $('aiBaseUrl').value = preset.baseUrl;
+    if ($('aiApiKey')) $('aiApiKey').value = '';
+    setAIStatus('切换到 ' + (AI_QUICK_LABELS[provider] || provider) + '…', false);
+    fetch('http://127.0.0.1:8913/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: provider, model: preset.model, baseUrl: preset.baseUrl })
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) throw new Error(data.message || data.error || ('HTTP ' + response.status));
+        return data;
+      });
+    }).then(function (cfg) {
+      syncAIQuickProvider(cfg.provider);
+      window.__tideAIConfig = cfg;
+      if ($('aiApiKey')) $('aiApiKey').placeholder = cfg.hasKey ? '已保存；留空保持不变' : '未配置';
+      syncAIQuickProvider(cfg.provider || 'codex');
+      window.__tideAIConfig = cfg;
+      setAIStatus((cfg.providerName || cfg.provider) + (cfg.hasKey ? ' · 密钥已保存' : ' · 未配置密钥'), false);
+    }).catch(function (err) {
+      setAIStatus('切换失败：' + (err && err.message ? err.message : err), true);
+    });
+  }
+
+  function applyAIProviderPreset(force) {
+    var provider = $('aiProvider') ? $('aiProvider').value : 'codex';
+    var preset = AI_PRESETS[provider] || { model: '', baseUrl: '' };
+    if (force || !$('aiModel').value) $('aiModel').value = preset.model;
+    if (force || !$('aiBaseUrl').value) $('aiBaseUrl').value = preset.baseUrl;
+    if ($('aiApiKey')) $('aiApiKey').placeholder = provider === 'codex' ? 'Codex 不需要 API Key' : '留空保持已保存的密钥';
+  }
+
+  function setAIStatus(text, bad) {
+    var el = $('aiConfigStatus');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = bad ? 'var(--red)' : 'var(--label-2)';
+  }
+
+  function loadAIConfig() {
+    fetch('http://127.0.0.1:8913/config', { cache: 'no-store' }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (cfg) {
+      if ($('aiProvider')) $('aiProvider').value = cfg.provider || 'codex';
+      if ($('aiModel')) $('aiModel').value = cfg.model || '';
+      if ($('aiBaseUrl')) $('aiBaseUrl').value = cfg.baseUrl || '';
+      if ($('aiApiKey')) $('aiApiKey').value = '';
+      if ($('aiApiKey')) $('aiApiKey').placeholder = cfg.hasKey ? '已保存；留空保持不变' : '未配置';
+      setAIStatus((cfg.providerName || cfg.provider) + (cfg.hasKey ? ' · 密钥已保存' : ' · 未配置密钥'), false);
+    }).catch(function () {
+      setAIStatus('本机 AI 网关未启动：先运行 ./tools/ai-trial.sh start', true);
+    });
+  }
+
+  function saveAIConfig() {
+    if (!$('aiProvider')) return;
+    var body = {
+      provider: $('aiProvider').value,
+      model: $('aiModel') ? $('aiModel').value.trim() : '',
+      baseUrl: $('aiBaseUrl') ? $('aiBaseUrl').value.trim() : ''
+    };
+    if ($('aiApiKey') && $('aiApiKey').value.trim()) body.apiKey = $('aiApiKey').value.trim();
+    setAIStatus('保存中…', false);
+    fetch('http://127.0.0.1:8913/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) throw new Error(data.message || data.error || ('HTTP ' + response.status));
+        return data;
+      });
+    }).then(function (cfg) {
+      if ($('aiApiKey')) { $('aiApiKey').value = ''; $('aiApiKey').placeholder = cfg.hasKey ? '已保存；留空保持不变' : '未配置'; }
+      syncAIQuickProvider(cfg.provider || 'codex');
+      window.__tideAIConfig = cfg;
+      setAIStatus('已保存：' + (cfg.providerName || cfg.provider) + (cfg.hasKey ? ' · 密钥已保存' : ' · 未配置密钥'), false);
+    }).catch(function (err) {
+      setAIStatus('保存失败：' + (err && err.message ? err.message : err), true);
+    });
+  }
+
+  function clearAIKey() {
+    fetch('http://127.0.0.1:8913/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clearKey: true })
+    }).then(function (response) { return response.json(); }).then(function () {
+      if ($('aiApiKey')) { $('aiApiKey').value = ''; $('aiApiKey').placeholder = '未配置'; }
+      setAIStatus('已清除本机保存的 API Key', false);
+    }).catch(function (err) {
+      setAIStatus('清除失败：' + (err && err.message ? err.message : err), true);
+    });
+  }
+
+  function readAIProxyConfig() {
+    return {
+      enabled: (function () { try { return window.localStorage.getItem('tide.aiProxyOn') === '1'; } catch (e) { return false; } })(),
+      url: (function () { try { return String(window.localStorage.getItem('tide.aiProxyUrl') || '').replace(/\/$/, ''); } catch (e) { return ''; } })(),
+      token: (function () { try { return String(window.localStorage.getItem('tide.aiProxyToken') || ''); } catch (e) { return ''; } })()
+    };
+  }
+
+  function loadAIProxySettings() {
+    var cfg = readAIProxyConfig();
+    if ($('useAIProxy')) $('useAIProxy').checked = cfg.enabled;
+    if ($('aiProxyUrl')) $('aiProxyUrl').value = cfg.url;
+    if ($('aiProxyToken')) $('aiProxyToken').value = cfg.token;
+    if ($('aiProxyStatus')) $('aiProxyStatus').textContent = cfg.enabled ? '代理模式已启用' : '直连本机 AI 网关';
+  }
+
+  function saveAIProxySettings() {
+    var enabled = !!($('useAIProxy') && $('useAIProxy').checked);
+    var url = $('aiProxyUrl') ? $('aiProxyUrl').value.trim().replace(/\/$/, '') : '';
+    var token = $('aiProxyToken') ? $('aiProxyToken').value.trim() : '';
+    try {
+      window.localStorage.setItem('tide.aiProxyOn', enabled ? '1' : '0');
+      window.localStorage.setItem('tide.aiProxyUrl', url);
+      window.localStorage.setItem('tide.aiProxyToken', token);
+    } catch (err) { /* storage may be disabled */ }
+    if ($('aiProxyStatus')) $('aiProxyStatus').textContent = enabled
+      ? '代理模式已启用；点「测试连接」检查。'
+      : '已切换到直连本机 AI 网关。';
+  }
+
+  function testAIProxy() {
+    var cfg = readAIProxyConfig();
+    if (!cfg.url) { if ($('aiProxyStatus')) $('aiProxyStatus').textContent = '先填写代理地址'; return; }
+    if ($('aiProxyStatus')) $('aiProxyStatus').textContent = '测试中…';
+    fetch(cfg.url + '/health', { cache: 'no-store' }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (data) {
+      if ($('aiProxyStatus')) $('aiProxyStatus').textContent = '连接正常：' + (data.service || 'Tide AI Proxy');
+    }).catch(function (err) {
+      if ($('aiProxyStatus')) $('aiProxyStatus').textContent = '连接失败：' + (err && err.message ? err.message : err);
+    });
+  }
+
+  function aiTranslateDraft() {
+    if (!document.body.classList.contains('ai-enabled')) {
+      $('entryCheck').textContent = '当前版本未启用 AI 翻译。';
+      return;
+    }
+    var proxy = readAIProxyConfig();
+    var cfg = window.__tideAIConfig || {};
+    var provider = cfg.provider || (($('aiProvider') && $('aiProvider').value) || 'codex');
+    if (proxy.enabled && (!proxy.url || !proxy.token)) {
+      $('entryCheck').textContent = '代理模式缺少代理地址或设备令牌。';
+      return;
+    }
+    if (!proxy.enabled && provider !== 'codex' && provider !== 'local' && !cfg.hasKey) {
+      var providerLabel = (AI_QUICK_LABELS[provider] || provider);
+      var need = providerLabel + ' 未配置 API Key。请在「AI 设置」填写，或改用 MCP 让 Codex 写入草稿。';
+      $('entryCheck').textContent = need;
+      if ($('aiTranslateHint')) $('aiTranslateHint').textContent = need;
+      return;
+    }
+    var source = String(currentSourceText() || '').trim();
+    if (!source) { $('entryCheck').textContent = '原文为空，无法生成译文草稿。'; return; }
+    var draft = $('entryDraft');
+    var button = $('btnAITranslate');
+    var hint = $('aiTranslateHint');
+    var oldText = button ? button.textContent : '';
+    if (button) { button.disabled = true; button.textContent = '生成中…'; }
+    if (hint) hint.textContent = proxy.enabled
+      ? '正在请求 AI 代理平台…'
+      : '正在请求本机 AI，首次调用可能需要约一分钟…';
+    var target = (window.TideLangs && window.TideLangs.get(state.settings.targetLang || 'en').code) || 'en';
+    var controller = window.AbortController ? new AbortController() : null;
+    var timer = controller ? window.setTimeout(function () { controller.abort(); }, 180000) : null;
+    var endpoint = proxy.enabled ? (proxy.url + '/v1/translate') : 'http://127.0.0.1:8913/translate';
+    var headers = { 'Content-Type': 'application/json' };
+    if (proxy.enabled) headers.Authorization = 'Bearer ' + proxy.token;
+    fetch(endpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ text: source, targetLang: target }),
+      signal: controller ? controller.signal : undefined
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) throw new Error(data.message || data.error || ('HTTP ' + response.status));
+        return data;
+      });
+    }).then(function (data) {
+      draft.value = String(data.translation || '');
+      draft.dispatchEvent(new Event('input', { bubbles: true }));
+      draft.focus();
+      $('entryCheck').textContent = 'AI 草稿已生成，请核对后点击「写入」。';
+      if (hint) hint.textContent = 'AI 草稿已生成；只填入草稿框，未写入工作表。';
+    }).catch(function (err) {
+      var detail = err && err.message ? err.message : String(err);
+      var message = err && err.name === 'AbortError'
+        ? 'AI 请求超时。'
+        : ('AI 请求失败：' + detail +
+           (/API Key|配置|not configured/i.test(detail) ? '' : (proxy.enabled ? '。请检查代理地址、令牌和服务器。' : '。请确认本机 AI 网关已启动。')));
+      $('entryCheck').textContent = message;
+      if (hint) hint.textContent = 'AI 未生成草稿：' + message;
+    }).finally(function () {
+      if (timer) window.clearTimeout(timer);
+      if (button) { button.disabled = false; button.textContent = oldText; }
+    });
+  }
+
   function writeDraft(advance) {
     if (syncActiveSheet()) {
       $('entryCheck').textContent = '工作表已切换，条目已更新；请确认后再写入。';
@@ -4270,41 +4882,61 @@
     return row;
   }
 
-  function locateSource() {
-    var entry = currentEntry();
-    var text = currentSourceText().trim() || (entry ? entry.source : '');
-    if (!text) { $('entryCheck').textContent = '先输入要定位的原文。'; return; }
-    $('entryCheck').textContent = '搜索中：' + text.slice(0, 20);
-    searchWorkbookAsync(text, 'source', function (hit) {
-      var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
-      var address = column + hit.row;
-      var ok = revealCell(hit.sheet, address);
-      if (ok) state.navColumn = hit.foundIn === 'target' ? 'target' : 'source';
-      if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
-      var where = (hit.foundIn === 'target' ? '译文列' : '原文列');
-      $('entryCheck').textContent = ok
-        ? '已定位 ' + address + '（' + hit.sheet.Name + ' · ' + where + '）'
-        : '定位失败：请在表格中手动跳到 ' + address;
-    }, function () {
-      $('entryCheck').textContent = '整本工作簿都没有这段文字：' + text.slice(0, 20);
-    });
+  function setLocateStatus(text, bad) {
+    var el = $('locateStatus');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'hint locate-status' + (bad ? ' bad' : '');
+    $('entryCheck').textContent = text || '';
   }
 
   function locateTarget() {
-    // Locate the translation cell belonging to the source currently shown in
-    // the source box, rather than searching the draft translation text.
-    var text = (currentSourceText() || '').trim();
-    if (!text) { $('entryCheck').textContent = '原文为空，没有可定位的译文。'; return; }
-    $('entryCheck').textContent = '按原文定位译文：' + text.slice(0, 20);
-    searchWorkbookAsync(text, 'source', function (hit) {
-      var address = state.settings.targetCol + hit.row;
-      var ok = revealCell(hit.sheet, address);
+    var entry = currentEntry();
+    var sheet = entry ? entrySheet(entry) : null;
+    if (entry && sheet) {
+      var address = entryAddress(entry);
+      setLocateStatus('定位中：译文 ' + address + '…', false);
+      var ok = revealCell(sheet, address);
+      setLocateStatus(ok ? '已定位译文 ' + address + '（' + sheet.Name + '）' : '定位失败：' + address, !ok);
       if (ok) state.navColumn = 'target';
-      $('entryCheck').textContent = ok
-        ? '已定位译文 ' + address + '（' + hit.sheet.Name + '）'
-        : '定位失败：请在表格中手动跳到 ' + address;
+      return;
+    }
+    var text = (currentSourceText() || '').trim();
+    if (!text) { setLocateStatus('原文为空，没有可定位的译文。', true); return; }
+    setLocateStatus('按原文定位译文：' + text.slice(0, 20), false);
+    searchWorkbookAsync(text, 'source', function (hit) {
+      var targetAddress = state.settings.targetCol + hit.row;
+      var found = revealCell(hit.sheet, targetAddress);
+      if (found) state.navColumn = 'target';
+      setLocateStatus(found ? '已定位译文 ' + targetAddress + '（' + hit.sheet.Name + '）' : '定位失败：' + targetAddress, !found);
     }, function () {
-      $('entryCheck').textContent = '整本工作簿都没有这段原文：' + text.slice(0, 20);
+      setLocateStatus('整本工作簿都没有这段原文：' + text.slice(0, 20), true);
+    });
+  }
+
+  function locateSource() {
+    var entry = currentEntry();
+    var sheet = entry ? entrySheet(entry) : null;
+    if (entry && sheet) {
+      var address = (entry.sourceCol || state.settings.sourceCol) + entry.row;
+      setLocateStatus('定位中：原文 ' + address + '…', false);
+      var ok = revealCell(sheet, address);
+      setLocateStatus(ok ? '已定位原文 ' + address + '（' + sheet.Name + '）' : '定位失败：' + address, !ok);
+      if (ok) state.navColumn = 'source';
+      return;
+    }
+    var text = currentSourceText().trim();
+    if (!text) { setLocateStatus('先输入要定位的原文。', true); return; }
+    setLocateStatus('搜索中：' + text.slice(0, 20), false);
+    searchWorkbookAsync(text, 'source', function (hit) {
+      var column = hit.foundIn === 'target' ? state.settings.targetCol : state.settings.sourceCol;
+      var sourceAddress = column + hit.row;
+      var found = revealCell(hit.sheet, sourceAddress);
+      if (found) state.navColumn = hit.foundIn === 'target' ? 'target' : 'source';
+      if (entry && entry.sheet === hit.sheet.Name) entry.row = hit.row;
+      setLocateStatus(found ? '已定位 ' + sourceAddress + '（' + hit.sheet.Name + '）' : '定位失败：' + sourceAddress, !found);
+    }, function () {
+      setLocateStatus('整本工作簿都没有这段文字：' + text.slice(0, 20), true);
     });
   }
 
@@ -4343,62 +4975,6 @@
 
   // ---- workbook import (SheetJS) ----
 
-  function termColumnGroups(header) {
-    var src = [], tgt = [];
-    (header || []).forEach(function (cell, index) {
-      var text = String(cell == null ? '' : cell).trim();
-      if (!text) return;
-      if (/中文|源文|原文|source|^zh$/i.test(text)) src.push(index);
-      else if (/最终英文|确认英文|approved|final|现有英文|英文|current|target|^en$/i.test(text)) tgt.push(index);
-    });
-    var groups = [];
-    src.forEach(function (s) {
-      tgt.forEach(function (t) {
-        if (t <= s) return;
-        groups.push({ source: s, target: t, approved: /最终英文|确认英文|approved|final/i.test(String(header[t] || '')) });
-      });
-    });
-    return groups;
-  }
-
-  function pickTermColumnMap(header, sheetName) {
-    var groups = termColumnGroups(header);
-    var fallback = mapSheetColumns(header);
-    if (!groups.length) return fallback;
-    if (groups.length === 1) {
-      var one = groups[0];
-      var m = { zh: one.source, note: fallback.note };
-      if (one.approved) m.approved = one.target; else m.working = one.target;
-      return m;
-    }
-    var lines = groups.map(function (g, i) {
-      return (i + 1) + '. 原文列 ' + numberToCol(g.source + 1) + ' / 译文列 ' + numberToCol(g.target + 1) +
-        (g.approved ? '（最终译法）' : '');
-    });
-    var answer = window.prompt('术语表「' + sheetName + '」检测到多组原文/译文列，请选择一组：\n\n' +
-      lines.join('\n') + '\n\n输入序号 1-' + groups.length + '。', '1');
-    var n = parseInt(answer, 10);
-    var pick = groups[(isFinite(n) && n >= 1 && n <= groups.length) ? n - 1 : 0];
-    var map = { zh: pick.source, note: fallback.note };
-    if (pick.approved) map.approved = pick.target; else map.working = pick.target;
-    return map;
-  }
-
-  function mapSheetColumns(header) {
-    var map = {};
-    (header || []).forEach(function (cell, index) {
-      var text = String(cell == null ? '' : cell).trim();
-      if (!text) return;
-      if (map.zh === undefined && /中文|源文|原文|source|^zh$/i.test(text)) map.zh = index;
-      else if (map.approved === undefined && /最终英文|确认英文|approved|final/i.test(text)) map.approved = index;
-      else if (map.working === undefined && /现有英文|英文|current|target|^en$/i.test(text)) map.working = index;
-      else if (map.note === undefined && /备注|注释|说明|note|comment/i.test(text)) map.note = index;
-    });
-    if (map.zh === undefined) map.zh = 0;
-    if (map.approved === undefined && map.working === undefined) map.working = 1;
-    return map;
-  }
-
   function termTargetHeaders() {
     var code = state.settings.targetLang || 'en';
     var names = window.TideLangs ? window.TideLangs.headersFor(code) : ['EN'];
@@ -4410,6 +4986,38 @@
     if (!value) return false;
     for (var i = 0; i < headers.length; i += 1) if (value === headers[i]) return true;
     return false;
+  }
+
+  function termColumnGroups(header) {
+    return [];
+  }
+
+  // Termbase headers can have several English columns. Prefer the newest
+  // revision, then the modified revision, then the original.
+  function pickTermColumnMap(header, sheetName) {
+    var map = {};
+    var latest = [];
+    var modified = [];
+    var original = [];
+    (header || []).forEach(function (cell, index) {
+      var text = String(cell == null ? '' : cell).trim();
+      if (!text) return;
+      if (map.zh === undefined && /中文词条|中文|源文|原文|source|^zh$/i.test(text)) map.zh = index;
+      else if (/最新修改英文|最新英文|最新译文|latest|newest/i.test(text)) latest.push(index);
+      else if (/原表已修改英文|已修改英文|修改英文|modified/i.test(text)) modified.push(index);
+      else if (/原有英文|原英文|现有英文|英文|english|^en$/i.test(text)) original.push(index);
+      else if (map.note === undefined && /备注|注释|说明|note|comment/i.test(text)) map.note = index;
+    });
+    if (map.zh === undefined) map.zh = 0;
+    if (latest.length) map.approved = latest[0];
+    if (modified.length) map.modified = modified[0];
+    if (original.length) map.working = original[0];
+    if (map.approved === undefined && map.modified === undefined && map.working === undefined) map.working = 1;
+    return map;
+  }
+
+  function mapSheetColumns(header) {
+    return pickTermColumnMap(header, '');
   }
 
   function parseWorkbook(buffer) {
@@ -4477,10 +5085,11 @@
         var line2 = rows[r] || [];
         var zh = String(line2[map.zh] == null ? '' : line2[map.zh]).trim();
         var target = '';
-        if (map.approved !== undefined && String(line2[map.approved] == null ? '' : line2[map.approved]).trim()) {
-          target = String(line2[map.approved]).trim();
-        } else if (map.working !== undefined) {
-          target = String(line2[map.working] == null ? '' : line2[map.working]).trim();
+        var targetIndexes = [map.approved, map.modified, map.working];
+        for (var ti = 0; ti < targetIndexes.length; ti += 1) {
+          if (targetIndexes[ti] === undefined) continue;
+          var candidate = String(line2[targetIndexes[ti]] == null ? '' : line2[targetIndexes[ti]]).trim();
+          if (candidate) { target = candidate; break; }
         }
         addTerm(zh, target, name);
       }
@@ -5867,39 +6476,84 @@
         $('settingsStatus').textContent = '已填入第 ' + letter + ' 列，记得点「保存设置」。';
       });
     }
-    $('btnFindAll').addEventListener('click', runFind);
-    if ($('findScopeTabs')) {
-      $('findScopeTabs').addEventListener('click', function (event) {
-        var btn = event.target.closest('button[data-find-tab]');
-        if (btn) setFindScopeTab(btn.dataset.findTab);
+    $('btnFindAll').addEventListener('click', runFindText);
+    if ($('findSheet')) $('findSheet').addEventListener('change', function () {
+      syncFindSheetPicker();
+      updateFindScopeSummary();
+    });
+    if ($('findSheetInput')) {
+      var sheetPicker = $('findSheetPicker');
+      var sheetInput = $('findSheetInput');
+      var sheetMenu = $('findSheetMenu');
+      sheetInput.addEventListener('focus', openFindSheetMenu);
+      sheetInput.addEventListener('click', openFindSheetMenu);
+      sheetInput.addEventListener('input', function () {
+        var value = '';
+        var sel = $('findSheet');
+        for (var i = 0; i < sel.options.length; i += 1) {
+          if (String(sel.options[i].textContent || '').toLowerCase() === this.value.trim().toLowerCase()) {
+            value = sel.options[i].value;
+            break;
+          }
+        }
+        sel.value = value;
+        updateFindScopeSummary();
+        if (sheetMenu) {
+          renderFindSheetMenu(this.value);
+          sheetMenu.hidden = false;
+        }
+      });
+      sheetInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          if (sheetMenu) sheetMenu.hidden = true;
+          syncFindSheetPicker();
+        }
+      });
+      sheetInput.addEventListener('blur', function () {
+        window.setTimeout(function () {
+          if (sheetPicker && sheetPicker.contains(document.activeElement)) return;
+          if (sheetMenu) sheetMenu.hidden = true;
+          syncFindSheetPicker();
+        }, 120);
+      });
+      document.addEventListener('click', function (event) {
+        if (!sheetPicker || sheetPicker.contains(event.target)) return;
+        if (sheetMenu) sheetMenu.hidden = true;
       });
     }
-    if ($('findSheet')) $('findSheet').addEventListener('change', updateFindScopeSummary);
     if ($('findRow')) {
       $('findRow').addEventListener('input', updateFindScopeSummary);
-      $('findRow').addEventListener('keydown', function (event) { if (event.key === 'Enter') runFind(); });
+      $('findRow').addEventListener('keydown', function (event) { if (event.key === 'Enter') runFindRow(); });
     }
-    if ($('btnFindJumpSource')) $('btnFindJumpSource').addEventListener('click', function () {
-      var scope = readFindScope();
-      if (!scope.active) {
-        $('findStatus').textContent = '先同时选择工作表和输入行号，再跳转。';
-        return;
-      }
-      var sheet = sheetByName(scope.sheet);
-      if (!sheet) { $('findStatus').textContent = '找不到工作表：' + scope.sheet; return; }
-      var address = state.settings.sourceCol + scope.row;
-      $('findStatus').textContent = revealCell(sheet, address)
-        ? '已跳转到 ' + scope.sheet + ' ' + address
-        : '跳转失败：' + scope.sheet + ' ' + address;
-    });
+    if ($('findInput')) {
+      $('findInput').addEventListener('keydown', function (event) { if (event.key === 'Enter') runFindText(); });
+    }
+    if ($('btnFindJumpSource')) $('btnFindJumpSource').addEventListener('click', runFindRow);
     if ($('btnFindClearScope')) $('btnFindClearScope').addEventListener('click', function () {
       if ($('findSheet')) $('findSheet').value = '';
       if ($('findRow')) $('findRow').value = '';
+      syncFindSheetPicker();
       updateFindScopeSummary();
-      $('findStatus').textContent = '已清除定位范围。';
+      state.findResults = [];
+      renderFind('已清除工作表选择；行号使用当前页，文本搜索全表。');
+      setFindInline('findRowStatus', '', false);
+      setFindInline('findTextStatus', '', false);
+      $('findStatus').textContent = '已清除工作表选择。';
     });
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
+    ['termColSource', 'termColTarget', 'termColUid'].forEach(function (id) {
+      var field = $(id);
+      if (!field) return;
+      field.addEventListener('input', function () {
+        this.value = normalizeColumnLetter(this.value);
+        markTermColumnsManual();
+      });
+      field.addEventListener('change', function () {
+        this.value = normalizeColumnLetter(this.value);
+        markTermColumnsManual();
+      });
+    });
     $('btnProjectScan').addEventListener('click', analyzeWorkbook);
     $('btnKeySearch').addEventListener('click', runKeySearch);
     $('keyQuery').addEventListener('keydown', function (event) {
@@ -6000,9 +6654,6 @@
     $('btnRepPreview').addEventListener('click', previewBatch);
     $('btnRepApply').addEventListener('click', applyBatch);
     $('btnRepUndo').addEventListener('click', undoBatch);
-    $('findInput').addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') runFind();
-    });
     $('btnRefreshEntries').addEventListener('click', function () {
       state.sheetMismatch = '';
       state.workbookMemory = null;
@@ -6024,6 +6675,35 @@
     $('btnPrevEntry').addEventListener('click', function () { navigateEntry(-1); });
     $('btnNextEntry').addEventListener('click', function () { navigateEntry(1); });
     $('btnWriteDraft').addEventListener('click', function () { writeDraft(false); });
+    if ($('btnAITranslate')) $('btnAITranslate').addEventListener('click', aiTranslateDraft);
+    renderAIQuickProviders();
+    if ($('aiProvider')) $('aiProvider').addEventListener('change', function () { applyAIProviderPreset(true); });
+    if ($('aiQuickProvider')) $('aiQuickProvider').addEventListener('change', function () { applyAIQuickProvider(this.value); });
+    if ($('btnAISaveConfig')) $('btnAISaveConfig').addEventListener('click', saveAIConfig);
+    if ($('btnAIClearKey')) $('btnAIClearKey').addEventListener('click', clearAIKey);
+    if ($('btnAIDetect')) $('btnAIDetect').addEventListener('click', detectLocalAI);
+    loadAIProxySettings();
+    if ($('btnSaveAIProxy')) $('btnSaveAIProxy').addEventListener('click', saveAIProxySettings);
+    if ($('btnTestAIProxy')) $('btnTestAIProxy').addEventListener('click', testAIProxy);
+    if ($('btnCopyMCP')) $('btnCopyMCP').addEventListener('click', function () {
+      var text = $('mcpConfig') ? $('mcpConfig').value : '';
+      if (!text) { $('mcpStatus').textContent = 'MCP 配置尚未加载'; return; }
+      copyText(text).then(function (ok) {
+        $('mcpStatus').textContent = ok ? 'MCP 配置已复制' : '复制失败，请手动选择文本';
+      });
+    });
+    loadMCPConfig();
+    window.setInterval(mcpTick, 1500);
+    if ($('btnAISettings')) $('btnAISettings').addEventListener('click', function () {
+      showTab('settings');
+      window.setTimeout(function () {
+        if ($('aiProvider')) {
+          $('aiProvider').focus();
+          try { $('aiProvider').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) { /* ignore */ }
+        }
+      }, 80);
+    });
+    loadAIConfig();
     $('btnWriteNext').addEventListener('click', writeAndNext);
     $('entrySource').addEventListener('input', function () {
       try {
@@ -6293,7 +6973,11 @@
       if (state.lastTab === 'review') renderReview();
     });
     watchRibbon();
-    if (sheetApp()) window.setInterval(syncActiveSheet, 1200);
+    if (sheetApp()) {
+      window.setInterval(syncActiveSheet, 1200);
+      window.setInterval(watchFindScope, 1000);
+    }
+    loadFeatureFlags();
     checkForUpdate();
     window.setInterval(checkForUpdate, 30000);
     // A pane that was hidden while the app was in the background should check
