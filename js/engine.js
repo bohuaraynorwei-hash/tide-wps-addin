@@ -38,6 +38,29 @@
     };
   }
 
+  /**
+   * Parse the agreed TXT termbase format:
+   * UTF-8 with BOM, CRLF lines, one `source<TAB>target` pair per line.
+   * A UTF-8 BOM and CR/LF are tolerated on any platform.
+   */
+  function parseTermTxt(text, targetLang) {
+    var raw = String(text == null ? '' : text).replace(/^\uFEFF/, '');
+    var fallbackLang = String(targetLang || 'en');
+    var rows = [];
+    raw.split(/\r\n|\n|\r/).forEach(function (line) {
+      if (!line.trim()) return;
+      var parts = line.split('\t');
+      var zh = String(parts[0] || '').trim();
+      var en = String(parts[1] || '').trim();
+      if (!zh || !en) return;
+      if (/^(source|term|中文|原文)$/i.test(zh) && /^(target|translation|英文|译文)$/i.test(en)) return;
+      var lang = String(parts[2] || fallbackLang).trim() || fallbackLang;
+      if (!/^[a-z]{2,3}(-[a-z]{2,4})?$/i.test(lang)) lang = fallbackLang;
+      rows.push({ zh: zh, en: en, lang: lang });
+    });
+    return parseTermbase(rows);
+  }
+
   /** Accept an array, {terms:[...]}, or {entries:[...]} and return clean terms. */
   function parseTermbase(input) {
     var list = [];
@@ -283,6 +306,7 @@
     tokens: tokens,
     checkTokens: checkTokens,
     parseTermbase: parseTermbase,
+    parseTermTxt: parseTermTxt,
     findMatches: findMatches,
     scanRows: scanRows,
     groupByTerm: groupByTerm,

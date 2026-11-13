@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=20261112092928">
+  <link rel="stylesheet" href="tide.css?b=20261113094705">
 </head>
 <body>
   <header class="bar">
@@ -493,7 +493,7 @@
           <span class="count" id="localTermState">未导入本地术语</span>
         </div>
         <div class="hint" id="nasCacheState"></div>
-        <input id="localTermFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <input id="localTermFile" type="file" hidden>
         <div class="hint" id="localTermHint" data-i18n="term.localHint">NAS 未连接时可在此导入，只保存在本机。连接 NAS 后以 NAS 项目术语表为准，本地术语表自动隐藏。</div>
       </div>
       <div class="field">
@@ -527,7 +527,7 @@
         <thead><tr><th>中文</th><th id="termTargetHeader">英文</th><th>命中</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="empty" id="termEmpty" data-i18n="term.empty">尚未导入术语表。NAS 未连接时可在上方「导入本地术语」导入 JSON 或 xlsx。</div>
+      <div class="empty" id="termEmpty" data-i18n="term.empty">尚未导入术语表。NAS 未连接时可在上方「导入本地术语」导入 JSON、xlsx 或 TXT。</div>
     </section>
 
     <section id="panel-history" hidden>
@@ -662,14 +662,14 @@
         <div class="hint" data-i18n="settings.projectHint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
       </div>
       <div class="field">
-        <label data-i18n="settings.importLabel">导入术语表（JSON / XLSX）</label>
-        <input id="termFile" type="file" hidden accept=".json,.xlsx,.xls,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <label data-i18n="settings.importLabel">导入术语表（JSON / XLSX / TXT）</label>
+        <input id="termFile" type="file" hidden>
         <div class="toolbar">
           <button class="act ghost" id="btnTermFile" type="button" data-i18n="file.choose">选择文件</button>
           <span class="hint" id="termFileName" data-i18n="file.none">未选择任何文件</span>
         </div>
       </div>
-      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls 与 JSON。也支持完整本地化表：自动识别多组源文/目标列，按目标语言导入。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
+      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls、JSON 与 TXT。TXT 使用 UTF-8 BOM + CRLF，每行“源语 TAB 译文 [TAB 语言代码]”；语言代码缺省时使用当前目标语言。也支持完整本地化表：自动识别多组源文/目标列，按目标语言导入。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
       <div class="field">
         <label id="columnsLabel">列设置（用于当前表）</label>
         <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：A=UID，C=中文原文，F=目标语言译文。</div>
@@ -754,6 +754,7 @@
         <button class="act" id="btnSave">保存设置</button>
         <button class="act ghost" id="btnResetTerms">恢复内置术语表</button>
         <button class="act ghost" id="btnExportTerms">导出术语表 JSON</button>
+        <button class="act ghost" id="btnExportTermsTxt">导出术语表 TXT</button>
       </div>
       <div class="field" id="termsUnlockBlock" hidden>
         <label>术语表口令（加密包）</label>
@@ -792,9 +793,9 @@
   <script src="../js/crypto.js"></script>
   <script src="i18n-static.js?b=202611052037"></script>
   <script src="i18n-patch.js?b=202611052037"></script>
-  <script src="i18n.js?b=20261112092928"></script>
+  <script src="i18n.js?b=20261113094705"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=20261112092928"></script>
-  <script src="onboarding.js?b=20261112092928"></script>
+  <script src="tide.js?b=20261113094705"></script>
+  <script src="onboarding.js?b=20261113094705"></script>
 </body>
 </html>

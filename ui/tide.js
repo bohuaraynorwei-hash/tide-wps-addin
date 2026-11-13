@@ -1295,17 +1295,27 @@
 
   function importLocalTermsFile(file, done) {
     if (!file) return;
+    if (!/\.(json|xlsx|xls|txt)$/i.test(file.name)) {
+      var unsupported = new Error('仅支持 JSON、XLSX、XLS、TXT 术语文件。');
+      if (done) done(null, null, unsupported);
+      else showToast(unsupported.message);
+      return;
+    }
     if (state.nas && (state.nas.token || state.nas.termProject)) {
       showToast('NAS 术语库优先，请断开 NAS 后再导入本地术语');
       return;
     }
     var isSheet = /\.(xlsx|xls)$/i.test(file.name);
+    var isTxt = /\.txt$/i.test(file.name);
     var reader = new FileReader();
     reader.onload = function () {
       try {
         var parsed = isSheet
           ? parseWorkbook(reader.result)
-          : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+          : isTxt
+            ? window.TideEngine.parseTermTxt(String(reader.result), state.settings.targetLang || 'en')
+            : window.TideEngine.parseTermbase(JSON.parse(String(reader.result)));
+        if (!parsed.length) throw new Error('没有解析到有效术语；TXT 每行需要“源语 TAB 译文”。');
         var langCode = state.settings.targetLang || 'en';
         var terms = parsed.map(function (term) {
           term.lang = term.lang || langCode;
@@ -6421,6 +6431,23 @@
       link.download = 'tide-terms.json';
       link.click();
       URL.revokeObjectURL(link.href);
+    });
+    if ($('btnExportTermsTxt')) $('btnExportTermsTxt').addEventListener('click', function () {
+      if (!state.terms.length) {
+        $('settingsStatus').textContent = '当前没有可导出的术语。';
+        return;
+      }
+      var lines = state.terms.map(function (term) {
+        return String(term.zh || '').replace(/[\t\r\n]+/g, ' ') + '\t' +
+               String(term.en || '').replace(/[\t\r\n]+/g, ' ');
+      });
+      var blob = new Blob(['\uFEFF' + lines.join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'tide-terms.txt';
+      link.click();
+      URL.revokeObjectURL(link.href);
+      $('settingsStatus').textContent = '已导出 TXT：UTF-8 BOM + CRLF，' + lines.length + ' 条。';
     });
     $('btnCopySource').addEventListener('click', function () {
       var entry = currentEntry();
