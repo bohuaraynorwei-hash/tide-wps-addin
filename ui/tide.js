@@ -53,7 +53,7 @@
     tm: [],
     qaFindings: [],
     qaMode: '全部检查',
-    nas: { base: 'https://192.168.23.232:8443', token: '', user: '', projects: [], pid: null,
+    nas: { base: 'https://192.168.22.238:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
       termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null, cacheProject: '',
       tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
@@ -5371,7 +5371,7 @@
     try {
       return new URL(state.nas.base).origin + "/";
     } catch (err) {
-      return "https://192.168.23.232:8443/";
+      return "https://192.168.22.238:8443/";
     }
   }
 
