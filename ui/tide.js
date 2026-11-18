@@ -31,7 +31,7 @@
 
   var state = {
     terms: [],
-    settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', uidCol: 'A', targetLang: 'en' },
+    settings: { sourceCol: 'C', targetCol: 'F', oldCol: 'E', targetLang: 'en' },
     perSheetCols: {},
     scanned: [],
     termSheetRows: [],
@@ -323,7 +323,7 @@
 
   // Real export sheets often carry 2-3 header rows ("导出标记", "标记字段",
   // "字段解释") before data. Treat every leading header-ish row as header.
-  var HEADER_RX = /^(source(\s*text)?(\s*\(old\))?|name|title|desc|weight|en(\s*\(old\))?|字段解释|标记字段|导出标记|中文|原文|备注|uid|ui)$/i;
+  var HEADER_RX = /^(source(\s*text)?(\s*\(old\))?|name|title|desc|weight|en(\s*\(old\))?|字段解释|标记字段|导出标记|中文|原文|备注)$/i;
 
   function detectHeaderEnd(grid) {
     var last = -1;
@@ -613,7 +613,6 @@
     var startCol = Number(used.Column) || 1;
     var srcIdx = colToNumber(state.settings.sourceCol) - startCol;
     var tgtIdx = colToNumber(state.settings.targetCol) - startCol;
-    var uidIdx = colToNumber(state.settings.uidCol) - startCol;
     var headerAt = detectHeaderEnd(grid);
 
     // Explicit user mapping wins. Otherwise the header is the source of truth:
@@ -655,7 +654,6 @@
           oldCol: group.oldCol,
           missingTarget: !!group.missingTarget,
           blocked: !!group.blocked,
-          uid: uidIdx >= 0 ? cellText(grid, r, uidIdx) : '',
           source: source,
           // A blocked group has no EN column; never mirror the neighbour's text.
           target: group.blocked ? '' : (groupTgt >= 0 ? cellText(grid, r, groupTgt) : '')
@@ -834,20 +832,16 @@
   function syncTermColumns() {
     if ($('termColSource')) $('termColSource').value = state.settings.sourceCol || 'C';
     if ($('termColTarget')) $('termColTarget').value = state.settings.targetCol || 'F';
-    if ($('termColUid')) $('termColUid').value = state.settings.uidCol || 'A';
   }
 
   function readTermColumns() {
     var src = (($('termColSource') && $('termColSource').value) || state.settings.sourceCol || 'C').toUpperCase();
     var tgt = (($('termColTarget') && $('termColTarget').value) || state.settings.targetCol || 'F').toUpperCase();
-    var uid = (($('termColUid') && $('termColUid').value) || state.settings.uidCol || 'A').toUpperCase();
     state.settings.sourceCol = src;
     state.settings.targetCol = tgt;
-    state.settings.uidCol = uid;
     writeJSON(K.settings, state.settings);
     if ($('colSource')) $('colSource').value = src;
     if ($('colTarget')) $('colTarget').value = tgt;
-    if ($('colUid')) $('colUid').value = uid;
     return { src: src, tgt: tgt };
   }
 
@@ -1060,7 +1054,6 @@
     // payload compact; if localStorage quota is exceeded, use IndexedDB.
     var compact = (state.terms || []).map(function (term) {
       var item = { zh: term.zh, en: term.en, lang: term.lang || 'en', status: term.status || 'approved' };
-      if (term.uid) item.uid = term.uid;
       if (term.variants && term.variants.length) item.variants = term.variants;
       return item;
     });
@@ -1696,7 +1689,7 @@
     return dir + '/' + name;
   }
 
-  // Full workbook copy: SaveCopyAs preserves original sheets, headers, UID/Key
+  // Full workbook copy: SaveCopyAs preserves original sheets and headers
   // columns and layout. The copy is then reduced to modified data rows only.
   function exportSessionWorkbook() {
     var edits = sessionEditRows();
@@ -1989,7 +1982,7 @@
           if (String(row.source || '').trim() && String(row.target || '').trim()) {
             memory.push({
               source: row.source, target: row.target, row: row.row,
-              sheet: result.sheetName, uid: row.uid || ''
+              sheet: result.sheetName
             });
           }
         });
@@ -2011,7 +2004,7 @@
       if (item.sheet === sheetName && item.row === row && item.source === text) { found = item; break; }
     }
     if (found) found.target = target;
-    else state.workbookMemory.push({ source: text, target: target, row: row, sheet: sheetName, uid: '' });
+    else state.workbookMemory.push({ source: text, target: target, row: row, sheet: sheetName });
     state.memory = state.workbookMemory;
   }
 
@@ -3616,7 +3609,6 @@
     state.settings = Object.assign({}, state.settings, profile.columns || {});
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
-    $('colUid').value = state.settings.uidCol;
     if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
     if ($('targetLang') && window.TideLangs) {
       var select = $('targetLang');
@@ -6320,7 +6312,6 @@
       state.settings = {
         sourceCol: $('colSource').value.toUpperCase() || 'C',
         targetCol: $('colTarget').value.toUpperCase() || 'F',
-        uidCol: $('colUid').value.toUpperCase() || 'A',
         oldCol: ($('colOld') && $('colOld').value.toUpperCase()) || 'E',
         targetLang: ($('targetLang') && $('targetLang').value) || state.settings.targetLang || 'en'
       };
@@ -6569,7 +6560,7 @@
     });
     var refreshTerms = $('btnRefreshTerms');
     if (refreshTerms) refreshTerms.addEventListener('click', refreshTermsFromSheet);
-    ['termColSource', 'termColTarget', 'termColUid'].forEach(function (id) {
+    ['termColSource', 'termColTarget'].forEach(function (id) {
       var field = $(id);
       if (!field) return;
       field.addEventListener('input', function () {
@@ -6860,7 +6851,6 @@
     }
     $('colSource').value = state.settings.sourceCol;
     $('colTarget').value = state.settings.targetCol;
-    $('colUid').value = state.settings.uidCol;
     if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
     if ($('targetLang') && window.TideLangs) {
       var select = $('targetLang');
@@ -6879,8 +6869,7 @@
       state.settings = Object.assign({}, state.settings, profile.columns);
       $('colSource').value = state.settings.sourceCol;
       $('colTarget').value = state.settings.targetCol;
-      $('colUid').value = state.settings.uidCol;
-      if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
+        if ($('colOld')) $('colOld').value = state.settings.oldCol || 'E';
     if ($('targetLang') && window.TideLangs) {
       var select = $('targetLang');
       select.textContent = '';

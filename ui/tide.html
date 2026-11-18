@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=20261116102112">
+  <link rel="stylesheet" href="tide.css?b=20261118102856">
 </head>
 <body>
   <header class="bar">
@@ -498,7 +498,7 @@
       </div>
       <div class="field">
         <label>本页列映射</label>
-        <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="colrow" style="grid-template-columns:1fr 1fr;gap:8px">
           <div class="colfield">
             <label>源文列</label>
             <input id="termColSource" placeholder="C" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
@@ -506,10 +506,6 @@
           <div class="colfield">
             <label>译文列</label>
             <input id="termColTarget" placeholder="F" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
-          </div>
-          <div class="colfield">
-            <label>UID 列</label>
-            <input id="termColUid" placeholder="A" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
           </div>
         </div>
         <div class="hint" style="margin-top:6px" data-i18n="term.columnHint">改完点「刷新」按新列重新统计命中；这里只影响命中统计，不改术语表内容。</div>
@@ -672,7 +668,7 @@
       <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls、JSON 与 TXT。TXT 使用 UTF-8 BOM + CRLF，每行“源语 TAB 译文 [TAB 语言代码]”；语言代码缺省时使用当前目标语言。也支持完整本地化表：自动识别多组源文/目标列，按目标语言导入。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
       <div class="field">
         <label id="columnsLabel">列设置（用于当前表）</label>
-        <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：A=UID，C=中文原文，F=目标语言译文。</div>
+        <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：C=中文原文，F=目标语言译文。</div>
         <div class="colrow">
           <div class="colfield">
             <label>源文列（中文）</label>
@@ -689,11 +685,7 @@
             <div class="colinput"><input id="colOld" placeholder="E"><button class="act ghost" data-col="colOld">用当前列</button></div>
             <div class="hint">写入新译文前，旧值自动存到这里，可用于回退。</div>
           </div>
-          <div class="colfield">
-            <label>UID 列（可选）</label>
-            <div class="colinput"><input id="colUid" placeholder="A"><button class="act ghost" data-col="colUid">用当前列</button></div>
-            <div class="hint">只用于结果显示与追溯，可以留空。</div>
-          </div>
+
         </div>
       </div>
       <div id="aiSettingsSection">
@@ -793,9 +785,9 @@
   <script src="../js/crypto.js"></script>
   <script src="i18n-static.js?b=202611052037"></script>
   <script src="i18n-patch.js?b=202611052037"></script>
-  <script src="i18n.js?b=20261116102112"></script>
+  <script src="i18n.js?b=20261118102856"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=20261116102112"></script>
-  <script src="onboarding.js?b=20261116102112"></script>
+  <script src="tide.js?b=20261118102856"></script>
+  <script src="onboarding.js?b=20261118102856"></script>
 </body>
 </html>
