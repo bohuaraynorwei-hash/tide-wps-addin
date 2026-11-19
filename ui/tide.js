@@ -56,7 +56,7 @@
     nas: { base: 'https://192.168.22.238:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
       termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null, cacheProject: '',
-      tasks: [], tasksLoading: false, jumpStarted: false, jumpBusy: false },
+      tasks: [], tasksLoading: false, activeTask: null, jumpStarted: false, jumpBusy: false },
     preNasTerms: null, preNasMeta: null,
     pendingTranslateFocus: null,
     gridRows: [],
@@ -917,25 +917,6 @@
       var tr = document.createElement('tr');
       tr.appendChild(textNode('td', row.source || ''));
       tr.appendChild(textNode('td', row.target || '—'));
-      var hits = 0;
-      (state.scanned || []).forEach(function (scan) {
-        if (scan.row !== row.row) return;
-        scan.matches.forEach(function (match) {
-          if (String(match.zh) === String(row.source)) hits += 1;
-        });
-      });
-      tr.appendChild(textNode('td', hits ? String(hits) : '—', 'num'));
-      var td = document.createElement('td');
-      if (row.target) {
-        var use = document.createElement('button');
-        use.className = 'act ghost';
-        use.textContent = '采用';
-        use.addEventListener('click', function () {
-          adoptIntoDraft(row.target, String(row.source || '').slice(0, 24) + ' → ' + row.target);
-        });
-        td.appendChild(use);
-      }
-      tr.appendChild(td);
       tr.classList.add('rowlink');
       tr.addEventListener('click', function (event) {
         if (event.target && event.target.tagName === 'BUTTON') return;
@@ -967,13 +948,6 @@
       return;
     }
     var result = filterTerms(query);
-    var counts = {};
-    (state.scanned || []).forEach(function (row) {
-      row.matches.forEach(function (m) {
-        var key = m.zh + '\u0000' + m.en;
-        counts[key] = (counts[key] || 0) + 1;
-      });
-    });
     var rows = result.rows.slice(0, 300);
     $('termCount').textContent = (query
       ? trFormat('term.filteredCount', '{shown} / {total} 条', { shown: rows.length, total: total }) + (result.fuzzy ? ' · ' + tr('term.fuzzy', '近似匹配') : '')
@@ -985,23 +959,6 @@
       var tr = document.createElement('tr');
       tr.appendChild(textNode('td', term.zh || ''));
       tr.appendChild(textNode('td', term.en || '—'));
-      var hits = counts[(term.zh || '') + '\u0000' + (term.en || '')] || 0;
-      var hitCell = textNode('td', hits ? String(hits) : '—', 'num');
-      if (term.status === 'needs_review') {
-        hitCell = textNode('td', '待确认', 'num');
-        hitCell.style.color = 'var(--orange)';
-      }
-      tr.appendChild(hitCell);
-      var td = document.createElement('td');
-      var use = document.createElement('button');
-      use.className = 'act ghost';
-      use.textContent = '采用';
-      use.addEventListener('click', function () {
-        var termLabel = String(term.zh || '').slice(0, 24) + ' → ' + (term.en || '');
-        adoptIntoDraft(term.en || '', termLabel);
-      });
-      td.appendChild(use);
-      tr.appendChild(td);
       tr.classList.add('rowlink');
       tr.addEventListener('click', function (event) {
         if (event.target && event.target.tagName === 'BUTTON') return;
@@ -5606,14 +5563,213 @@
         if (hint) hint.textContent = '提交失败：' + ((result && result.error) || '未知错误');
         return;
       }
-      var doneMessage = result.changed
-        ? ('已提交，同步 ' + result.changed + ' 处修改到 NAS')
-        : '已提交，没有需要同步的修改。';
+      var completed = await nasFetch('/api/tasks/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: task.project_id,
+          lang: task.lang,
+          job_id: task.job_id || 0,
+          doc: task.doc || '',
+          kind: task.kind || 'segments'
+        })
+      });
+      var updated = completed && completed.updated ? completed.updated : 0;
+      var doneMessage = '已提交，标记 ' + updated + ' 条为已完成';
+      if (result.changed) doneMessage += '，同步 ' + result.changed + ' 处修改';
       await loadNasTasks();
       if (hint) hint.textContent = doneMessage;
     } catch (err) {
       if (hint) hint.textContent = '提交失败：' + err.message;
     }
+  }
+
+  async function fetchAllTaskItems(task) {
+    var items = [], offset = 0, total = 0;
+    do {
+      var q = new URLSearchParams();
+      q.set('kind', task.kind || 'segments');
+      q.set('project_id', String(task.project_id || 0));
+      q.set('job_id', String(task.job_id || 0));
+      q.set('doc', task.doc || '');
+      q.set('lang', task.lang || '');
+      q.set('offset', String(offset));
+      q.set('limit', '100');
+      var data = await nasFetch('/api/tasks/items?' + q.toString());
+      var batch = data.items || [];
+      total = data.total != null ? data.total : (offset + batch.length);
+      items = items.concat(batch);
+      offset += batch.length;
+      if (!batch.length) break;
+    } while (offset < total && items.length < 5000);
+    return items;
+  }
+
+  async function pullTask(task, options) {
+    var silent = !!(options && options.silent);
+    var hint = silent ? null : $('taskHint');
+    var sheet = (task.doc && sheetByName(task.doc)) || currentSheet();
+    if (!sheet) { if (hint) hint.textContent = '没有打开的表格，无法拉取增量。'; return; }
+    var used = sheet.UsedRange;
+    if (!used) { if (hint) hint.textContent = '当前工作表为空，无法确定源文/译文列。'; return; }
+    var grid = toGrid(used.Value2);
+    if (!grid.length) { if (hint) hint.textContent = '当前工作表为空。'; return; }
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var headerAt = detectHeaderEnd(grid);
+    var header = headerAt >= 0 ? (grid[headerAt] || []) : [];
+    var group = state.perSheetCols[sheet.Name] ||
+      { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
+    // The saved mapping may come from another sheet/workbook. Prefer a header
+    // match when the saved columns fall outside this UsedRange.
+    var srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+    var tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+    if (srcIdx < 0 || tgtIdx < 0) {
+      var detectedSrc = -1, detectedTgt = -1;
+      header.forEach(function (cell, idx) {
+        var t = String(cell == null ? '' : cell).trim();
+        if (detectedSrc < 0 && /^(source\s*text|source|原文|源文|msgid)$/i.test(t)) detectedSrc = idx;
+        if (detectedTgt < 0 && /^(en|english|译文|target)$/i.test(t) && !/old|旧/i.test(t)) detectedTgt = idx;
+      });
+      if (detectedSrc >= 0) group.sourceCol = numberToCol(startCol + detectedSrc);
+      if (detectedTgt >= 0) group.targetCol = numberToCol(startCol + detectedTgt);
+      srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+      tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+    }
+    if (srcIdx < 0 || tgtIdx < 0 || group.sourceCol === group.targetCol) {
+      if (hint) hint.textContent = '当前列映射超出工作表范围；请先点「识别/选择列」设置原文列和译文列。';
+      return;
+    }
+    var uidCol = -1, keyCol = -1;
+    header.forEach(function (cell, idx) {
+      var t = String(cell == null ? '' : cell).trim().toLowerCase().replace(/[\s_()（）-]/g, '');
+      if (uidCol < 0 && (t === 'uid' || t === 'uuid' || t === '唯一id' || t === '唯一标识')) uidCol = numberToCol(startCol + idx);
+      if (keyCol < 0 && (t === 'key' || t === 'itemkey' || t === '完整key' || t === '业务key')) keyCol = numberToCol(startCol + idx);
+    });
+    var existingSources = {}, existingUids = {}, existingKeys = {};
+    for (var r = headerAt + 1; r < grid.length; r += 1) {
+      var src = cellText(grid, r, srcIdx);
+      if (!src) continue;
+      var rec = {
+        row: startRow + r,
+        source: src,
+        target: cellText(grid, r, tgtIdx),
+        uid: uidCol > -1 ? cellText(grid, r, colToNumber(uidCol) - startCol) : '',
+        key: keyCol > -1 ? cellText(grid, r, colToNumber(keyCol) - startCol) : ''
+      };
+      if (!existingSources[src]) existingSources[src] = rec;
+      if (rec.uid && !existingUids[rec.uid]) existingUids[rec.uid] = rec;
+      if (rec.key && !existingKeys[rec.key]) existingKeys[rec.key] = rec;
+    }
+    if (!silent && task.lang && state.settings.targetLang && String(task.lang).split('-')[0] !== String(state.settings.targetLang).split('-')[0]) {
+      if (!confirm('任务语言是 ' + task.lang + '，当前工作表目标语是 ' + state.settings.targetLang + '。仍然拉取？')) return null;
+    }
+    var items = [];
+    if (task.items && task.items.length && task.items.length >= Number(task.total || 0)) {
+      // The task panel already carries the full first page. Avoid a NAS
+      // round-trip for the common one-page task.
+      items = task.items.slice();
+    } else {
+      if (hint) hint.textContent = '正在读取 NAS 增量条目…';
+      try { items = await fetchAllTaskItems(task); }
+      catch (err) { if (hint) hint.textContent = '读取增量失败：' + err.message; return; }
+    }
+    var incoming = [], existingHits = [], skipped = 0;
+    items.forEach(function (item) {
+      var source = String(item.source == null ? '' : item.source);
+      if (!source) { skipped += 1; return; }
+      var hit = (item.uid && existingUids[item.uid]) ||
+        (item.item_key && existingKeys[item.item_key]) ||
+        existingSources[source];
+      if (hit) { existingHits.push({ item: item, rec: hit }); return; }
+      existingSources[source] = { row: null, source: source };
+      incoming.push(item);
+    });
+    if (!incoming.length && !existingHits.length) {
+      if (hint) hint.textContent = '没有可拉取的增量条目。';
+      return;
+    }
+    if (!silent && !confirm('将把 ' + incoming.length + ' 条新增追加到「' + sheet.Name + '」末尾，\n并更新 ' + existingHits.length + ' 条已存在条目。\n原文列 ' + group.sourceCol + ' / 译文列 ' + group.targetCol + '。\n继续？')) return null;
+    var row = startRow + grid.length;
+    var written = 0, updated = 0, failed = 0;
+    incoming.forEach(function (item) {
+      try {
+        sheet.Range(group.sourceCol + row).Value2 = item.source;
+        if (item.target) sheet.Range(group.targetCol + row).Value2 = item.target;
+        if (uidCol > -1 && item.uid) sheet.Range(uidCol + row).Value2 = item.uid;
+        if (keyCol > -1 && item.item_key) sheet.Range(keyCol + row).Value2 = item.item_key;
+        row += 1; written += 1;
+      } catch (err) { failed += 1; }
+    });
+    existingHits.forEach(function (pair) {
+      try {
+        var item = pair.item, rec = pair.rec;
+        var changed = false;
+        if (item.source && item.source !== rec.source) { sheet.Range(group.sourceCol + rec.row).Value2 = item.source; changed = true; }
+        if (item.target && item.target !== rec.target) { sheet.Range(group.targetCol + rec.row).Value2 = item.target; changed = true; }
+        if (uidCol > -1 && item.uid && item.uid !== rec.uid) { sheet.Range(uidCol + rec.row).Value2 = item.uid; changed = true; }
+        if (keyCol > -1 && item.item_key && item.item_key !== rec.key) { sheet.Range(keyCol + rec.row).Value2 = item.item_key; changed = true; }
+        if (changed) updated += 1;
+      } catch (err2) { failed += 1; }
+    });
+    if (!silent) {
+      if (typeof syncActiveSheet === 'function') syncActiveSheet();
+      if (typeof loadEntries === 'function') loadEntries();
+    }
+    if (hint) {
+      if (!written && !updated && !failed) {
+        var row = existingHits.length ? existingHits[0].rec.row : '';
+        hint.textContent = '该任务原文已在全量表中' + (row ? ('（第 ' + row + ' 行）') : '') +
+          '，无需新增或更新；请点「定位」直接填写译文。';
+      } else {
+        hint.textContent = '已处理增量：新增 ' + written + ' 条，更新已有 ' + updated + ' 条，' +
+          (skipped ? '跳过 ' + skipped + ' 条，' : '') + (failed ? '失败 ' + failed + ' 条。' : '无失败。');
+      }
+    }
+    if (!silent && (written || updated)) showToast('增量已合并：新增 ' + written + '，更新 ' + updated);
+    return { written: written, updated: updated, skipped: skipped, failed: failed,
+             empty: (!written && !updated && !failed), existing: existingHits.length };
+  }
+
+  async function pullAllTasks() {
+    var tasks = (state.nas.tasks || []).slice();
+    var hint = $('taskHint');
+    if (!tasks.length) { if (hint) hint.textContent = '当前没有可拉取的任务。'; return; }
+    if (hint) hint.textContent = '正在读取全部任务条目…';
+    // Read the first page of every task without writing yet, so the user can
+    // approve one aggregate operation instead of approving each task.
+    var plans = [];
+    var total = 0;
+    try {
+      for (var i = 0; i < tasks.length; i += 1) {
+        var task = tasks[i];
+        var items = (task.items && task.items.length && task.items.length >= Number(task.total || 0))
+          ? task.items.slice() : await fetchAllTaskItems(task);
+        plans.push({ task: task, items: items });
+        total += items.length;
+      }
+    } catch (err) {
+      if (hint) hint.textContent = '读取全部任务失败：' + err.message;
+      return;
+    }
+    if (!confirm('将一次性处理 ' + tasks.length + ' 个任务，共 ' + total + ' 条增量。\n按各任务所在工作表写入/更新，继续？')) return;
+    var sum = { written: 0, updated: 0, skipped: 0, failed: 0 };
+    for (var j = 0; j < plans.length; j += 1) {
+      try {
+        var res = await pullTask(plans[j].task, { silent: true });
+        if (res) {
+          sum.written += res.written || 0;
+          sum.updated += res.updated || 0;
+          sum.skipped += res.skipped || 0;
+          sum.failed += res.failed || 0;
+        }
+      } catch (err2) { sum.failed += 1; }
+    }
+    if (typeof syncActiveSheet === 'function') syncActiveSheet();
+    if (typeof loadEntries === 'function') loadEntries();
+    if (hint) hint.textContent = '全部增量处理完成：新增 ' + sum.written + ' 条，更新已有 ' + sum.updated +
+      ' 条，跳过 ' + sum.skipped + ' 条' + (sum.failed ? '，失败 ' + sum.failed + ' 条。' : '，无失败。');
+    showToast('全部任务已拉取');
   }
 
   function renderNasTasks() {
@@ -5660,12 +5816,15 @@
       pct.textContent = (task.done || 0) + '/' + (task.total || 0);
       bottom.append(bar, pct); main.append(bottom);
       var actions = document.createElement('div'); actions.className = 'wps-task-actions';
+      var pull = document.createElement('button'); pull.type = 'button'; pull.className = 'wps-task-pull';
+      pull.textContent = tr('task.pull', '拉取增量');
+      pull.addEventListener('click', function (ev) { ev.stopPropagation(); pullTask(task); });
       var locate = document.createElement('span'); locate.className = 'wps-task-locate';
       locate.textContent = task.segment ? tr('task.locate', '定位') : tr('task.done', '已完成');
       var submit = document.createElement('button'); submit.type = 'button'; submit.className = 'wps-task-submit'; submit.textContent = tr('task.submit', '提交');
       locate.addEventListener('click', function (ev) { ev.stopPropagation(); openNasTask(task); });
       submit.addEventListener('click', function (ev) { ev.stopPropagation(); submitTask(task); });
-      actions.append(submit, locate);
+      actions.append(submit, pull, locate);
       head.append(caret, main, actions);
       card.append(head);
       if (expanded) {
@@ -5724,6 +5883,74 @@
     });
   }
 
+  function renderActiveTask() {
+    var box = $('taskContext'), task = state.nas.activeTask;
+    if (!box) return;
+    if (!task) { box.hidden = true; return; }
+    box.hidden = false;
+    if ($('taskContextName')) $('taskContextName').textContent = task.name || '任务';
+    if ($('taskContextMeta')) {
+      $('taskContextMeta').textContent = (task.project_name || '') + ' · ' + (task.lang || '') +
+        ' · ' + (task.done || 0) + '/' + (task.total || 0);
+    }
+  }
+
+  function findTaskEntry(task, source, wantedTarget, uid, itemKey) {
+    var sheet = (task.doc && sheetByName(task.doc)) || currentSheet();
+    if (!sheet) return null;
+    var used = sheet.UsedRange;
+    if (!used) return null;
+    var grid = toGrid(used.Value2);
+    if (!grid.length) return null;
+    var startRow = Number(used.Row) || 1;
+    var startCol = Number(used.Column) || 1;
+    var headerAt = detectHeaderEnd(grid);
+    var header = headerAt >= 0 ? (grid[headerAt] || []) : [];
+    var uidCol = -1, keyCol = -1;
+    header.forEach(function (cell, idx) {
+      var t = String(cell == null ? '' : cell).trim().toLowerCase().replace(/[\s_()（）-]/g, '');
+      if (uidCol < 0 && (t === 'uid' || t === 'uuid' || t === '唯一id' || t === '唯一标识')) uidCol = idx;
+      if (keyCol < 0 && (t === 'key' || t === 'itemkey' || t === '完整key' || t === '业务key')) keyCol = idx;
+    });
+    var group = state.perSheetCols[sheet.Name] ||
+      { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
+    var srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+    var tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+    if (srcIdx < 0 || tgtIdx < 0) {
+      var ds = -1, dt = -1;
+      header.forEach(function (cell, idx) {
+        var t = String(cell == null ? '' : cell).trim();
+        if (ds < 0 && /^(source\s*text|source|原文|源文|msgid)$/i.test(t)) ds = idx;
+        if (dt < 0 && /^(en|english|译文|target)$/i.test(t) && !/old|旧/i.test(t)) dt = idx;
+      });
+      if (ds >= 0) group.sourceCol = numberToCol(startCol + ds);
+      if (dt >= 0) group.targetCol = numberToCol(startCol + dt);
+      srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+      tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+    }
+    if (srcIdx < 0 || tgtIdx < 0 || group.sourceCol === group.targetCol) return null;
+    var needle = String(source || '').trim();
+    if (!needle) return null;
+    var first = null, bySource = null;
+    for (var r = headerAt + 1; r < grid.length; r += 1) {
+      var rowUid = uidCol > -1 ? cellText(grid, r, uidCol) : '';
+      var rowKey = keyCol > -1 ? cellText(grid, r, keyCol) : '';
+      var rowSource = cellText(grid, r, srcIdx);
+      var candidate = {
+        row: startRow + r, sheet: sheet.Name, group: 0,
+        sourceCol: group.sourceCol, targetCol: group.targetCol,
+        source: rowSource, target: cellText(grid, r, tgtIdx),
+        missingTarget: false, blocked: false
+      };
+      if (uid && rowUid && rowUid === String(uid)) return candidate;
+      if (itemKey && rowKey && rowKey === String(itemKey)) return candidate;
+      if (rowSource !== needle) continue;
+      if (!bySource) bySource = candidate;
+      if (wantedTarget != null && String(candidate.target || '') === String(wantedTarget || '')) first = candidate;
+    }
+    return first || bySource;
+  }
+
   async function openNasTask(task, segment) {
     var hint = $('taskHint');
     var targetSeg = segment || (task && task.segment);
@@ -5733,26 +5960,30 @@
     }
     if (hint) hint.textContent = '正在打开任务…';
     try {
-      if (task.project_id !== state.nas.pid || task.lang !== state.nas.lang) {
-        await nasLoadProject(task.project_id, task.lang);
-      }
-      var located = nasLocate(targetSeg.source, targetSeg.target);
-      if (task.project_id) {
-        var taskPid = String(task.project_id);
-        if (!state.nas.termbases[taskPid] && state.nas.token) {
-          var project = (state.nas.projects || []).find(function (p) { return String(p.id) === taskPid; }) ||
-            { id: task.project_id, name: task.project_name || ('项目 ' + task.project_id), lang: task.lang || '' };
-          try { await loadNasTermbase(project); } catch (err) { /* keep current glossary */ }
+      state.nas.pid = Number(task.project_id) || state.nas.pid;
+      state.nas.lang = task.lang || state.nas.lang;
+      var matchSeg = segment || (task.items && task.items[0]) || targetSeg;
+      var entry = findTaskEntry(task, targetSeg.source, targetSeg.target,
+        matchSeg.uid || '', matchSeg.item_key || '');
+      state.nas.activeTask = task;
+      renderActiveTask();
+      if (entry) {
+        // Do not scan the whole workbook or reload the NAS project just to
+        // open one task. The task context keeps the editor scoped to this row.
+        state.taskFastEntry = entry;
+        state.sheetName = entry.sheet;
+        // Move the WPS cursor to the task row; switching tabs alone is not a
+        // correct "定位".
+        var taskSheet = sheetByName(entry.sheet);
+        if (taskSheet) {
+          try { if (taskSheet.Activate) taskSheet.Activate(); } catch (errAct) { /* already active */ }
+          revealCell(taskSheet, (entry.sourceCol || state.settings.sourceCol) + entry.row);
         }
-        if (state.nas.termbases[taskPid]) selectNasTermbase(taskPid);
+        showTab('translate');
       }
-      if (located) {
-        state.pendingTranslateFocus = { source: targetSeg.source || '', target: targetSeg.target || '' };
-        if (state.lastTab === 'translate') applyPendingTranslateFocus();
-      }
-      if (hint) hint.textContent = located
-        ? ('已定位：' + (task.name || '任务') + ' · 翻译页将显示此条')
-        : '未在当前工作簿中找到对应原文，请确认打开的是同一份表格。';
+      if (hint) hint.textContent = entry
+        ? ('已打开任务：' + (task.name || '任务') + ' · 翻译页已载入当前条目')
+        : '未在当前工作簿中找到对应原文，请先在任务卡片点「拉取增量」。';
     } catch (err) {
       if (hint) hint.textContent = '打开任务失败：' + err.message;
     }
@@ -6237,7 +6468,16 @@
       try { activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (err) { /* older engine */ }
     }
     if (name === 'tasks') loadNasTasks();
-    if (name === 'translate') { loadEntries(); renderEntry(); applyPendingTranslateFocus(); }
+    if (name === 'translate') {
+      if (state.taskFastEntry) {
+        state.entries = [state.taskFastEntry];
+        state.cursor = 0;
+        state.taskFastEntry = null;
+        renderEntry();
+      } else {
+        loadEntries(); renderEntry(); applyPendingTranslateFocus();
+      }
+    }
     if (name === 'free') { if (!state.memory.length) loadEntries(); renderFree(); }
     if (name === 'find') renderFind();
     if (name === 'history') { renderLock(); renderHistory(); }
@@ -6792,6 +7032,11 @@
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
     if ($('btnTasksRefresh')) $('btnTasksRefresh').addEventListener('click', loadNasTasks);
+    if ($('btnPullAllTasks')) $('btnPullAllTasks').addEventListener('click', pullAllTasks);
+    if ($('btnTaskBack')) $('btnTaskBack').addEventListener('click', function () { showTab('tasks'); });
+    if ($('btnTaskComplete')) $('btnTaskComplete').addEventListener('click', function () {
+      if (state.nas.activeTask) submitTask(state.nas.activeTask);
+    });
     if ($('btnTasksLogin')) $('btnTasksLogin').addEventListener('click', function () {
       showTab('nas');
       if ($('nasUser')) $('nasUser').focus();
