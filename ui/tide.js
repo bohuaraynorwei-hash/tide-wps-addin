@@ -5731,10 +5731,11 @@
              empty: (!written && !updated && !failed), existing: existingHits.length };
   }
 
-  async function pullAllTasks() {
+  async function pullAllTasks(options) {
+    var silent = !!(options && options.silent);
     var tasks = (state.nas.tasks || []).slice();
-    var hint = $('taskHint');
-    if (!tasks.length) { if (hint) hint.textContent = '当前没有可拉取的任务。'; return; }
+    var hint = silent ? null : $('taskHint');
+    if (!tasks.length) { if (hint) hint.textContent = '当前没有可拉取的任务。'; return {written:0,updated:0,skipped:0,failed:0}; }
     if (hint) hint.textContent = '正在读取全部任务条目…';
     // Read the first page of every task without writing yet, so the user can
     // approve one aggregate operation instead of approving each task.
@@ -5752,7 +5753,7 @@
       if (hint) hint.textContent = '读取全部任务失败：' + err.message;
       return;
     }
-    if (!confirm('将一次性处理 ' + tasks.length + ' 个任务，共 ' + total + ' 条增量。\n按各任务所在工作表写入/更新，继续？')) return;
+    if (!silent && !confirm('将一次性处理 ' + tasks.length + ' 个任务，共 ' + total + ' 条增量。\n按各任务所在工作表写入/更新，继续？')) return null;
     var sum = { written: 0, updated: 0, skipped: 0, failed: 0 };
     for (var j = 0; j < plans.length; j += 1) {
       try {
@@ -5769,7 +5770,8 @@
     if (typeof loadEntries === 'function') loadEntries();
     if (hint) hint.textContent = '全部增量处理完成：新增 ' + sum.written + ' 条，更新已有 ' + sum.updated +
       ' 条，跳过 ' + sum.skipped + ' 条' + (sum.failed ? '，失败 ' + sum.failed + ' 条。' : '，无失败。');
-    showToast('全部任务已拉取');
+    if (!silent) showToast('全部任务已拉取');
+    return sum;
   }
 
   function renderNasTasks() {
@@ -7153,6 +7155,7 @@
 
   function bootUiLanguage() {
     if (!window.TideI18n) return;
+    /* floating disabled in this build */
     window.TideI18n.boot();
 
     var select = $('uiLang');
@@ -7213,7 +7216,155 @@
     });
   }
 
+  function setupFloatingBridge() {
+    if (window._tideBridgeStarted) return;
+    window._tideBridgeStarted = true;
+    var bridgeBusy = false;
+
+    async function reply(cmd, ok, result, error) {
+      if (!state.nas.token || !cmd.id) return;
+      try {
+        await nasFetch('/api/bridge/reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: cmd.id, ok: !!ok, result: result || null, error: error || '' })
+        });
+      } catch (err) { /* bridge relay unavailable */ }
+    }
+
+    async function handle(cmd) {
+      try {
+        if (cmd.action === 'tasksUpdated') {
+          await loadNasTasks();
+          await reply(cmd, true, { refreshed: true, count: (cmd.payload || {}).count || 0 });
+          return;
+        }
+        if (cmd.action === 'ping') { await reply(cmd, true, { wps: true }); return; }
+        if (cmd.action === 'getAuth') { await reply(cmd, true, { token: state.nas.token || '', username: state.nas.user || '' }); return; }
+        if (cmd.action === 'locate') {
+          var p = cmd.payload || {};
+          var taskEntry = findTaskEntry({doc: p.doc || ''}, p.source || '', p.target || '', '', '');
+          if (!taskEntry) {
+            await reply(cmd, false, null, '当前工作表未找到该原文：' + (p.source || ''));
+            return;
+          }
+          var taskSheet = sheetByName(taskEntry.sheet);
+          if (taskSheet) {
+            try { if (taskSheet.Activate) taskSheet.Activate(); } catch (errAct) { /* already active */ }
+            revealCell(taskSheet, (taskEntry.sourceCol || state.settings.sourceCol) + taskEntry.row);
+          }
+          try { window.focus(); } catch (errFocus) { /* CEF may ignore */ }
+          await reply(cmd, true, { located: true, sheet: taskEntry.sheet, row: taskEntry.row });
+          return;
+        }
+        if (cmd.action === 'keySearch') {
+          var kp = cmd.payload || {};
+          var query = String(kp.query || '').trim();
+          if (!query) { await reply(cmd, true, { results: [] }); return; }
+          var app = sheetApp();
+          var wb = app && app.ActiveWorkbook;
+          if (!wb) throw new Error('没有打开的工作簿');
+          var results = [];
+          var sheets = wb.Worksheets, count = 0;
+          try { count = sheets.Count; } catch (errCount) { count = 0; }
+          for (var si = 1; si <= count; si += 1) {
+            var sh = null;
+            try { sh = sheets.Item(si); } catch (errSheet) { continue; }
+            var keyRows = collectKeyRows(sh);
+            if (!keyRows) continue;
+            for (var ki = 0; ki < keyRows.length && results.length < 100; ki += 1) {
+              var item = keyRows[ki];
+              var score = keyScore(item, query);
+              if (score >= 0.5) results.push({
+                sheet: sh.Name, row: item.row, key: item.key || '', copyKey: item.copyKey || '',
+                source: item.source || '', target: item.target || '', score: score
+              });
+            }
+          }
+          results.sort(function (a, b) { return b.score - a.score; });
+          await reply(cmd, true, { results: results.slice(0, 100) });
+          return;
+        }
+        if (cmd.action === 'writeTarget') {
+          var p2 = cmd.payload || {};
+          var entry = findTaskEntry({doc: p2.doc || ''}, p2.source || '', p2.target || '', '', '');
+          if (!entry) throw new Error('当前工作簿中找不到该原文');
+          var sh = sheetByName(entry.sheet);
+          if (!sh) throw new Error('找不到工作表');
+          sh.Range((entry.targetCol || state.settings.targetCol) + entry.row).Value2 = p2.target || '';
+          await reply(cmd, true, { written: 1 });
+          return;
+        }
+        if (cmd.action === 'pullAll') {
+          await loadNasTasks();
+          var result = await pullAllTasks({ silent: true });
+          await reply(cmd, true, {
+            summary: result ? ('新增 ' + result.written + '，更新 ' + result.updated +
+              '，跳过 ' + result.skipped + '，失败 ' + result.failed) : '完成'
+          });
+          return;
+        }
+        await reply(cmd, false, null, 'unknown bridge action');
+      } catch (err) { await reply(cmd, false, null, err && err.message ? err.message : String(err)); }
+    }
+
+    async function poll() {
+      if (state.nas.token && !bridgeBusy) {
+        bridgeBusy = true;
+        try {
+          var data = await nasFetch('/api/bridge/poll');
+          var cmds = (data && data.commands) || [];
+          for (var i = 0; i < cmds.length; i += 1) await handle(cmds[i]);
+        } catch (err) { /* WPS may not be logged in yet */ }
+        finally { bridgeBusy = false; }
+      }
+      window.setTimeout(poll, state.nas.token ? 650 : 1500);
+    }
+    window.setTimeout(poll, 700);
+  }
+
+  function showFloatFallback(url) {
+    var old = $('floatFallback');
+    if (old) old.remove();
+    var box = document.createElement('div');
+    box.id = 'floatFallback';
+    box.style.cssText = 'position:fixed;z-index:99999;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+    var card = document.createElement('div');
+    card.style.cssText = 'width:min(420px,100%);background:#fff;color:#1d1d1f;border-radius:14px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    var h = document.createElement('div'); h.textContent = '打开浮动工作台'; h.style.cssText = 'font-weight:650;font-size:15px;margin-bottom:6px';
+    var p = document.createElement('div'); p.textContent = 'WPS 阻止了弹窗。复制下面的地址到 Chrome/Safari 打开：'; p.style.cssText = 'font-size:12px;color:#6e6e73;line-height:1.6';
+    var input = document.createElement('input'); input.value = url; input.readOnly = true; input.style.cssText = 'width:100%;margin-top:10px;padding:8px;border:1px solid #d2d2d7;border-radius:7px;font:12px ui-monospace,monospace';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px';
+    var close = document.createElement('button'); close.textContent = '关闭'; close.style.cssText = 'padding:7px 12px;border:1px solid #d2d2d7;background:#fff;border-radius:7px;cursor:pointer';
+    var copy = document.createElement('button'); copy.textContent = '复制地址'; copy.style.cssText = 'padding:7px 12px;border:0;background:#0066cc;color:#fff;border-radius:7px;cursor:pointer';
+    close.onclick = function () { box.remove(); };
+    copy.onclick = function () {
+      try { input.select(); document.execCommand('copy'); } catch (err) { /* ignore */ }
+      copy.textContent = '已复制';
+    };
+    row.append(close, copy); card.append(h, p, input, row); box.append(card);
+    document.body.append(box);
+  }
+
+  function wireFloatingButton() {
+    var btn = $('btnFloat');
+    if (!btn || btn._tideFloatWired) return;
+    btn._tideFloatWired = true;
+    btn.addEventListener('click', function () {
+      var url = location.origin + '/ui/float.html';
+      var win = null;
+      try { win = window.open(url, 'tide-float', 'width=440,height=860,resizable=yes,scrollbars=yes'); } catch (err) { win = null; }
+      if (!win) { showFloatFallback(url); return; }
+      try { win.focus(); } catch (err2) { /* popup may be external */ }
+      setTimeout(function () {
+        if (!win || win.closed) showFloatFallback(url);
+      }, 600);
+    });
+  }
+
   function boot() {
+    wireFloatingButton();
+    /* floating disabled in this build */
     bootUiLanguage();
     bind();
     loadSettings();
@@ -7225,6 +7376,17 @@
     var requested = app && app.PluginStorage ? app.PluginStorage.getItem('tide_open_tab') : null;
     showTab(requested || readJSON(K.lastTab, 'matches') || 'matches');
     if (state.nas.token) loadNasTasks();
+    // Tasks are pushed by NAS assignment; poll while the task tab is open so
+    // new work appears without reopening the pane.
+    window.setInterval(function () {
+      if (state.nas.token && state.lastTab === 'tasks' && !document.hidden) loadNasTasks();
+    }, 30000);
+    window.addEventListener('focus', function () {
+      if (state.nas.token && state.lastTab === 'tasks') loadNasTasks();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && state.nas.token && state.lastTab === 'tasks') loadNasTasks();
+    });
     renderLock();
     renderTermSource();
     loadBundled().then(function () { renderTermSource(); });

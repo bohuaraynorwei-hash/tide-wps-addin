@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tide 浮动工作台</title>
+<style>
+  :root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--hair:rgba(0,0,0,.1);--accent:#0066cc;--green:#34c759;--orange:#ff9f0a;--red:#ff3b30}
+  @media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1c1f26;--text:#f5f5f7;--muted:#a8adb7;--hair:rgba(255,255,255,.12);--accent:#4c9aff;--green:#30d158;--orange:#ffd60a;--red:#ff453a}}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+  .wrap{max-width:620px;margin:0 auto;padding:14px}
+  header{display:flex;align-items:center;gap:9px;padding:9px 0 13px;border-bottom:1px solid var(--hair);position:sticky;top:0;background:var(--bg);z-index:3}
+  .mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(145deg,#2563eb,#6d4aff);display:grid;place-items:center;color:#fff;font-weight:700}
+  h1{font-size:15px;margin:0} .sub{font-size:10px;color:var(--muted)}
+  .grow{flex:1}.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:4px}.dot.on{background:var(--green)}
+  button{border:1px solid var(--hair);background:var(--card);color:var(--text);border-radius:7px;padding:6px 9px;font:600 11px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;cursor:pointer}
+  button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.ghost{background:transparent;color:var(--muted)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .toolbar{display:flex;align-items:center;gap:7px;margin:12px 0;flex-wrap:wrap}.count{margin-left:auto;color:var(--muted);font-size:11px}
+  .task{border:1px solid var(--hair);background:var(--card);border-radius:11px;padding:10px 11px;margin:8px 0}
+  .thead{display:flex;gap:8px;align-items:flex-start}.thmain{min-width:0;flex:1}.tname{font-weight:650;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tmeta{font-size:10.5px;color:var(--muted);margin-top:2px}.tsrc{font-size:11.5px;color:var(--muted);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .actions{display:flex;gap:5px;flex-direction:column;flex:0 0 auto}.actions button{padding:5px 7px;font-size:10.5px}
+  .bar{height:5px;background:var(--hair);border-radius:99px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--accent)}
+  .items{margin-top:9px;border-top:1px solid var(--hair);padding-top:4px}
+  .item{display:grid;grid-template-columns:1fr;gap:5px;padding:9px 0;border-bottom:1px solid var(--hair)}.item:last-child{border-bottom:0}
+  .item .src{font-size:11.5px;color:var(--text);white-space:pre-wrap;word-break:break-word}.item .row{display:flex;gap:5px}.item input{flex:1;min-width:0;border:1px solid var(--hair);background:var(--bg);color:var(--text);border-radius:6px;padding:6px 7px;font:11.5px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+  .item .hint{font-size:10px;color:var(--muted)}.msg{font-size:11px;color:var(--muted);min-height:16px}.msg.err{color:var(--red)}.msg.ok{color:var(--green)}
+  .empty{color:var(--muted);font-size:12px;padding:30px 0;text-align:center}
+  .login{margin-top:20px;border:1px solid var(--hair);background:var(--card);border-radius:12px;padding:16px}.login label{display:block;font-size:11px;color:var(--muted);margin:8px 0 4px}.login input{width:100%;padding:8px;border:1px solid var(--hair);border-radius:7px;background:var(--bg);color:var(--text)}
+  .login button{width:100%;margin-top:10px;padding:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="mark">T</span>
+    <div><h1>Tide 浮动工作台</h1><div class="sub" id="who">正在连接…</div></div>
+    <span class="grow"></span>
+    <span class="sub"><span class="dot" id="bridgeDot"></span><span id="bridgeText">WPS</span></span>
+    <button id="refresh" class="ghost">刷新</button>
+  </header>
+  <div id="loginBox" class="login" hidden>
+    <div class="sub">浮动窗口需要先连接 NAS。登录信息会与此主机上的 Tide 插件共用。</div>
+    <label>账号</label><input id="user" autocomplete="username">
+    <label>密码</label><input id="pass" type="password" autocomplete="current-password">
+    <button id="loginBtn" class="primary">登录 NAS</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+  <div id="app" hidden>
+    <div class="toolbar">
+      <button id="pullAll" class="primary">全部拉取到 WPS</button>
+      <button id="refreshTasks" class="ghost">刷新任务</button>
+      <span class="count" id="taskCount"></span>
+    </div>
+    <div id="taskMsg" class="msg"></div>
+    <div id="taskList"></div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const AUTH_KEY = 'tide.nas.auth';
+let auth = null;
+let tasks = [];
+let bridgeReady = false;
+let bridgeBusy = false;
+async function bridgeCall(action, payload, timeout) {
+  if (!auth || !auth.token) throw new Error('请先登录 NAS');
+  const sent = await api('/api/bridge/send', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ action, payload: payload || {} })
+  });
+  const id = sent.id;
+  const deadline = Date.now() + (timeout || 8000);
+  while (Date.now() < deadline) {
+    const r = await api('/api/bridge/result?id=' + encodeURIComponent(id));
+    if (r.ready) {
+      if (r.ok) return r.result || {};
+      throw new Error(r.error || 'WPS 操作失败');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('WPS 未连接或响应超时');
+}
+function renderBridge() {
+  $('bridgeDot').className = 'dot' + (bridgeReady ? ' on' : '');
+  $('bridgeText').textContent = bridgeReady ? 'WPS 已连接' : 'WPS 未连接';
+  $('pullAll').disabled = !bridgeReady;
+  document.querySelectorAll('[data-locate-wps]').forEach(function (b) {
+    b.disabled = !bridgeReady;
+    b.title = bridgeReady ? '在 WPS 中定位此条' : 'WPS 插件当前未连接';
+  });
+}
+async function pingBridge() {
+  if (!auth || !auth.token || bridgeBusy) return;
+  bridgeBusy = true;
+  try {
+    await bridgeCall('ping', {}, 1400);
+    bridgeReady = true;
+  } catch (e) { bridgeReady = false; }
+  finally { bridgeBusy = false; renderBridge(); }
+}
+setInterval(pingBridge, 3500);
+function loadAuth() {
+  try { auth = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { auth = null; }
+  if (!auth || !auth.token) { $('loginBox').hidden = false; $('app').hidden = true; return false; }
+  $('loginBox').hidden = true; $('app').hidden = false;
+  $('who').textContent = (auth.username || '已登录') + ' · NAS';
+  return true;
+}
+function api(path, opts) {
+  const o = Object.assign({}, opts || {});
+  o.headers = Object.assign({ 'Authorization': 'Bearer ' + auth.token }, o.headers || {});
+  return fetch('https://192.168.22.238:8443' + path, o).then(async (r) => {
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    return d;
+  });
+}
+async function login() {
+  const u = $('user').value.trim(), p = $('pass').value;
+  $('loginMsg').textContent = '登录中…';
+  try {
+    const r = await fetch('https://192.168.22.238:8443/api/wps/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username:u,password:p})
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.token) throw new Error(d.error || '登录失败');
+    auth = { token: d.token, username: d.username || u };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+    $('loginMsg').textContent = '';
+    loadAuth(); loadTasks(); pingBridge();
+  } catch (e) { $('loginMsg').textContent = e.message; }
+}
+async function loadTasks() {
+  if (!loadAuth()) return;
+  $('taskMsg').textContent = '加载任务…';
+  try {
+    const d = await api('/api/tasks');
+    tasks = d.tasks || [];
+    $('taskCount').textContent = tasks.length + ' 个任务';
+    $('taskMsg').textContent = tasks.length ? '' : '当前没有分配给你的任务。';
+    renderTasks();
+  } catch (e) { $('taskMsg').textContent = e.message; }
+}
+async function taskItems(t) {
+  const q = new URLSearchParams({kind:t.kind||'segments',project_id:String(t.project_id||0),job_id:String(t.job_id||0),doc:t.doc||'',lang:t.lang||'',offset:'0',limit:'100'});
+  const d = await api('/api/tasks/items?' + q.toString());
+  return d.items || [];
+}
+async function renderTasks() {
+  const box = $('taskList'); box.textContent = '';
+  for (const t of tasks) {
+    const card = document.createElement('div'); card.className = 'task';
+    const head = document.createElement('div'); head.className = 'thead';
+    const main = document.createElement('div'); main.className = 'thmain';
+    const name = document.createElement('div'); name.className = 'tname'; name.textContent = t.name || '任务';
+    const meta = document.createElement('div'); meta.className = 'tmeta'; meta.textContent = (t.project_name||'') + ' · ' + (t.lang||'') + ' · ' + (t.done||0) + '/' + (t.total||0);
+    main.append(name, meta);
+    if (t.segment && t.segment.source) { const s=document.createElement('div'); s.className='tsrc'; s.textContent='下一段：'+t.segment.source; main.append(s); }
+    const bar=document.createElement('div'); bar.className='bar'; const fill=document.createElement('i'); fill.style.width=(t.total?Math.round(100*(t.done||0)/t.total):0)+'%'; bar.append(fill); main.append(bar);
+    const actions=document.createElement('div'); actions.className='actions';
+    const submit=document.createElement('button'); submit.className='primary'; submit.textContent='提交任务'; submit.onclick=()=>submitTask(t);
+    const locate=document.createElement('button'); locate.textContent='定位 WPS'; locate.setAttribute('data-locate-wps','1'); locate.disabled=!bridgeReady; locate.onclick=()=>locate(t);
+    actions.append(submit, locate);
+    head.append(main, actions); card.append(head);
+    const itemsBox=document.createElement('div'); itemsBox.className='items';
+    const items=await taskItems(t).catch(()=>[]);
+    if (!items.length) { const d=document.createElement('div'); d.className='hint'; d.textContent='没有条目或读取失败'; itemsBox.append(d); }
+    items.forEach((it) => {
+      const item=document.createElement('div'); item.className='item';
+      const src=document.createElement('div'); src.className='src'; src.textContent=it.source||'';
+      const row=document.createElement('div'); row.className='row';
+      const inp=document.createElement('input'); inp.value=it.target||''; inp.placeholder='输入译文';
+      const save=document.createElement('button'); save.textContent='保存到 NAS'; save.onclick=async()=>{ await saveItem(t,it,inp.value,save); };
+      row.append(inp,save);
+      const hint=document.createElement('div'); hint.className='hint'; hint.textContent=(it.status||'new') + (it.doc?' · '+it.doc:'');
+      item.append(src,row,hint); itemsBox.append(item);
+    });
+    card.append(itemsBox); box.append(card);
+  }
+}
+async function saveItem(task, item, value, btn) {
+  btn.disabled=true;
+  try {
+    await api('/api/segments/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id,target:value,status:'draft'})});
+    $('taskMsg').textContent='已保存到 NAS';
+    if (bridgeReady) bridgeCall('writeTarget',{doc:task.doc||'',source:item.source||'',target:value}).catch(()=>{});
+    item.target=value;
+    loadTasks();
+  } catch(e){ $('taskMsg').textContent=e.message; }
+  btn.disabled=false;
+}
+async function submitTask(task) {
+  if (!confirm('提交任务：' + (task.name||''))) return;
+  try {
+    const d=await api('/api/tasks/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:task.project_id,lang:task.lang,job_id:task.job_id||0,doc:task.doc||'',kind:task.kind||'segments'})});
+    $('taskMsg').textContent='已提交：' + (d.updated||0) + ' 条';
+    loadTasks();
+  } catch(e){ $('taskMsg').textContent=e.message; }
+}
+async function locate(task) {
+  const it=(task.items&&task.items[0])||task.segment||{};
+  try { await bridgeCall('locate',{source:it.source||'',target:it.target||'',doc:task.doc||''}); $('taskMsg').textContent='已在 WPS 中定位'; }
+  catch(e){ $('taskMsg').textContent='定位失败：'+e.message; }
+}
+async function pullAll() {
+  if (!bridgeReady) return;
+  $('taskMsg').textContent='请求 WPS 拉取全部增量…';
+  try { const r=await bridgeCall('pullAll',{},30000); $('taskMsg').textContent='WPS 已处理增量：'+(r&&r.summary?r.summary:'完成'); loadTasks(); }
+  catch(e){ $('taskMsg').textContent='拉取失败：'+e.message; }
+}
+$('loginBtn').onclick=login; $('refreshTasks').onclick=()=>{loadTasks();pingBridge();}; $('refresh').onclick=()=>{loadTasks();pingBridge();}; $('pullAll').onclick=pullAll;
+(function initFloat() {
+  loadAuth();
+  renderBridge();
+  if (auth && auth.token) { loadTasks(); pingBridge(); }
+})();
+</script>
+</body>
+</html>
