@@ -56,7 +56,8 @@
     nas: { base: 'https://192.168.22.238:8443', token: '', user: '', projects: [], pid: null,
       langs: [], lang: '', items: [], total: 0, offset: 0, q: '', loaded: false,
       termsCache: {}, termbases: {}, assignedProjects: [], termbasesLoading: false, termProject: null, cacheProject: '',
-      tasks: [], tasksLoading: false, activeTask: null, jumpStarted: false, jumpBusy: false },
+      tasks: [], tasksLoading: false, activeTask: null, taskIndex: -1,
+      jumpStarted: false, jumpBusy: false },
     preNasTerms: null, preNasMeta: null,
     pendingTranslateFocus: null,
     gridRows: [],
@@ -4309,6 +4310,7 @@
   // row instead of blindly walking from the old cursor.
   function navigateEntry(delta) {
     try {
+    if (!state.entries.length) { move(delta); return; }
     var entry = currentEntry();
     var typed = normalizeNavSource($('entrySource').value);
     var changed = !!(typed && (state.sourceDirty || !entry || typed !== normalizeNavSource(entry.source)));
@@ -4343,7 +4345,11 @@
   }
 
   function move(delta) {
-    if (!state.entries.length) return;
+    if (!state.entries.length) {
+      $('entryCheck').textContent = '当前工作表没有可导航的条目（0 条）。' +
+        '请确认停在有原文/译文列的表上，并点「刷新条目」。';
+      return;
+    }
     var next = Math.min(Math.max(state.cursor + delta, 0), state.entries.length - 1);
     if (next === state.cursor && delta !== 0) {
       $('entryCheck').textContent = delta < 0 ? '已经是第一条' : '已经是最后一条';
@@ -4684,7 +4690,9 @@
     }
     var entry = currentEntry();
     if (!entry) {
-      $('entryCheck').textContent = '没有可写入的条目，请先刷新条目或点击一条原文。';
+      $('entryCheck').textContent = state.entries.length
+        ? '没有可写入的条目，请先刷新条目或点击一条原文。'
+        : '当前工作表没有条目（0 条），无法写入。请确认工作表与列设置后点「刷新条目」。';
       return;
     }
     var sheet = currentSheet();
@@ -5254,7 +5262,27 @@
   async function nasFetch(path, options) {
     var init = options || {};
     init.headers = Object.assign({}, nasHeaders(), init.headers || {});
-    var response = await fetch(nasURL(path), init);
+    var timeoutMs = Number(init.timeoutMs || 20000);
+    delete init.timeoutMs;
+    var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = null;
+    if (controller) {
+      init.signal = controller.signal;
+      timer = window.setTimeout(function () {
+        try { controller.abort(); } catch (err) { /* ignore */ }
+      }, timeoutMs);
+    }
+    var response;
+    try {
+      response = await fetch(nasURL(path), init);
+    } catch (err) {
+      if (err && (err.name === 'AbortError' || String(err).indexOf('abort') >= 0)) {
+        throw new Error('请求超时（' + Math.round(timeoutMs / 1000) + ' 秒）：' + path);
+      }
+      throw err;
+    } finally {
+      if (timer) window.clearTimeout(timer);
+    }
     var data = await response.json().catch(function () { return {}; });
     if (response.status === 401) {
       clearNasAuth();
@@ -5515,12 +5543,20 @@
       return;
     }
     if (login) login.hidden = true;
-    if (state.nas.tasksLoading) return;
+    var now = Date.now();
+    // A request that never settled used to freeze the button forever; a stale
+    // lock is dropped instead of blocking every later refresh.
+    if (state.nas.tasksLoading && now - (state.nas.tasksStarted || 0) < 15000) return;
     state.nas.tasksLoading = true;
+    state.nas.tasksStarted = now;
+    var refreshBtn = $('btnTasksRefresh');
+    if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '刷新中…'; }
     if ($('taskHint')) $('taskHint').textContent = tr('task.loading', '正在读取任务…');
     try {
-      var data = await nasFetch('/api/tasks');
+      var data = await nasFetch('/api/tasks', { timeoutMs: 15000 });
       state.nas.tasks = data.tasks || [];
+      state.nas.queue = null;
+      state.nas.queueIndex = -1;
       renderNasTasks();
       syncNasTermbases();
       if ($('taskHint')) $('taskHint').textContent = state.nas.tasks.length
@@ -5532,6 +5568,7 @@
       if ($('taskHint')) $('taskHint').textContent = tr('task.loadFailed', '读取任务失败：') + err.message;
     } finally {
       state.nas.tasksLoading = false;
+      if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = tr('btn.refresh', '刷新'); }
     }
   }
 
@@ -5605,11 +5642,61 @@
     return items;
   }
 
+  // Find the column that actually holds this task's source strings.
+  function detectColumnsFromItems(grid, headerAt, startCol, task) {
+    var items = (task && task.items) || [];
+    if (!items.length || !grid.length) return null;
+    var wanted = [];
+    for (var i = 0; i < items.length && wanted.length < 5; i += 1) {
+      var src = String(items[i].source == null ? '' : items[i].source);
+      if (src) wanted.push(src);
+    }
+    if (!wanted.length) return null;
+    var width = 0;
+    grid.forEach(function (row) { if (row && row.length > width) width = row.length; });
+    if (width < 1) return null;
+    var bestCol = -1, bestHits = 0, bestFirstRow = -1;
+    for (var c = 0; c < width; c += 1) {
+      var hits = 0;
+      for (var r = Math.max(0, headerAt + 1); r < grid.length && hits < wanted.length; r += 1) {
+        var cell = String((grid[r] || [])[c] == null ? '' : (grid[r] || [])[c]).replace(/\r\n?/g, '\n').trim();
+        if (!cell) continue;
+        for (var k = 0; k < wanted.length; k += 1) {
+          if (wanted[k].replace(/\r\n?/g, '\n').trim() === cell) {
+            hits += 1;
+            if (bestCol === c && bestFirstRow < 0) bestFirstRow = r;
+            break;
+          }
+        }
+      }
+      if (hits > bestHits) { bestHits = hits; bestCol = c; bestFirstRow = -1; }
+    }
+    if (bestCol < 0 || bestHits === 0) return null;
+    // The target is the next column that is mostly empty, else the one right after.
+    var srcColAbs = startCol + bestCol;
+    var tgtAbs = srcColAbs + 1;
+    for (var cand = srcColAbs + 1; cand <= startCol + width - 1; cand += 1) {
+      var filled = 0;
+      for (var rr = Math.max(0, headerAt + 1); rr < grid.length; rr += 1) {
+        var v = (grid[rr] || [])[cand - startCol];
+        if (v != null && String(v).trim()) filled += 1;
+      }
+      if (filled <= Math.max(1, Math.floor(grid.length * 0.1))) { tgtAbs = cand; break; }
+    }
+    return { src: srcColAbs, tgt: tgtAbs, firstRow: bestFirstRow };
+  }
+
   async function pullTask(task, options) {
     var silent = !!(options && options.silent);
     var hint = silent ? null : $('taskHint');
-    var sheet = (task.doc && sheetByName(task.doc)) || currentSheet();
-    if (!sheet) { if (hint) hint.textContent = '没有打开的表格，无法拉取增量。'; return; }
+    // Never fall back to the active sheet: writing another project's rows into
+    // 总览 is silent corruption. A named worksheet must exist here.
+    var sheet = task.doc ? sheetByName(task.doc) : currentSheet();
+    if (!sheet) {
+      if (hint) hint.textContent = '当前工作簿没有工作表「' + (task.doc || '') + '」，已跳过该任务。';
+      return { written: 0, updated: 0, placed: 0, skipped: Number(task.total || 0), failed: 0,
+               relocated: 0, empty: false, existing: 0, missingSheet: true };
+    }
     var used = sheet.UsedRange;
     if (!used) { if (hint) hint.textContent = '当前工作表为空，无法确定源文/译文列。'; return; }
     var grid = toGrid(used.Value2);
@@ -5617,6 +5704,7 @@
     var startRow = Number(used.Row) || 1;
     var startCol = Number(used.Column) || 1;
     var headerAt = detectHeaderEnd(grid);
+    var scanFrom = headerAt + 1;
     var header = headerAt >= 0 ? (grid[headerAt] || []) : [];
     var group = state.perSheetCols[sheet.Name] ||
       { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
@@ -5636,8 +5724,31 @@
       srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
       tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
     }
-    if (srcIdx < 0 || tgtIdx < 0 || group.sourceCol === group.targetCol) {
-      if (hint) hint.textContent = '当前列映射超出工作表范围；请先点「识别/选择列」设置原文列和译文列。';
+    // A task carries its own source strings, so the columns can be discovered
+    // from the data instead of forcing the user back to the column picker.
+    var gridWidth = 0;
+    grid.forEach(function (row) { if (row && row.length > gridWidth) gridWidth = row.length; });
+    // A mapping that points past the used range is just as broken as a negative
+    // one: treat both as "not set" and fall back to discovery.
+    if (srcIdx < 0 || tgtIdx < 0 || srcIdx >= gridWidth || tgtIdx >= gridWidth ||
+        group.sourceCol === group.targetCol) {
+      var byData = detectColumnsFromItems(grid, headerAt, startCol, task);
+      if (byData) {
+        // Header detection can eat the first data row; scan from where the
+        // task text was actually found so that row is matched, not cloned.
+        if (byData.firstRow >= 0 && byData.firstRow < scanFrom) scanFrom = byData.firstRow;
+        group.sourceCol = numberToCol(byData.src);
+        group.targetCol = numberToCol(byData.tgt);
+        srcIdx = byData.src - startCol;
+        tgtIdx = byData.tgt - startCol;
+        state.perSheetCols[sheet.Name] = { sourceCol: group.sourceCol, targetCol: group.targetCol };
+        if (hint) hint.textContent = '已按任务原文自动定位：原文列 ' + group.sourceCol +
+          ' / 译文列 ' + group.targetCol + '，并已记住。';
+      }
+    }
+    if (srcIdx < 0 || tgtIdx < 0 || srcIdx >= gridWidth || tgtIdx >= gridWidth ||
+        group.sourceCol === group.targetCol) {
+      if (hint) hint.textContent = '无法确定原文/译文列：任务原文在该表中找不到，请点「识别/选择列」手动指定。';
       return;
     }
     var uidCol = -1, keyCol = -1;
@@ -5647,7 +5758,7 @@
       if (keyCol < 0 && (t === 'key' || t === 'itemkey' || t === '完整key' || t === '业务key')) keyCol = numberToCol(startCol + idx);
     });
     var existingSources = {}, existingUids = {}, existingKeys = {};
-    for (var r = headerAt + 1; r < grid.length; r += 1) {
+    for (var r = scanFrom; r < grid.length; r += 1) {
       var src = cellText(grid, r, srcIdx);
       if (!src) continue;
       var rec = {
@@ -5674,61 +5785,124 @@
       try { items = await fetchAllTaskItems(task); }
       catch (err) { if (hint) hint.textContent = '读取增量失败：' + err.message; return; }
     }
-    var incoming = [], existingHits = [], skipped = 0;
+    // Two delivery modes travel through the same task list:
+    //   full        -> the NAS keeps the original workbook cell, so the row is
+    //                  written back at that exact position.
+    //   incremental -> no position is trusted; the row is matched by source
+    //                  text and only the translation is refreshed.
+    function sameText(a, b) {
+      return String(a == null ? '' : a).replace(/\r\n?/g, '\n').trim() ===
+             String(b == null ? '' : b).replace(/\r\n?/g, '\n').trim();
+    }
+    var positional = [], matched = [], incoming = [], skipped = 0;
     items.forEach(function (item) {
       var source = String(item.source == null ? '' : item.source);
       if (!source) { skipped += 1; return; }
+      var isFull = String(item.origin || '') === 'full';
+      var row = Number(item.sheet_row || 0), col = Number(item.sheet_col || 0);
+      if (isFull && row > 0 && col > 0) { positional.push({ item: item, row: row, col: col }); return; }
       var hit = (item.uid && existingUids[item.uid]) ||
         (item.item_key && existingKeys[item.item_key]) ||
         existingSources[source];
-      if (hit) { existingHits.push({ item: item, rec: hit }); return; }
-      existingSources[source] = { row: null, source: source };
+      if (hit) { matched.push({ item: item, rec: hit }); return; }
       incoming.push(item);
     });
-    if (!incoming.length && !existingHits.length) {
+
+    // Where does the sheet actually end? Appends go after it, and a positional
+    // write must not silently overwrite unrelated text.
+    var lastRow = startRow + grid.length - 1;
+    var uidNum = uidCol > -1 ? (typeof uidCol === 'number' ? uidCol : colToNumber(uidCol)) : -1;
+    var keyNum = keyCol > -1 ? (typeof keyCol === 'number' ? keyCol : colToNumber(keyCol)) : -1;
+    var plan = [], relocated = [], placeAt = [];
+    positional.forEach(function (entry) {
+      var item = entry.item, r = entry.row, c = entry.col;
+      var cellSource = '';
+      try { cellSource = String(sheet.Range(numberToCol(srcIdx + startCol) + r).Value2 || ''); }
+      catch (err) { cellSource = ''; }
+      if (sameText(cellSource, item.source)) { plan.push({ item: item, row: r, col: c }); return; }
+      var hit = (item.uid && existingUids[item.uid]) ||
+        (item.item_key && existingKeys[item.item_key]) ||
+        existingSources[item.source];
+      if (hit) { relocated.push({ item: item, rec: hit, want: r }); return; }
+      if (!cellSource.trim()) { placeAt.push({ item: item, row: r, col: c }); return; }
+      skipped += 1;
+    });
+
+    if (!positional.length && !matched.length && !incoming.length) {
       if (hint) hint.textContent = '没有可拉取的增量条目。';
       return;
     }
-    if (!silent && !confirm('将把 ' + incoming.length + ' 条新增追加到「' + sheet.Name + '」末尾，\n并更新 ' + existingHits.length + ' 条已存在条目。\n原文列 ' + group.sourceCol + ' / 译文列 ' + group.targetCol + '。\n继续？')) return null;
-    var row = startRow + grid.length;
-    var written = 0, updated = 0, failed = 0;
+    if (!silent && !confirm('全量定位写入 ' + (plan.length + placeAt.length) + ' 条（按原表位置），\n' +
+        '原文匹配更新 ' + (matched.length + relocated.length) + ' 条，追加新增 ' + incoming.length + ' 条。\n工作表「' + sheet.Name + '」，继续？')) return null;
+
+    var written = 0, positioned = 0, placed = 0, matchedUpdated = 0, failed = 0;
+    function writeCell(r, c, value) {
+      try { sheet.Range(numberToCol(c) + r).Value2 = value; return true; } catch (err) { return false; }
+    }
+    // 1. Authoritative position from the full table.
+    (plan.concat(placeAt)).forEach(function (entry) {
+      var item = entry.item;
+      try {
+        var ok = writeCell(entry.row, entry.col, item.target || '');
+        if (!ok) { failed += 1; return; }
+        if (placeAt.some(function (x) { return x.item === item; })) {
+          writeCell(entry.row, srcIdx + startCol, item.source);
+          placed += 1;
+        } else {
+          positioned += 1;
+        }
+        if (uidNum > -1 && item.uid) writeCell(entry.row, uidNum, item.uid);
+        if (keyNum > -1 && item.item_key) writeCell(entry.row, keyNum, item.item_key);
+        if (entry.row > lastRow) lastRow = entry.row;
+      } catch (err) { failed += 1; }
+    });
+    // 2. Same string found elsewhere: keep the existing row, refresh the text.
+    matched.concat(relocated).forEach(function (pair) {
+      var item = pair.item, rec = pair.rec;
+      try {
+        var changed = false;
+        if (item.source && !sameText(item.source, rec.source)) { writeCell(rec.row, srcIdx + startCol, item.source); changed = true; }
+        if (item.target && !sameText(item.target, rec.target)) { writeCell(rec.row, tgtIdx + startCol, item.target); changed = true; }
+        if (uidNum > -1 && item.uid && item.uid !== rec.uid) { writeCell(rec.row, uidNum, item.uid); changed = true; }
+        if (keyNum > -1 && item.item_key && item.item_key !== rec.key) { writeCell(rec.row, keyNum, item.item_key); changed = true; }
+        if (changed) matchedUpdated += 1;
+      } catch (err) { failed += 1; }
+    });
+    // 3. Genuinely new strings with no position: append to the end.
+    var row = lastRow + 1;
     incoming.forEach(function (item) {
       try {
-        sheet.Range(group.sourceCol + row).Value2 = item.source;
-        if (item.target) sheet.Range(group.targetCol + row).Value2 = item.target;
-        if (uidCol > -1 && item.uid) sheet.Range(uidCol + row).Value2 = item.uid;
-        if (keyCol > -1 && item.item_key) sheet.Range(keyCol + row).Value2 = item.item_key;
+        if (!writeCell(row, srcIdx + startCol, item.source)) { failed += 1; return; }
+        if (item.target) writeCell(row, tgtIdx + startCol, item.target);
+        if (uidNum > -1 && item.uid) writeCell(row, uidNum, item.uid);
+        if (keyNum > -1 && item.item_key) writeCell(row, keyNum, item.item_key);
         row += 1; written += 1;
       } catch (err) { failed += 1; }
     });
-    existingHits.forEach(function (pair) {
-      try {
-        var item = pair.item, rec = pair.rec;
-        var changed = false;
-        if (item.source && item.source !== rec.source) { sheet.Range(group.sourceCol + rec.row).Value2 = item.source; changed = true; }
-        if (item.target && item.target !== rec.target) { sheet.Range(group.targetCol + rec.row).Value2 = item.target; changed = true; }
-        if (uidCol > -1 && item.uid && item.uid !== rec.uid) { sheet.Range(uidCol + rec.row).Value2 = item.uid; changed = true; }
-        if (keyCol > -1 && item.item_key && item.item_key !== rec.key) { sheet.Range(keyCol + rec.row).Value2 = item.item_key; changed = true; }
-        if (changed) updated += 1;
-      } catch (err2) { failed += 1; }
-    });
+
     if (!silent) {
       if (typeof syncActiveSheet === 'function') syncActiveSheet();
       if (typeof loadEntries === 'function') loadEntries();
     }
     if (hint) {
-      if (!written && !updated && !failed) {
-        var row = existingHits.length ? existingHits[0].rec.row : '';
-        hint.textContent = '该任务原文已在全量表中' + (row ? ('（第 ' + row + ' 行）') : '') +
-          '，无需新增或更新；请点「定位」直接填写译文。';
+      if (!written && !positioned && !placed && !matchedUpdated && !failed) {
+        hint.textContent = '该任务的条目都已在表中且位置一致，无需写入。';
       } else {
-        hint.textContent = '已处理增量：新增 ' + written + ' 条，更新已有 ' + updated + ' 条，' +
-          (skipped ? '跳过 ' + skipped + ' 条，' : '') + (failed ? '失败 ' + failed + ' 条。' : '无失败。');
+        hint.textContent = '已同步到本地全量表：按原位置写入 ' + (positioned + placed) + ' 条' +
+          (placed ? '（其中新占位 ' + placed + ' 条）' : '') +
+          '，原文匹配更新 ' + matchedUpdated + ' 条，追加到表尾 ' + written + ' 条' +
+          (relocated.length ? '，位置变动后改按原文定位 ' + relocated.length + ' 条' : '') +
+          (skipped ? '，跳过 ' + skipped + ' 条' : '') + (failed ? '，失败 ' + failed + ' 条。' : '，无失败。');
       }
     }
-    if (!silent && (written || updated)) showToast('增量已合并：新增 ' + written + '，更新 ' + updated);
-    return { written: written, updated: updated, skipped: skipped, failed: failed,
-             empty: (!written && !updated && !failed), existing: existingHits.length };
+    if (!silent && (written || positioned || placed || matchedUpdated)) {
+      showToast('已同步到本地全量表：定位 ' + (positioned + placed) + '，匹配更新 ' + matchedUpdated +
+        '，表尾新增 ' + written);
+    }
+    return { written: written, updated: positioned + matchedUpdated, placed: placed,
+             skipped: skipped, failed: failed, relocated: relocated.length,
+             empty: (!written && !positioned && !placed && !matchedUpdated && !failed),
+             existing: matched.length + relocated.length };
   }
 
   async function pullAllTasks(options) {
@@ -5741,9 +5915,18 @@
     // approve one aggregate operation instead of approving each task.
     var plans = [];
     var total = 0;
+    var missingDoc = [];
+    var otherProject = 0;
     try {
       for (var i = 0; i < tasks.length; i += 1) {
         var task = tasks[i];
+        // Different projects can own sheets with identical names. Pulling
+        // another project's task into this workbook would append its rows to a
+        // look-alike sheet, so keep the pull inside the selected project.
+        if (state.nas.pid && Number(task.project_id || 0) !== Number(state.nas.pid)) {
+          otherProject += 1; continue;
+        }
+        if (task.doc && !sheetByName(task.doc)) { missingDoc.push(task.doc); continue; }
         var items = (task.items && task.items.length && task.items.length >= Number(task.total || 0))
           ? task.items.slice() : await fetchAllTaskItems(task);
         plans.push({ task: task, items: items });
@@ -5769,9 +5952,133 @@
     if (typeof syncActiveSheet === 'function') syncActiveSheet();
     if (typeof loadEntries === 'function') loadEntries();
     if (hint) hint.textContent = '全部增量处理完成：新增 ' + sum.written + ' 条，更新已有 ' + sum.updated +
-      ' 条，跳过 ' + sum.skipped + ' 条' + (sum.failed ? '，失败 ' + sum.failed + ' 条。' : '，无失败。');
+      ' 条，跳过 ' + sum.skipped + ' 条' + (sum.failed ? '，失败 ' + sum.failed + ' 条。' : '，无失败。') +
+      (missingDoc.length ? '当前工作簿缺少 ' + missingDoc.length + ' 个任务的工作表，已跳过。' : '') +
+      (otherProject ? '另有 ' + otherProject + ' 个任务属于别的项目，已跳过。' : '');
     if (!silent) showToast('全部任务已拉取');
     return sum;
+  }
+
+  // Reconcile the whole local workbook with the NAS full table, no assignment
+  // needed. Every NAS row carries its original sheet/row/column, so only cells
+  // that actually differ are rewritten and local-only rows are left alone.
+  async function syncWholeTable(options) {
+    var silent = !!(options && options.silent);
+    var hint = $('taskHint');
+    if (!state.nas.token) { if (hint) hint.textContent = '还没有登录 NAS。'; return null; }
+    // Prefer the project opened in the NAS panel; fall back to its dropdown so
+    // the button still works straight from the task panel.
+    var pid = Number(state.nas.pid || 0);
+    if (!pid && $('nasProject') && $('nasProject').value) pid = Number($('nasProject').value);
+    var lang = state.nas.lang || '';
+    if (!lang && $('nasLang') && $('nasLang').value) lang = $('nasLang').value;
+    if (!pid) { if (hint) hint.textContent = '请先在 NAS 面板选择一个项目，再做整表同步。'; return null; }
+    if (hint) hint.textContent = '正在读取 NAS 全量表…';
+    var items = [], total = 0, offset = 0;
+    try {
+      while (true) {
+        var page = await nasFetch('/api/projects/sync?project_id=' + pid + '&lang=' + encodeURIComponent(lang) +
+          '&offset=' + offset + '&limit=5000');
+        total = page.total || 0;
+        var batch = page.items || [];
+        items = items.concat(batch);
+        offset += batch.length;
+        if (!batch.length || offset >= total) break;
+        if (hint) hint.textContent = '已读取 ' + offset + ' / ' + total + ' 条…';
+      }
+    } catch (err) {
+      if (hint) hint.textContent = '读取全量表失败：' + err.message;
+      return null;
+    }
+    if (!items.length) { if (hint) hint.textContent = '该语言没有可同步的全量条目。'; return null; }
+    if (!silent && !confirm('把 NAS 上该语言的全量表（' + items.length + ' 条）按原表位置对齐到当前工作簿？\n' +
+        '只改写有差异的单元格，不会删除本地多出的行。')) return null;
+
+    // Group by worksheet, then by target column, so consecutive cells can be
+    // written as one range instead of thousands of single-cell calls.
+    var byDoc = {};
+    items.forEach(function (it) {
+      var doc = String(it.doc || '');
+      if (!doc || !it.sheet_row || !it.sheet_col) return;
+      (byDoc[doc] = byDoc[doc] || []).push(it);
+    });
+    var stats = { sheets: 0, written: 0, same: 0, conflict: 0, missingSheets: [], failed: 0 };
+    Object.keys(byDoc).forEach(function (doc) {
+      var sheet = sheetByName(doc);
+      if (!sheet) { stats.missingSheets.push(doc); return; }
+      stats.sheets += 1;
+      var used = sheet.UsedRange;
+      if (!used) { stats.missingSheets.push(doc + '（空表）'); return; }
+      var grid = toGrid(used.Value2);
+      var startRow = Number(used.Row) || 1;
+      var startCol = Number(used.Column) || 1;
+      var headerAt = detectHeaderEnd(grid);
+      var header = headerAt >= 0 ? (grid[headerAt] || []) : [];
+      var group = state.perSheetCols[sheet.Name] ||
+        { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
+      var srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+      var tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+      if (srcIdx < 0 || tgtIdx < 0 || srcIdx >= (grid[0] || []).length) {
+        var ds = -1, dt = -1;
+        header.forEach(function (cell, idx) {
+          var t = String(cell == null ? '' : cell).trim();
+          if (ds < 0 && /^(source\s*text|source|原文|源文|msgid)$/i.test(t)) ds = idx;
+          if (dt < 0 && /^(en|english|译文|target)$/i.test(t) && !/old|旧/i.test(t)) dt = idx;
+        });
+        if (ds >= 0) srcIdx = ds;
+        if (dt >= 0) tgtIdx = dt;
+      }
+      if (srcIdx < 0 || tgtIdx < 0) { stats.missingSheets.push(doc + '（无法定位原文/译文列）'); return; }
+      var srcNum = startCol + srcIdx;
+      var runs = {};
+      byDoc[doc].forEach(function (it) {
+        var localSource = cellText(grid, it.sheet_row - startRow, srcIdx);
+        var same = String(localSource).replace(/\r\n?/g, '\n').trim() ===
+                   String(it.source == null ? '' : it.source).replace(/\r\n?/g, '\n').trim();
+        if (!same && String(localSource).trim()) { stats.conflict += 1; return; }
+        var localTarget = it.sheet_col - startCol >= 0 ? cellText(grid, it.sheet_row - startRow, it.sheet_col - startCol) : '';
+        var wantTarget = it.target == null ? '' : String(it.target);
+        var writes = [];
+        if (!same) writes.push([srcNum, it.source]);
+        if (wantTarget && wantTarget !== String(localTarget == null ? '' : localTarget)) writes.push([it.sheet_col, wantTarget]);
+        if (!writes.length) { stats.same += 1; return; }
+        writes.forEach(function (pair) {
+          var col = pair[0];
+          (runs[col] = runs[col] || []).push({ row: it.sheet_row, value: pair[1] });
+        });
+        stats.written += 1;
+      });
+      Object.keys(runs).forEach(function (colKey) {
+        var col = Number(colKey);
+        var list = runs[colKey].sort(function (a, b) { return a.row - b.row; });
+        var i = 0;
+        while (i < list.length) {
+          var j = i;
+          while (j + 1 < list.length && list[j + 1].row === list[j].row + 1) j += 1;
+          try {
+            var letter = numberToCol(col);
+            if (i === j) {
+              sheet.Range(letter + list[i].row).Value2 = list[i].value;
+            } else {
+              var block = [];
+              for (var k = i; k <= j; k += 1) block.push([list[k].value]);
+              sheet.Range(letter + list[i].row + ':' + letter + list[j].row).Value2 = block;
+            }
+          } catch (err) { stats.failed += (j - i + 1); }
+          i = j + 1;
+        }
+      });
+    });
+    if (typeof syncActiveSheet === 'function') syncActiveSheet();
+    if (typeof loadEntries === 'function') loadEntries();
+    var summary = '整表同步完成：' + stats.sheets + ' 个工作表，改写 ' + stats.written +
+      ' 条（其中一致 ' + stats.same + ' 条）' +
+      (stats.conflict ? '，位置冲突跳过 ' + stats.conflict + ' 条' : '') +
+      (stats.failed ? '，写入失败 ' + stats.failed + ' 条' : '') +
+      (stats.missingSheets.length ? '，本地缺少 ' + stats.missingSheets.length + ' 个工作表' : '') + '。';
+    if (hint) hint.textContent = summary;
+    if (!silent) showToast(summary);
+    return stats;
   }
 
   function renderNasTasks() {
@@ -5779,10 +6086,26 @@
     if (!list) return;
     list.textContent = '';
     var tasks = state.nas.tasks || [];
-    if (count) count.textContent = tasks.length
-      ? trFormat(tasks.length === 1 ? 'task.countOne' : 'task.count', '{count} 个任务', { count: tasks.length })
-      : '';
-    if (empty) { empty.hidden = tasks.length > 0; empty.textContent = tr('task.empty', '暂无分配给你的任务。'); }
+    // Tasks from other projects cannot be located in this workbook, so the list
+    // follows the project selected in the NAS panel.
+    var otherProjects = 0;
+    if (state.nas.pid) {
+      var mine = tasks.filter(function (t) { return Number(t.project_id || 0) === Number(state.nas.pid); });
+      otherProjects = tasks.length - mine.length;
+      tasks = mine;
+    }
+    if (count) {
+      var label = tasks.length
+        ? trFormat(tasks.length === 1 ? 'task.countOne' : 'task.count', '{count} 个任务', { count: tasks.length })
+        : '';
+      count.textContent = label + (otherProjects ? '（另有 ' + otherProjects + ' 个属于其他项目）' : '');
+    }
+    if (empty) {
+      empty.hidden = tasks.length > 0;
+      empty.textContent = otherProjects
+        ? '当前项目没有任务；另有 ' + otherProjects + ' 个任务属于其他项目，切换 NAS 面板的项目可查看。'
+        : tr('task.empty', '暂无分配给你的任务。');
+    }
     var statusText = {
       new: tr('status.new', '待译'), draft: tr('status.draft', '草稿'),
       translated: tr('status.translated', '已译'), reviewed: tr('status.reviewed', '已审')
@@ -5885,16 +6208,162 @@
     });
   }
 
+  // Prev/next walk the whole assigned queue (every task of the current
+  // project), not just the task that happens to be open.
+  async function buildTaskQueue() {
+    var tasks = state.nas.tasks || [];
+    if (state.nas.pid) {
+      tasks = tasks.filter(function (t) { return Number(t.project_id || 0) === Number(state.nas.pid); });
+    }
+    if (state.nas.queue && state.nas.queue.length && state.nas.queueFor === state.nas.pid) {
+      return state.nas.queue;
+    }
+    var queue = [];
+    for (var i = 0; i < tasks.length; i += 1) {
+      var task = tasks[i];
+      var items = (task.items || []).slice();
+      if (Number(task.total || 0) > items.length) {
+        try { items = await fetchAllTaskItems(task); } catch (err) { /* keep the page we have */ }
+      }
+      items.forEach(function (item) { queue.push({ task: task, item: item }); });
+    }
+    state.nas.queue = queue;
+    state.nas.queueFor = state.nas.pid;
+    state.nas.queueIndex = -1;
+    return queue;
+  }
+
+  async function navigateTaskItem(delta) {
+    var hint = $('taskHint');
+    var queue = await buildTaskQueue();
+    if (!queue.length) { if (hint) hint.textContent = '当前项目没有可处理的条目。'; return; }
+    var current = Number(state.nas.queueIndex);
+    if (!(current >= 0 && current < queue.length)) {
+      var entry = currentEntry();
+      current = -1;
+      for (var i = 0; i < queue.length; i += 1) {
+        if (taskItemMatches(queue[i].item, entry)) { current = i; break; }
+      }
+      if (current < 0) {
+        current = (delta > 0 ? -1 : queue.length);
+      }
+    }
+    var next = current + delta;
+    if (next < 0) { if (hint) hint.textContent = '已经是第一条。'; return; }
+    if (next >= queue.length) { if (hint) hint.textContent = '已经是最后一条。'; return; }
+    var pick = queue[next];
+    await openNasTask(pick.task, pick.item);
+    state.nas.queueIndex = next;
+    if (hint) {
+      hint.textContent = '第 ' + (next + 1) + ' / ' + queue.length + ' 条 · ' +
+        (pick.task.doc || '') + ' · 第 ' + (pick.item.sheet_row || '?') + ' 行';
+    }
+    renderActiveTask();
+  }
+
+  function taskItemMatches(item, entry) {
+    if (!item || !entry) return false;
+    if (String(item.source || '') !== String(entry.source || '')) return false;
+    var row = Number(item.sheet_row || 0);
+    return !row || !entry.row || row === Number(entry.row);
+  }
+
+  function taskItemIndexFor(items, entry) {
+    if (!entry) return -1;
+    for (var i = 0; i < items.length; i += 1) {
+      var it = items[i];
+      if (Number(it.sheet_row || 0) === Number(entry.row) &&
+          String(it.source || '') === String(entry.source || '')) return i;
+      if (it.id && entry.id && Number(it.id) === Number(entry.id)) return i;
+    }
+    for (var j = 0; j < items.length; j += 1) {
+      if (String(items[j].source || '') === String(entry.source || '')) return j;
+    }
+    return -1;
+  }
+
+  // The pane HTML may be cached by the host, so the task navigation is also
+  // installed from script. Running twice is harmless.
+  function ensureTaskNavButtons() {
+    var actions = document.querySelector('#taskContext .task-context-actions');
+    if (!actions || document.getElementById('btnTaskPrev')) return;
+    var prev = document.createElement('button');
+    prev.className = 'act ghost mini';
+    prev.id = 'btnTaskPrev';
+    prev.type = 'button';
+    prev.title = '在当前任务分配到的条目里跳到上一条';
+    prev.textContent = '上一条';
+    prev.addEventListener('click', function () { navigateTaskItem(-1); });
+    var pos = document.createElement('span');
+    pos.className = 'count';
+    pos.id = 'taskItemPos';
+    var next = document.createElement('button');
+    next.className = 'act ghost mini';
+    next.id = 'btnTaskNext';
+    next.type = 'button';
+    next.title = '在当前任务分配到的条目里跳到下一条';
+    next.textContent = '下一条';
+    next.addEventListener('click', function () { navigateTaskItem(1); });
+    var first = actions.firstChild;
+    actions.insertBefore(prev, first);
+    actions.insertBefore(pos, first);
+    actions.insertBefore(next, first);
+    if (state.nas.activeTask) renderActiveTask();
+  }
+
   function renderActiveTask() {
     var box = $('taskContext'), task = state.nas.activeTask;
     if (!box) return;
     if (!task) { box.hidden = true; return; }
     box.hidden = false;
+    ensureTaskNavButtons();
     if ($('taskContextName')) $('taskContextName').textContent = task.name || '任务';
     if ($('taskContextMeta')) {
       $('taskContextMeta').textContent = (task.project_name || '') + ' · ' + (task.lang || '') +
         ' · ' + (task.done || 0) + '/' + (task.total || 0);
     }
+    if ($('taskItemPos')) {
+      var total = (state.nas.queue || []).length;
+      var pos = Number(state.nas.queueIndex);
+      $('taskItemPos').textContent = total
+        ? ((pos >= 0 && pos < total ? pos + 1 : 0) + ' / ' + total)
+        : '';
+    }
+  }
+
+  // One column-resolution path for 拉取 and 定位: saved mapping, header, then
+  // the task's own source strings.
+  function resolveSheetColumns(sheet, grid, headerAt, startCol, task) {
+    var width = 0;
+    grid.forEach(function (row) { if (row && row.length > width) width = row.length; });
+    var header = headerAt >= 0 ? (grid[headerAt] || []) : [];
+    var group = state.perSheetCols[sheet.Name] ||
+      { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
+    var srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
+    var tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
+    var usable = srcIdx >= 0 && tgtIdx >= 0 && srcIdx < width && tgtIdx < width &&
+      group.sourceCol !== group.targetCol;
+    if (usable) return { srcIdx: srcIdx, tgtIdx: tgtIdx, sourceCol: group.sourceCol,
+                         targetCol: group.targetCol, scanFrom: headerAt + 1 };
+    var ds = -1, dt = -1;
+    header.forEach(function (cell, idx) {
+      var t = String(cell == null ? '' : cell).trim();
+      if (ds < 0 && /^(source\s*text|source|原文|源文|msgid)$/i.test(t)) ds = idx;
+      if (dt < 0 && /^(en|english|译文|target)$/i.test(t) && !/old|旧/i.test(t)) dt = idx;
+    });
+    if (ds >= 0 && dt >= 0 && ds !== dt) {
+      return { srcIdx: ds, tgtIdx: dt, sourceCol: numberToCol(startCol + ds),
+               targetCol: numberToCol(startCol + dt), scanFrom: headerAt + 1 };
+    }
+    var byData = detectColumnsFromItems(grid, headerAt, startCol, task);
+    if (!byData) return null;
+    state.perSheetCols[sheet.Name] = { sourceCol: numberToCol(byData.src),
+                                       targetCol: numberToCol(byData.tgt) };
+    var scan = headerAt + 1;
+    if (byData.firstRow >= 0 && byData.firstRow < scan) scan = byData.firstRow;
+    return { srcIdx: byData.src - startCol, tgtIdx: byData.tgt - startCol,
+             sourceCol: numberToCol(byData.src), targetCol: numberToCol(byData.tgt),
+             scanFrom: scan };
   }
 
   function findTaskEntry(task, source, wantedTarget, uid, itemKey) {
@@ -5914,27 +6383,13 @@
       if (uidCol < 0 && (t === 'uid' || t === 'uuid' || t === '唯一id' || t === '唯一标识')) uidCol = idx;
       if (keyCol < 0 && (t === 'key' || t === 'itemkey' || t === '完整key' || t === '业务key')) keyCol = idx;
     });
-    var group = state.perSheetCols[sheet.Name] ||
-      { sourceCol: state.settings.sourceCol, targetCol: state.settings.targetCol };
-    var srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
-    var tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
-    if (srcIdx < 0 || tgtIdx < 0) {
-      var ds = -1, dt = -1;
-      header.forEach(function (cell, idx) {
-        var t = String(cell == null ? '' : cell).trim();
-        if (ds < 0 && /^(source\s*text|source|原文|源文|msgid)$/i.test(t)) ds = idx;
-        if (dt < 0 && /^(en|english|译文|target)$/i.test(t) && !/old|旧/i.test(t)) dt = idx;
-      });
-      if (ds >= 0) group.sourceCol = numberToCol(startCol + ds);
-      if (dt >= 0) group.targetCol = numberToCol(startCol + dt);
-      srcIdx = group.sourceCol ? colToNumber(group.sourceCol) - startCol : -1;
-      tgtIdx = group.targetCol ? colToNumber(group.targetCol) - startCol : -1;
-    }
-    if (srcIdx < 0 || tgtIdx < 0 || group.sourceCol === group.targetCol) return null;
+    var cols = resolveSheetColumns(sheet, grid, headerAt, startCol, task);
+    if (!cols) return null;
+    var srcIdx = cols.srcIdx, tgtIdx = cols.tgtIdx, group = cols;
     var needle = String(source || '').trim();
     if (!needle) return null;
     var first = null, bySource = null;
-    for (var r = headerAt + 1; r < grid.length; r += 1) {
+    for (var r = cols.scanFrom; r < grid.length; r += 1) {
       var rowUid = uidCol > -1 ? cellText(grid, r, uidCol) : '';
       var rowKey = keyCol > -1 ? cellText(grid, r, keyCol) : '';
       var rowSource = cellText(grid, r, srcIdx);
@@ -5961,10 +6416,15 @@
       return;
     }
     if (hint) hint.textContent = '正在打开任务…';
+    state.nas.queueIndex = -1;
     try {
       state.nas.pid = Number(task.project_id) || state.nas.pid;
       state.nas.lang = task.lang || state.nas.lang;
       var matchSeg = segment || (task.items && task.items[0]) || targetSeg;
+      if (task.items && task.items.length) {
+        var seedIdx = task.items.indexOf(matchSeg);
+        state.nas.taskIndex = seedIdx >= 0 ? seedIdx : 0;
+      }
       var entry = findTaskEntry(task, targetSeg.source, targetSeg.target,
         matchSeg.uid || '', matchSeg.item_key || '');
       state.nas.activeTask = task;
@@ -5983,9 +6443,23 @@
         }
         showTab('translate');
       }
-      if (hint) hint.textContent = entry
-        ? ('已打开任务：' + (task.name || '任务') + ' · 翻译页已载入当前条目')
-        : '未在当前工作簿中找到对应原文，请先在任务卡片点「拉取增量」。';
+      if (!entry) {
+        var missingDoc = task.doc && !sheetByName(task.doc);
+        if (missingDoc) {
+          var book = sheetApp() && sheetApp().ActiveWorkbook;
+          hint.textContent = '当前工作簿「' + (book && book.Name ? book.Name : '未命名') +
+            '」没有工作表「' + task.doc + '」。这个任务属于「' + (task.project_name || '其他项目') +
+            '」，请先打开对应项目的表格再点任务。';
+        } else {
+          var book2 = sheetApp() && sheetApp().ActiveWorkbook;
+          hint.textContent = '在「' + (task.doc || '当前工作表') + '」里找不到原文「' +
+            String(targetSeg.source || '').slice(0, 40) + '」。该任务属于「' +
+            (task.project_name || '未知项目') + ' · ' + (task.lang || '') + '」。' +
+            '请确认打开的是这个项目的工作簿；如果表结构特殊，先点「拉取增量」让它按原文定位并记住列。';
+        }
+      } else {
+        hint.textContent = '已打开任务：' + (task.name || '任务') + ' · 翻译页已载入当前条目';
+      }
     } catch (err) {
       if (hint) hint.textContent = '打开任务失败：' + err.message;
     }
@@ -7034,7 +7508,10 @@
     $('btnNasLogout').addEventListener('click', nasLogout);
     $('nasPass').addEventListener('keydown', function (event) { if (event.key === 'Enter') nasLogin(); });
     if ($('btnTasksRefresh')) $('btnTasksRefresh').addEventListener('click', loadNasTasks);
+    if ($('btnTaskPrev')) $('btnTaskPrev').addEventListener('click', function () { navigateTaskItem(-1); });
+    if ($('btnTaskNext')) $('btnTaskNext').addEventListener('click', function () { navigateTaskItem(1); });
     if ($('btnPullAllTasks')) $('btnPullAllTasks').addEventListener('click', pullAllTasks);
+    if ($('btnSyncTable')) $('btnSyncTable').addEventListener('click', function () { syncWholeTable({}); });
     if ($('btnTaskBack')) $('btnTaskBack').addEventListener('click', function () { showTab('tasks'); });
     if ($('btnTaskComplete')) $('btnTaskComplete').addEventListener('click', function () {
       if (state.nas.activeTask) submitTask(state.nas.activeTask);
@@ -7293,6 +7770,43 @@
           if (!sh) throw new Error('找不到工作表');
           sh.Range((entry.targetCol || state.settings.targetCol) + entry.row).Value2 = p2.target || '';
           await reply(cmd, true, { written: 1 });
+          return;
+        }
+        if (cmd.action === 'probe') {
+          var app0 = sheetApp();
+          var sh0 = currentSheet();
+          var wb0 = app0 && app0.ActiveWorkbook ? app0.ActiveWorkbook : null;
+          var used0 = sh0 ? sh0.UsedRange : null;
+          var p0 = cmd.payload || {};
+          var out0 = {
+            workbook: wb0 && wb0.Name ? wb0.Name : '',
+            sheet: sh0 && sh0.Name ? sh0.Name : '',
+            sheets: wb0 && wb0.Worksheets ? wb0.Worksheets.Count : 0,
+            rows: used0 ? used0.Rows.Count : 0,
+            cols: used0 ? used0.Columns.Count : 0
+          };
+          out0.entries = state.entries ? state.entries.length : 0;
+          out0.cursor = typeof state.cursor === 'number' ? state.cursor : -1;
+          out0.sourceCol = state.settings.sourceCol;
+          out0.targetCol = state.settings.targetCol;
+          out0.activeSheet = currentSheet() ? currentSheet().Name : '';
+          out0.taskDoc = (state.nas.activeTask && state.nas.activeTask.doc) || '';
+          if (p0.sheet && p0.row && p0.col) {
+            var probeSheet = sheetByName(p0.sheet);
+            if (!probeSheet) { out0.cellError = 'no such sheet: ' + p0.sheet; }
+            else {
+              var probeCell = probeSheet.Range(numberToCol(Number(p0.col)) + Number(p0.row)).Value2;
+              out0.cell = probeCell == null ? '' : String(probeCell);
+              out0.cellRef = p0.sheet + '!' + p0.row + ',' + p0.col;
+            }
+          }
+          await reply(cmd, true, out0);
+          return;
+        }
+        if (cmd.action === 'syncTable') {
+          var sres = await syncWholeTable({ silent: true });
+          await reply(cmd, !!sres, sres || null,
+            sres ? '' : '整表同步没有执行，请检查 NAS 面板是否选了项目');
           return;
         }
         if (cmd.action === 'pullAll') {

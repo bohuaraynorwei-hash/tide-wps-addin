@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tide · 术语审校</title>
+  <link rel="stylesheet" href="tide.css?b=202611052037">
+</head>
+<body>
+  <header class="bar">
+    <span class="brand" title="TIDE" aria-label="TIDE">
+      <svg class="logo" viewBox="0 0 24 24" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="tideMark" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3366ff"/>
+            <stop offset=".52" stop-color="#7a5cff"/>
+            <stop offset="1" stop-color="#ff5c9e"/>
+          </linearGradient>
+        </defs>
+        <rect x="7" y="4.4" width="10" height="2.4" rx="1.2" fill="url(#tideMark)"/>
+        <rect x="5.9" y="14.1" width="2.7" height="4.7" rx="1.2" fill="url(#tideMark)"/>
+        <rect x="10.65" y="10.4" width="2.7" height="8.4" rx="1.2" fill="url(#tideMark)"/>
+        <rect x="15.4" y="12.5" width="2.7" height="6.3" rx="1.2" fill="url(#tideMark)"/>
+      </svg>
+    </span>
+    <button class="backbtn" id="btnBack" title="返回上一标签页" aria-label="返回上一标签页">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg><span data-i18n="btn.back">返回</span>
+    </button>
+    <button class="top-nas" id="topNas" type="button" title="打开 NAS 页面" aria-label="打开 NAS 页面">
+      <svg class="top-nas-ic" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#2563eb"/>
+        <rect x="5.2" y="6" width="13.6" height="3.7" rx="1.85" fill="#fff"/>
+        <rect x="5.2" y="11" width="13.6" height="3.7" rx="1.85" fill="#fff" opacity=".72"/>
+        <path d="M5 19c2.4-1.8 4.8-1.8 7.2 0s4.8 1.8 7.2 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg><span>NAS</span>
+    </button>
+    <button class="act mini" id="btnFloat" type="button" title="在独立浏览器窗口打开浮动工作台" style="margin-right:2px">浮动</button>
+    <button class="lang-open" id="btnLang" title="界面语言" aria-label="界面语言" aria-haspopup="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="12" cy="12" r="8.4"/>
+        <path d="M3.6 12h16.8"/>
+        <path d="M12 3.6c2.6 2.4 4 5.2 4 8.4s-1.4 6-4 8.4c-2.6-2.4-4-5.2-4-8.4s1.4-6 4-8.4z"/>
+      </svg>
+    </button>
+    <div class="lang-menu" id="langMenu" hidden></div>
+    <button class="tour-open" id="btnTour" title="新手引导" aria-label="新手引导">?</button>
+    <button class="act" id="updateBar" hidden title="有新版本，点击重新加载">有新版本，点击重新加载</button>
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="tasks">我的任务</button>
+    <button data-tab="translate">翻译</button>
+    <button data-tab="terms">术语</button>
+    <button data-tab="matches" class="on">命中</button>
+    <button data-tab="keys">Key 定位</button>
+    <button data-tab="free" hidden>自由</button>
+    <button data-tab="find">搜索</button>
+    <button data-tab="review">审校</button>
+    <button data-tab="versions" data-i18n="tab.versions">版本</button>
+    <button data-tab="tm">记忆库</button>
+    <button data-tab="grid">表格编辑</button>
+    <button data-tab="project" hidden>项目</button>
+    <button data-tab="history">记录</button>
+    <button data-tab="sync">同步</button>
+    <button data-tab="settings">设置</button>
+  </nav>
+  <div class="tab-scroll" id="tabScroll"><div class="tab-thumb" id="tabThumb"></div></div>
+
+  <div class="content">
+  <main id="mainScroll">
+    <section id="panel-tasks" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTasksRefresh" data-i18n="btn.refresh">刷新</button>
+        <button class="act ghost" id="btnPullAllTasks" type="button">拉取全部增量</button>
+        <button class="act ghost" id="btnSyncTable" type="button"
+                title="不分配任务也能把 NAS 上该语言的全量表按原表位置对齐到当前工作簿">同步整表</button>
+        <span class="count" id="taskCount"></span>
+      </div>
+      <div class="hint" id="taskHint" data-i18n="task.hintLogin">通过 NAS 登录后，这里会列出分配给你的任务。</div>
+      <div class="wps-task-list" id="taskList"></div>
+      <div class="wps-task-empty" id="taskEmpty" hidden data-i18n="task.empty">暂无分配给你的任务。</div>
+      <button class="act nas-login" id="btnTasksLogin" type="button" hidden data-i18n="task.login">前往 NAS 登录</button>
+    </section>
+
+    <section id="panel-matches">
+      <div class="toolbar">
+        <button class="act" id="btnScan">扫描当前表</button>
+        <span class="count" id="matchCount" data-i18n="match.notScanned">未扫描</span>
+      </div>
+      <table id="matchTable" hidden>
+        <thead><tr><th>行</th><th>源文命中</th><th>批准译法</th><th></th><th>当前译文</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="matchEmpty" data-i18n="match.empty">导入术语表后，点击「扫描当前表」，<br>这里会列出命中的行与中英对照。</div>
+    </section>
+
+    <section id="panel-translate" hidden>
+      <div class="task-context" id="taskContext" hidden>
+        <div class="task-context-main">
+          <span class="task-context-label">当前任务</span>
+          <b id="taskContextName">—</b>
+          <span class="task-context-meta" id="taskContextMeta"></span>
+        </div>
+        <div class="task-context-actions">
+          <button class="act mini" id="btnTaskComplete" type="button">提交任务</button>
+          <button class="act ghost mini" id="btnTaskBack" type="button">任务列表</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnPrevEntry">上一条</button>
+        <button class="act ghost" id="btnNextEntry">下一条</button>
+        <button class="act ghost" id="btnRefreshEntries">刷新条目</button>
+        <button class="act ghost" id="btnColumnChoice" title="检测当前表的源语/目标语列；多组时手动选择" data-i18n="btn.columnChoice">识别/选择列</button>
+        <span class="count" id="entryPos">0 / 0</span>
+      </div>
+      <div class="field column-map-panel" id="columnMapPanel" hidden>
+        <div class="field-head">
+          <label data-i18n="label.columnManual">手工指定当前表的源语 / 目标语列</label>
+          <span class="head-actions">
+            <button class="act ghost mini" type="button" id="btnColumnMapDetect" data-i18n="btn.columnDetect">识别</button>
+            <button class="act ghost mini" type="button" id="btnColumnMapCancel" data-i18n="btn.close">关闭</button>
+          </span>
+        </div>
+        <div class="colrow" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="colfield"><label data-i18n="label.sourceCol">源语列</label><input id="columnMapSource" maxlength="3" placeholder="C" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label data-i18n="label.targetCol">目标语列</label><input id="columnMapTarget" maxlength="3" placeholder="F" style="width:100%;text-transform:uppercase"></div>
+          <div class="colfield"><label data-i18n="label.oldColShort">旧译（可选）</label><input id="columnMapOld" maxlength="3" placeholder="E" style="width:100%;text-transform:uppercase"></div>
+        </div>
+        <div class="hint" id="columnMapHint" data-i18n="hint.columnManual">可直接输入列字母；识别候选只用于填入，不会自动覆盖。</div>
+        <div class="column-map-candidates" id="columnMapCandidates"></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="act" type="button" id="btnColumnMapApply" data-i18n="btn.columnApply">应用列映射</button>
+          <span class="hint" id="columnMapStatus"></span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-head">
+          <label id="entrySourceLabel">原文（只读，来自工作表）</label>
+          <span class="head-actions">
+            <button class="act ghost mini" id="btnLocate">定位译文</button>
+            <button class="act ghost mini" id="btnLocateSource">定位原文</button>
+          </span>
+        </div>
+        <div class="hint locate-status" id="locateStatus"></div>
+        <div class="draft-row">
+          <textarea class="readbox" id="entrySource" rows="2" spellcheck="false"
+                    placeholder="可直接输入或粘贴原文；默认只影响本窗口，写回需点按钮" data-i18n-ph="entry.sourcePlaceholder"></textarea>
+          <div class="draft-actions">
+            <button class="act" id="btnSourcePaste" title="粘贴剪贴板内容">粘贴</button>
+            <button class="act ghost" id="btnSourceClear" title="清空原文输入">清空</button>
+          </div>
+        </div>
+      </div>
+      <div class="field" id="entryTermField" hidden>
+        <div class="field-head">
+          <label><span data-i18n="entry.terms">本句术语</span> <span class="count" id="entryTermCount"></span></label>
+        </div>
+        <div class="term-preview" id="entrySourceHighlight"></div>
+        <div class="term-chips" id="entryTermHits"></div>
+        <div class="hint" id="entryTermHint">点击术语可填入译文草稿。</div>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnResetSource">重置为单元格值</button>
+        <button class="act ghost" id="btnSaveSource">写回原文</button>
+        <button class="act ghost" id="btnReadCellSrc">读取选区→原文</button>
+      </div>
+      <div class="field">
+        <div class="field-head">
+          <label id="entryDraftLabel">译文草稿</label>
+        </div>
+        <div class="draft-row">
+          <textarea id="entryDraft" rows="5" spellcheck="true" lang="en"
+                    data-gramm="true" data-gramm_editor="true" data-enable-grammarly="true"></textarea>
+          <div class="draft-actions">
+            <button class="act" id="btnWriteDraft" title="将草稿写入当前译文单元格">写入</button>
+            <button class="act ghost" id="btnAITranslate" title="试用：调用本机 AI 生成译文草稿">AI 翻译</button>
+            <button class="act" id="btnDraftPaste" title="粘贴剪贴板内容（等同 Ctrl+V）">粘贴</button>
+            <button class="act ghost" id="btnDraftClear" title="清空译文草稿">清空</button>
+          </div>
+        </div>
+        <div class="hint" id="grammarlyHint" data-i18n="entry.grammarly">Grammarly 扩展需在 WPS 中启用；此文本框已开放语法检测。</div>
+        <div class="hint" id="aiTranslateHint">AI 试用：先生成草稿，不自动写入；只发送当前原文。</div>
+        <div class="ai-quick-row" id="aiQuickRow">
+          <span class="ai-quick-label">AI 模型</span>
+          <select id="aiQuickProvider" class="mini"></select>
+          <button class="act ghost" type="button" id="btnAIDetect" title="检测本机正在运行的 AI">检测</button>
+          <button class="act ghost" type="button" id="btnAISettings">AI 设置</button>
+        </div>
+        <div class="hint" id="aiDetectStatus"></div>
+      </div>
+      <div class="field">
+        <label><span id="memoryLabel">记忆匹配</span> <span class="count" id="memoryCount"></span></label>
+        <table id="memoryTable" hidden>
+          <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="memoryEmpty" data-i18n="entry.memoryEmpty">当前表还没有可用的已确认译文。</div>
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnWriteNext">写入并下一条</button>
+        <button class="act ghost" id="btnUndoWrite">撤销上次写入</button>
+        <button class="act ghost" id="btnRollback">回退旧译文</button>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnCopySource">复制原文</button>
+        <button class="act ghost" id="btnCopyDraft">复制草稿</button>
+        <button class="act ghost" id="btnReadCell">读取选区→译文</button>
+      </div>
+      <div class="hint" id="clipHint" data-i18n="hint.clipboard" style="margin:-4px 0 10px">
+        窗格收不到 ⌘V（WPS 在窗口层拦截）。可靠做法：在表格里粘贴到任意单元格并选中它，
+        再点「读取选区→原文 / →译文」；也可以把文字直接拖进输入框。
+      </div>
+      <div class="hint" id="entryCheck"></div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnDelivery">交付检查</button>
+        <span class="count" id="deliveryCount"></span>
+      </div>
+      <table id="deliveryTable" hidden>
+        <thead><tr><th>行</th><th>问题</th><th>原文</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="toolbar">
+        <button class="act" id="btnExportSessionEdits" title="复制原工作簿的全部工作表和布局，仅保留本次修改过的数据行" data-i18n="btn.exportFull">一键导出本次编辑（完整表格）</button>
+        <button class="act ghost" id="btnExportSessionLog" title="导出本次编辑的修改前后明细" data-i18n="btn.exportLog">导出修改记录</button>
+        <span class="count" id="sessionEditCount">0 条</span>
+      </div>
+
+    </section>
+
+    <section id="panel-versions" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnVersionsRefresh">刷新</button>
+        <select id="versionKind" class="mini" aria-label="版本类型">
+          <option value="target" data-i18n="version.target">译文版本</option>
+          <option value="source" data-i18n="version.source">原文版本</option>
+        </select>
+        <input id="versionQuery" type="search" placeholder="筛选原文 / 行号 / 单元格" data-i18n-ph="version.filter" style="flex:1;min-width:120px">
+        <span class="count" id="versionEntryCount"></span>
+      </div>
+      <div class="hint" id="versionHint" data-i18n="hint.version">原文和译文分开归档；每个版本只回滚当前词条，不影响其他词条。</div>
+      <div id="versionEntries"></div>
+      <div class="empty" id="versionEmpty">还没有词条版本。通过插件写入译文或原文后，这里会按词条记录。</div>
+    </section>
+
+    <section id="panel-free" hidden>
+      <div class="field">
+        <label>自由输入（不写回表格）</label>
+        <textarea id="freeSource" rows="4" spellcheck="false" placeholder="粘贴任意中文原文…"></textarea>
+      </div>
+      <div class="field">
+        <label>术语命中 <span class="count" id="freeTermCount"></span></label>
+        <table id="freeTermTable" hidden>
+          <thead><tr><th>中文</th><th>英文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="freeTermEmpty" data-i18n="free.termEmpty">没有命中术语。</div>
+      </div>
+      <div class="field">
+        <label>记忆匹配 <span class="count" id="freeMemoryCount"></span></label>
+        <table id="freeMemoryTable" hidden>
+          <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint" id="freeMemoryEmpty" data-i18n="free.memoryEmpty">没有记忆匹配。</div>
+      </div>
+      <div class="field">
+        <label>译文草稿（仅本页，不写入工作表）</label>
+        <textarea id="freeDraft" rows="3" spellcheck="false"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnFreeCopy">复制译文</button>
+        <button class="act ghost" id="btnFreeClear">清空</button>
+      </div>
+      <div class="hint" id="freeStatus"></div>
+    </section>
+
+    <section id="panel-find" hidden>
+      <div class="field">
+        <label data-i18n="label.findScope">工作表（可选）</label>
+        <div class="sheet-picker" id="findSheetPicker">
+          <div class="sheet-picker-row">
+            <input id="findSheetInput" type="text" autocomplete="off" placeholder="全部工作表 / 搜索工作表" aria-label="选择工作表">
+            <button class="act" type="button" data-paste-for="findSheetInput">粘贴</button>
+          </div>
+          <div class="sheet-picker-menu" id="findSheetMenu" hidden></div>
+        </div>
+        <select id="findSheet" hidden>
+          <option value="">全部工作表</option>
+        </select>
+        <div class="hint" id="findScopeSummary">未指定工作表：行号使用当前页，文本搜索全表。</div>
+      </div>
+
+      <div class="find-grid">
+        <div class="find-card">
+          <h3 class="sub">按行号搜索</h3>
+          <p class="hint">未指定工作表时，查询当前页。</p>
+          <input id="findRow" type="number" min="1" step="1" placeholder="输入具体行号，例如 128" data-i18n-ph="find.rowPlaceholder" style="width:100%">
+          <div class="toolbar" style="margin-top:7px">
+            <button class="act" type="button" id="btnFindJumpSource">查找该行</button>
+          </div>
+          <div class="find-inline" id="findRowStatus"></div>
+        </div>
+
+        <div class="find-card">
+          <h3 class="sub">按文本搜索</h3>
+          <p class="hint">未指定工作表时，搜索全表。</p>
+          <input id="findInput" type="search" placeholder="输入片段，如：宝箱" data-i18n-ph="find.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
+          <div class="toolbar" style="margin-top:7px">
+            <select id="findMode" class="mini" title="匹配方式">
+              <option value="fuzzy">模糊匹配</option>
+              <option value="exact">精确匹配</option>
+            </select>
+            <button class="act" id="btnFindAll">搜索</button>
+          </div>
+          <div class="find-inline" id="findTextStatus"></div>
+        </div>
+      </div>
+
+      <div class="toolbar" style="margin-top:8px">
+        <button class="act ghost" type="button" id="btnFindClearScope">清除工作表</button>
+        <span class="count" id="findCount"></span>
+      </div>
+      <table id="findTable" hidden>
+        <thead><tr><th>表</th><th>单元格</th><th>列</th><th>内容</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" id="findEmpty" data-i18n="find.empty">选择工作表后，按行号或文本搜索；结果按工作表顺序排列，点击任意行可跳转。</div>
+      <div class="hint" id="findStatus"></div>
+
+      <hr class="rule">
+      <h3 class="sub" data-i18n="find.replaceTitle">批量替换</h3>
+      <div class="colrow">
+        <div class="colfield">
+          <label>查找</label>
+          <input id="repFind" placeholder="要查找的文字" data-i18n-ph="find.repFindPlaceholder" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+        </div>
+        <div class="colfield">
+          <label>替换为</label>
+          <input id="repWith" placeholder="留空表示删除" data-i18n-ph="find.repWithPlaceholder" style="width:100%;padding:7px 8px;border:1px solid var(--hair);background:var(--panel);font:12px var(--mono)">
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <select id="repScope" class="mini">
+          <option value="book">整本工作簿</option>
+          <option value="sheet">仅当前表</option>
+        </select>
+        <select id="repColumn" class="mini" disabled title="替换只作用于译文列">
+          <option value="target">仅译文列</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="repCase"> <span data-i18n="find.caseSensitive">区分大小写</span></label>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnRepPreview">预览</button>
+        <button class="act" id="btnRepApply" disabled>执行替换</button>
+        <button class="act ghost" id="btnRepUndo" disabled>撤销上次批量</button>
+        <span class="count" id="repCount"></span>
+      </div>
+      <div class="hint" id="repStatus"></div>
+      <table id="repTable" hidden>
+        <thead><tr><th>表</th><th>单元格</th><th>译文（当前）</th><th>译文（替换后）</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-review" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnReviewRefresh">刷新</button>
+        <span class="count" id="reviewCount"></span>
+      </div>
+      <table id="reviewTable" hidden>
+        <thead><tr><th>行</th><th>原文 / 译文</th><th>状态</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="reviewEmpty">还没有审校记录。在「翻译」页写入译文后，修订会自动记在这里。</div>
+
+      <div id="reviewDetail" hidden>
+        <hr class="rule">
+        <h3 class="sub" id="reviewDetailTitle">条目</h3>
+        <div class="field">
+          <label>修订</label>
+          <div id="revisionList"></div>
+        </div>
+        <div class="field">
+          <label>评论</label>
+          <div id="commentList"></div>
+          <textarea id="commentInput" rows="2" placeholder="针对这一条写评论…"></textarea>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="act ghost" id="btnAddComment">添加评论</button>
+            <span class="hint" id="reviewStatus"></span>
+          </div>
+        </div>
+      </div>
+      <hr class="rule">
+      <h3 class="sub" data-i18n="review.qaTitle">质检（QA）</h3>
+      <div class="toolbar">
+        <button class="act" id="btnRunQA">运行质检</button>
+        <button class="act ghost" id="btnExportQA">导出 CSV</button>
+        <button class="act ghost" id="btnPunctQA" title="只检查标点符号与空格规则">标点符号</button>
+        <button class="act ghost" id="btnPlaceholderQA" title="只检查颜色代码、换行符、{n}、%s 等占位符">占位符</button>
+        <select id="qaScope" class="mini" title="检测范围">
+          <option value="sheet" data-i18n="qa.scopeSheet">当前</option>
+          <option value="workbook" data-i18n="qa.scopeWorkbook">全表</option>
+        </select>
+        <span class="count" id="qaCount"></span>
+      </div>
+      <div class="hint" id="qaSummary"></div>
+      <table id="qaTable" hidden>
+        <thead><tr><th>行</th><th>级别</th><th>类别</th><th>说明</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-project" hidden>
+      <div class="toolbar">
+        <button class="act" id="btnProjectScan">分析整本工作簿</button>
+        <span class="count" id="projectCount"></span>
+      </div>
+      <div class="hint" id="projectSummary">逐表统计条目、已译、内存库复用率与 QA 问题数。</div>
+      <table id="projectTable" hidden>
+        <thead><tr><th>工作表</th><th>条目</th><th>已译</th><th>复用率</th><th>QA</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-grid" hidden>
+      <div class="toolbar">
+        <select id="gridFilter" class="mini">
+          <option value="all">全部条目</option>
+          <option value="empty">未翻译</option>
+          <option value="qa">有质检问题</option>
+          <option value="rev">有未处理修订</option>
+        </select>
+        <button class="act ghost" id="btnGridRefresh">刷新</button>
+        <span class="count" id="gridCount"></span>
+      </div>
+      <div class="hint" id="gridHint">直接在「译文」列编辑，失焦后写入工作表并记录修订；点击行可定位到表格中的译文单元格。</div>
+      <table id="gridTable" hidden>
+        <thead><tr><th>行</th><th>原文</th><th>译文</th><th>QA</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-tm" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTmImport">导入 TMX</button>
+        <button class="act ghost" id="btnTmExport">导出 TMX</button>
+        <button class="act ghost" id="btnTmExportChanges" title="导出当前文档中由插件产生的修改">导出修改记忆</button>
+        <button class="act ghost" id="btnTmCollect">合并当前表</button>
+        <input id="tmFile" type="file" accept=".tmx,.xml,.xlsx,.xls" hidden>
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnTmAnalyze">复用率分析</button>
+        <span class="count" id="tmCount">记忆库为空</span>
+      </div>
+      <div class="hint" id="tmStats"></div>
+      <div class="field">
+        <label>检索（源文或译文）</label>
+        <input id="tmQuery" type="search" placeholder="输入片段，查看记忆库里的旧译" data-i18n-ph="tm.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
+      </div>
+      <table id="tmTable" hidden>
+        <thead><tr><th>匹配</th><th>原文</th><th>译文</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" id="tmEmpty">导入 TMX，或把当前工作表的已有译文合并进来。</div>
+    </section>
+
+    <section id="panel-keys" hidden>
+      <div class="toolbar">
+        <button class="act" id="btnKeySearch">搜索</button>
+        <label class="check"><input type="checkbox" id="keyWholeBook"> <span data-i18n="key.wholeBook">整本工作簿</span></label>
+        <label class="check"><input type="checkbox" id="keyExactOnly"> <span data-i18n="key.exactOnly">仅精确</span></label>
+        <span class="count" id="keyCount"></span>
+      </div>
+      <div class="field">
+        <label>Key（支持片段与近似）</label>
+        <input id="keyQuery" type="search" placeholder="例如 ItemInfoCfg/12 或 12" data-i18n-ph="key.placeholder" title="Ctrl+V 粘贴 · Esc 清空">
+      </div>
+      <div class="hint" id="keyHint" data-i18n="key.hint">按表头「完整Key」与「完整Key（复制用）」定位；点结果跳到对应词条。</div>
+      <table id="keyTable" hidden>
+        <thead><tr><th>位置</th><th>Key</th><th>源文 / 译文</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="panel-terms" hidden>
+      <div class="term-lang-head">
+        <span class="term-lang-title" data-i18n="term.importLang">导入目标语</span>
+        <span class="term-lang-hint" data-i18n="term.importLangHint">导入时按此语言选择译文列，并切换当前目标语言。</span>
+      </div>
+      <select id="termLangSelect" class="mini term-lang-select" aria-label="导入目标语"></select>
+      <div class="term-source-box none" id="termSourceBox">
+        <div class="term-source-head">
+          <span class="term-source-label" data-i18n="term.currentSource">当前术语来源</span>
+        </div>
+        <div class="term-source-value" id="termSourceValue">尚未加载</div>
+        <div class="term-source-detail" id="termSourceDetail">打开术语页后自动识别 NAS 项目、缓存或本地术语。</div>
+      </div>
+      <div class="field" id="termProjectField" hidden>
+        <label data-i18n="term.nasTable">NAS 项目术语表</label>
+        <select id="termProject" class="mini"></select>
+        <div class="hint" id="termSyncState" data-i18n="term.syncHint">登录 NAS 后自动同步所有可访问项目的术语表。</div>
+      </div>
+      <div class="field" id="localTermField">
+        <label data-i18n="term.offlineSource">离线术语来源</label>
+        <div class="toolbar">
+          <button class="act" id="btnImportLocalTerm">导入本地术语</button>
+          <button class="act ghost" id="btnSwitchTermSource" title="在 NAS 缓存术语表和本地术语表之间切换">切换</button>
+          <span class="count" id="localTermState">未导入本地术语</span>
+        </div>
+        <div class="hint" id="nasCacheState"></div>
+        <input id="localTermFile" type="file" hidden>
+        <div class="hint" id="localTermHint" data-i18n="term.localHint">NAS 未连接时可在此导入，只保存在本机。连接 NAS 后以 NAS 项目术语表为准，本地术语表自动隐藏。</div>
+      </div>
+      <div class="field">
+        <label>本页列映射</label>
+        <div class="colrow" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="colfield">
+            <label>源文列</label>
+            <input id="termColSource" placeholder="C" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
+          </div>
+          <div class="colfield">
+            <label>译文列</label>
+            <input id="termColTarget" placeholder="F" style="padding:8px 10px;border:1px solid var(--hair-strong);background:var(--card);border-radius:var(--radius-sm);font:12px var(--mono)">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px" data-i18n="term.columnHint">改完点「刷新」按新列重新统计命中；这里只影响命中统计，不改术语表内容。</div>
+      </div>
+      <div class="field">
+        <label data-i18n="term.searchLabel">搜索术语（中文或英文，支持片段与近似）</label>
+        <input id="termSearch" type="search" placeholder="如：宝箱 / chest / rod" data-i18n-ph="term.searchPlaceholder" title="Ctrl+V 粘贴 · Esc 清空">
+      </div>
+      <div class="toolbar">
+        <button class="act ghost" id="btnRefreshTerms">刷新</button>
+        <span class="count" id="termCount">术语表未导入</span>
+      </div>
+      <div class="hint" id="termRefreshStatus"></div>
+      <table id="termTable" hidden>
+        <thead><tr><th>中文</th><th id="termTargetHeader">英文</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="termEmpty" data-i18n="term.empty">尚未导入术语表。NAS 未连接时可在上方「导入本地术语」导入 JSON、xlsx 或 TXT。</div>
+    </section>
+
+    <section id="panel-history" hidden>
+      <div class="toolbar">
+        <button class="act ghost" id="btnExport">导出加密归档</button>
+        <button class="act ghost" id="btnClear">清空</button>
+        <span class="count" id="historyCount">0 条</span>
+      </div>
+      <div class="note">每次扫描会对比上一次快照，记录单元格的旧值与新值。归档以口令加密后只存在本机。</div>
+      <div class="lockbar" id="lockBar">
+        <div class="field">
+          <label>归档口令</label>
+          <input id="passInput" type="password" placeholder="至少 8 位" data-i18n-ph="history.passPlaceholder">
+        </div>
+        <div class="toolbar">
+          <button class="act" id="btnUnlock">解锁归档</button>
+          <button class="act ghost" id="btnSetPass" hidden>设置口令</button>
+        </div>
+        <div class="status" id="lockStatus"></div>
+      </div>
+      <table id="historyTable" hidden>
+        <thead><tr><th>时间</th><th>表</th><th>单元格</th><th>变化</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="historyEmpty">暂无修改记录。</div>
+    </section>
+
+    <section id="panel-sync" hidden>
+      <div class="field">
+        <label>仓库</label>
+        <input id="syncRepo" placeholder="owner/repo">
+      </div>
+      <div class="field">
+        <label>分支</label>
+        <input id="syncBranch" placeholder="main">
+      </div>
+      <div class="field">
+        <label>口令</label>
+        <input id="syncPass" type="password" placeholder="上传前输入" data-i18n-ph="sync.passPlaceholder">
+      </div>
+      <div class="toolbar">
+        <button class="act" id="btnPull" disabled>拉取</button>
+        <button class="act" id="btnPush" disabled>上传</button>
+      </div>
+      <div class="note danger" data-i18n="sync.note">上传会把本机数据发到 GitHub。工作区规则要求本地化数据不出本机，因此该功能默认禁用，需你明确授权并指定仓库与内容范围后才可启用。</div>
+      <div class="hint" data-i18n="sync.hint">口令只用于解锁本机助手，不会上传；GitHub 令牌由助手从环境变量读取。</div>
+      <div class="status" id="syncStatus"></div>
+    </section>
+
+    <section id="panel-nas" hidden>
+      <div class="nas-head">
+        <div class="nas-head-brand">
+          <div class="nas-title">
+            <svg class="nas-mark" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#2563eb"/>
+              <rect x="5.2" y="6" width="13.6" height="3.7" rx="1.85" fill="#fff"/>
+              <rect x="5.2" y="11" width="13.6" height="3.7" rx="1.85" fill="#fff" opacity=".72"/>
+              <path d="M5 19c2.4-1.8 4.8-1.8 7.2 0s4.8 1.8 7.2 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>NAS
+          </div>
+          <div class="nas-sub">登录 · 管理平台</div>
+        </div>
+        <span class="nas-build" id="nasBuild">构建 202611052037</span>
+      </div>
+      <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.22.238:8443</span></div>
+      <div id="nasLoginBox" class="nas-authcard">
+        <div class="nas-section-title">登录 NAS</div>
+        <div class="field">
+          <label>NAS 账号</label>
+          <input id="nasUser" placeholder="账号">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input id="nasPass" type="password" placeholder="密码">
+        </div>
+        <button class="act nas-login" id="btnNasLogin">登录并连接</button>
+      </div>
+      <div id="nasSession" class="nas-authcard" hidden>
+        <div class="field">
+          <label>已登录账号</label>
+          <div class="nas-account" id="nasWho">—</div>
+        </div>
+        <button class="act ghost nas-logout" id="btnNasLogout">退出登录</button>
+        <div class="hint" id="nasSessionHint">登录状态已保存在本设备，下次打开无需再次输入密码。</div>
+      </div>
+      <button class="act nas-console nas-console-bottom" id="btnNasConsole">
+        <span>打开 NAS 操作台</span><span class="nas-console-arrow" aria-hidden="true">→</span>
+      </button>
+      <div class="hint" id="nasConsoleHint">在系统浏览器中打开管理平台</div>
+      <div class="hint" id="nasSyncState" hidden>保存工作簿时，会自动把非空译文修改同步到当前 NAS 项目。</div>
+      <div class="count nas-status" id="nasStatus"></div>
+      <div id="nasAdvanced" hidden>
+      <div class="nas-authcard" id="nasTermsCard" hidden>
+        <div class="nas-section-title">术语追踪 <span class="nas-term-count" id="nasTermCount"></span></div>
+        <div class="nas-terms" id="nasTermList"></div>
+      </div>
+      <div class="colrow">
+        <div class="colfield"><label>项目</label><select id="nasProject" class="mini"></select></div>
+        <div class="colfield"><label>语言</label><select id="nasLang" class="mini"></select></div>
+      </div>
+      <div class="field"><input id="nasQuery" type="search" placeholder="搜索原文或译文"></div>
+      <table id="nasTable" hidden>
+        <thead><tr><th>原文</th><th>译文</th><th>状态</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="toolbar">
+        <button class="act ghost" id="btnNasPrev">上一页</button>
+        <span class="count" id="nasPage"></span>
+        <button class="act ghost" id="btnNasNext">下一页</button>
+      </div>
+      <div class="hint" id="nasHint">点击任意行，在 WPS 表格中定位该原文。</div>
+      </div>
+    </section>
+
+    <section id="panel-settings" hidden>
+      <div class="field">
+        <label id="uiLangLabel">界面语言</label>
+        <select id="uiLang" class="mini"></select>
+        <div class="hint" data-i18n="settings.uiLangHint">影响标签页、面板标题与主要按钮；说明性提示仍为中文，后续逐条补齐。</div>
+      </div>
+      <div class="field">
+        <label id="targetLangLabel">目标语言</label>
+        <select id="targetLang" class="mini"></select>
+        <div class="hint" data-i18n="settings.sourceHint">源语固定为中文。切换目标语言会影响列识别、术语表筛选与质检标点规则。</div>
+      </div>
+      <div class="field">
+        <label id="projectLabel">项目（表格规则）</label>
+        <div class="colinput">
+          <select id="projectSelect" class="mini"></select>
+          <button class="act ghost" id="btnManageProjects" disabled title="项目结构管理：入口预留，暂未开放">管理项目</button>
+        </div>
+        <div class="hint" data-i18n="settings.projectHint">不同项目文档的表格规则不同；切换项目会套用其列映射。项目管理入口已预留。</div>
+      </div>
+      <div class="field">
+        <label data-i18n="settings.importLabel">导入术语表（JSON / XLSX / TXT）</label>
+        <input id="termFile" type="file" hidden>
+        <div class="toolbar">
+          <button class="act ghost" id="btnTermFile" type="button" data-i18n="file.choose">选择文件</button>
+          <span class="hint" id="termFileName" data-i18n="file.none">未选择任何文件</span>
+        </div>
+      </div>
+      <div class="note" data-i18n="settings.importHint">支持 .xlsx、.xls、JSON 与 TXT。TXT 使用 UTF-8 BOM + CRLF，每行“源语 TAB 译文 [TAB 语言代码]”；语言代码缺省时使用当前目标语言。也支持完整本地化表：自动识别多组源文/目标列，按目标语言导入。JSON 格式：[{"zh":"刺鱼","en":"Hook"}] 或 {"terms":[…]}</div>
+      <div class="field">
+        <label id="columnsLabel">列设置（用于当前表）</label>
+        <div class="hint" style="margin-bottom:8px" data-i18n="settings.columnHint">填列字母，不是列名。在 WPS 里点一下该列任意单元格，左上角名称框显示如 C12，字母 C 就是列。示例：C=中文原文，F=目标语言译文。</div>
+        <div class="colrow">
+          <div class="colfield">
+            <label>源文列（中文）</label>
+            <div class="colinput"><input id="colSource" placeholder="C"><button class="act ghost" data-col="colSource">用当前列</button></div>
+            <div class="hint">术语匹配、定位、原文搜索都读这一列。</div>
+          </div>
+          <div class="colfield">
+            <label>译文列（目标语言）</label>
+            <div class="colinput"><input id="colTarget" placeholder="F"><button class="act ghost" data-col="colTarget">用当前列</button></div>
+            <div class="hint">写入并下一条、定位译文写的是这一列；语言由「目标语言」决定。</div>
+          </div>
+          <div class="colfield">
+            <label>旧译文列（上一版存档）</label>
+            <div class="colinput"><input id="colOld" placeholder="E"><button class="act ghost" data-col="colOld">用当前列</button></div>
+            <div class="hint">写入新译文前，旧值自动存到这里，可用于回退。</div>
+          </div>
+
+        </div>
+      </div>
+      <div id="aiSettingsSection">
+      <hr class="rule">
+      <h3 class="sub">AI 翻译</h3>
+      <div class="field">
+        <label>AI 服务</label>
+        <select id="aiProvider" class="mini">
+          <option value="codex">Codex CLI（本机）</option>
+          <option value="openai">OpenAI</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="anthropic">Claude / Anthropic</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="workbuddy">WorkBuddy（OpenAI 兼容）</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="groq">Groq</option>
+          <option value="mistral">Mistral</option>
+          <option value="xai">xAI Grok</option>
+          <option value="qwen">Qwen / DashScope</option>
+          <option value="moonshot">Moonshot / Kimi</option>
+          <option value="local">本地 OpenAI 兼容</option>
+          <option value="custom">自定义 OpenAI 兼容</option>
+        </select>
+      </div>
+      <div class="field"><label>模型</label><input id="aiModel" placeholder="例如 deepseek-chat"></div>
+      <div class="field"><label>接口地址</label><input id="aiBaseUrl" placeholder="https://.../v1；Codex 可留空"></div>
+      <div class="field"><label>API Key</label><input id="aiApiKey" type="password" placeholder="留空保持已保存的密钥"></div>
+      <div class="toolbar">
+        <button class="act" id="btnAISaveConfig">保存到本机 AI 网关</button>
+        <button class="act ghost" id="btnAIClearKey">清除密钥</button>
+        <span class="status" id="aiConfigStatus"></span>
+      </div>
+      <div class="hint">密钥只保存在本机 <code>~/.tide-ai/config.json</code>（0600），不进入插件存储或工作表。</div>
+
+      <hr class="rule">
+      <h3 class="sub">AI 代理平台</h3>
+      <label class="chk"><input type="checkbox" id="useAIProxy"> <span>使用代理平台（其他设备共享服务）</span></label>
+      <div class="field"><label>代理地址</label><input id="aiProxyUrl" placeholder="http://192.168.1.10:8915"></div>
+      <div class="field"><label>设备令牌</label><input id="aiProxyToken" type="password" placeholder="由代理管理员生成"></div>
+      <div class="toolbar">
+        <button class="act" id="btnSaveAIProxy">保存代理设置</button>
+        <button class="act ghost" id="btnTestAIProxy">测试连接</button>
+        <span class="status" id="aiProxyStatus"></span>
+      </div>
+      <div class="hint">模型 API Key 只存在代理服务器；本机只保存设备令牌。</div>
+
+      <hr class="rule">
+      <h3 class="sub">MCP 协作</h3>
+      <div class="hint">外部 AI（Codex、Claude Desktop 等）通过 MCP 读取当前原文，并把译文写入草稿框；不会自动写入工作表。</div>
+      <textarea id="mcpConfig" rows="7" readonly style="font:10.5px/1.45 var(--mono);margin-top:6px"></textarea>
+      <div class="toolbar" style="margin-top:6px">
+        <button class="act" type="button" id="btnCopyMCP">复制 MCP 配置</button>
+        <span class="status" id="mcpStatus"></span>
+      </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="act" id="btnSave">保存设置</button>
+        <button class="act ghost" id="btnResetTerms">恢复内置术语表</button>
+        <button class="act ghost" id="btnExportTerms">导出术语表 JSON</button>
+        <button class="act ghost" id="btnExportTermsTxt">导出术语表 TXT</button>
+      </div>
+      <div class="field" id="termsUnlockBlock" hidden>
+        <label>术语表口令（加密包）</label>
+        <input id="termsPass" type="password" placeholder="与其他设备相同的口令" data-i18n-ph="term.passPlaceholder">
+        <div class="toolbar"><button class="act" id="btnUnlockTerms">解锁术语表</button></div>
+      </div>
+      <div class="hint" id="termSource">内置术语表未加载</div>
+      <div class="status" id="settingsStatus"></div>
+      <div class="hint" id="envHint"></div>
+    </section>
+  </main>
+  <div class="scroll-rail v" id="mainRailV"><div class="scroll-thumb" id="mainThumbV"></div></div>
+  <div class="scroll-rail h" id="mainRailH"><div class="scroll-thumb" id="mainThumbH"></div></div>
+  </div>
+
+  <div class="update-modal" id="updateModal" hidden role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+    <div class="update-card">
+      <div class="update-kicker">TIDE UPDATE</div>
+      <h2 id="updateTitle">发现新版本</h2>
+      <div class="update-build" id="updateBuild"></div>
+      <h3>本次更新</h3>
+      <ul id="updateNotes"></ul>
+      <div class="update-actions">
+        <button class="act ghost" type="button" id="btnUpdateLater">稍后</button>
+        <button class="act" type="button" id="btnUpdateNow">立即更新</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../vendor/xlsx.full.min.js"></script>
+  <script src="../js/engine.js"></script>
+  <script src="../js/langs.js"></script>
+  <script src="../js/morph.js"></script>
+  <script src="../js/tm.js"></script>
+  <script src="../js/qa.js"></script>
+  <script src="../js/crypto.js"></script>
+  <script src="i18n-static.js?b=202611052037"></script>
+  <script src="i18n-patch.js?b=202611052037"></script>
+  <script src="i18n.js?b=202611052037"></script>
+  <script src="nas-config.js?v=202611041500"></script>
+  <script src="tide.js?b=202611052037"></script>
+  <script src="onboarding.js?b=202611052037"></script>
+</body>
+</html>

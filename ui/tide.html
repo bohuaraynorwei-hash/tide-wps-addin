@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tide · 术语审校</title>
-  <link rel="stylesheet" href="tide.css?b=20261124162033">
+  <link rel="stylesheet" href="tide.css?b=20261127095302">
 </head>
 <body>
   <header class="bar">
@@ -71,6 +71,8 @@
       <div class="toolbar">
         <button class="act ghost" id="btnTasksRefresh" data-i18n="btn.refresh">刷新</button>
         <button class="act ghost" id="btnPullAllTasks" type="button">拉取全部增量</button>
+        <button class="act ghost" id="btnSyncTable" type="button"
+                title="不分配任务也能把 NAS 上该语言的全量表按原表位置对齐到当前工作簿">同步整表</button>
         <span class="count" id="taskCount"></span>
       </div>
       <div class="hint" id="taskHint" data-i18n="task.hintLogin">通过 NAS 登录后，这里会列出分配给你的任务。</div>
@@ -99,6 +101,11 @@
           <span class="task-context-meta" id="taskContextMeta"></span>
         </div>
         <div class="task-context-actions">
+          <button class="act ghost mini" id="btnTaskPrev" type="button"
+                  title="在当前任务分配到的条目里跳到上一条">上一条</button>
+          <span class="count" id="taskItemPos"></span>
+          <button class="act ghost mini" id="btnTaskNext" type="button"
+                  title="在当前任务分配到的条目里跳到下一条">下一条</button>
           <button class="act mini" id="btnTaskComplete" type="button">提交任务</button>
           <button class="act ghost mini" id="btnTaskBack" type="button">任务列表</button>
         </div>
@@ -598,7 +605,7 @@
           </div>
           <div class="nas-sub">登录 · 管理平台</div>
         </div>
-        <span class="nas-build" id="nasBuild">构建 202611052037</span>
+        <span class="nas-build" id="nasBuild">构建 202611261128</span>
       </div>
       <div class="nas-server"><span class="dot"></span><span id="nasServerLabel">192.168.22.238:8443</span></div>
       <div id="nasLoginBox" class="nas-authcard">
@@ -797,9 +804,9 @@
   <script src="../js/crypto.js"></script>
   <script src="i18n-static.js?b=202611052037"></script>
   <script src="i18n-patch.js?b=202611052037"></script>
-  <script src="i18n.js?b=20261124162033"></script>
+  <script src="i18n.js?b=20261127095302"></script>
   <script src="nas-config.js?v=202611041500"></script>
-  <script src="tide.js?b=20261124162033"></script>
-  <script src="onboarding.js?b=20261124162033"></script>
+  <script src="tide.js?b=20261127095302"></script>
+  <script src="onboarding.js?b=20261127095302"></script>
 </body>
 </html>
